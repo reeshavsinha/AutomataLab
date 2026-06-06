@@ -1,0 +1,207 @@
+/* ============================================================
+   AutomataLab — Global CSS
+   White background, black outlines, plain styling.
+   ============================================================ */
+
+@import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
+
+/* ── Google Fonts ─────────────────────────────────────────── */
+/* Loaded via index.html <link> */
+
+/* ── CSS Custom Properties ──────────────────────────────────── */
+:root {
+  --bg-primary:     #ffffff;
+  --bg-secondary:   #f4f4f5;
+  --bg-tertiary:    #e4e4e7;
+  --bg-card:        #ffffff;
+  --bg-elevated:    #ffffff;
+
+  --border-subtle:  #e4e4e7;
+  --border-default: #d4d4d8;
+  --border-strong:  #a1a1aa;
+
+  --text-primary:   #000000;
+  --text-secondary: #555555;
+  --text-muted:     #888888;
+  --text-accent:    #000000;
+
+  --state-accept:   #000000;
+  --state-reject:   #999999;
+  --state-active:   #000000;
+  --state-start:    #000000;
+
+  --font-sans:  'Inter', system-ui, sans-serif;
+  --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
+
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  10px;
+  --radius-xl:  16px;
+  --radius-full: 9999px;
+
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.1);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.15);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,0.2);
+
+  --transition-fast:   0ms;
+  --transition-normal: 0ms;
+  --transition-slow:   0ms;
+}
+
+/* ── Base Reset ─────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── React Flow canvas overrides ───────────────────────────── */
+.react-flow {
+  background: var(--bg-primary) !important;
+}
+
+.react-flow__background pattern circle,
+.react-flow__background pattern path {
+  stroke: #e4e4e7 !important;
+  fill: #e4e4e7 !important;
+}
+
+.react-flow__edge-path {
+  stroke: var(--text-primary);
+  stroke-width: 1.0;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--text-primary);
+  stroke-width: 1.5;
+}
+
+.react-flow__controls {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: none !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--border-default) !important;
+  color: var(--text-secondary) !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.react-flow__controls-button svg {
+  fill: currentColor !important;
+}
+
+/* ── Custom Scrollbar ───────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+}
+
+/* ── State Node Styles ──────────────────────────────────────── */
+.state-node {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  border: 1px solid var(--text-primary);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.state-node:hover {
+  border-width: 2px;
+}
+
+.state-node.selected {
+  border-width: 2px;
+  outline: 2px solid var(--border-strong);
+  outline-offset: 2px;
+}
+
+/* Start state arrow: drawn outside the node via CSS */
+.state-node.start::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent var(--text-primary);
+}
+
+/* Accept state: double ring */
+.state-node.accept::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--text-primary);
+}
+
+/* Active state during simulation: bold border + grey bg */
+.state-node.active {
+  border-width: 3px !important;
+  background: var(--bg-secondary);
+}
+
+/* Transition-start mode: highlight eligible target states */
+.state-node.transition-target-mode {
+  border-color: var(--border-strong);
+  cursor: crosshair;
+}
+
+.state-node.accepted-final {
+  background: var(--bg-secondary);
+}
+
+.state-node.rejected-final {
+  border-color: var(--border-strong);
+  opacity: 0.5;
+}
