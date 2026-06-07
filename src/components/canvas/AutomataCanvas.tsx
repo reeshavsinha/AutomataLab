@@ -22,6 +22,7 @@ import {
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
+import { formatPdaLabel } from '@/engines/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -39,11 +40,6 @@ const EDGE_TYPES = { transitionEdge: TransitionEdge }
 // we enter this mode. Clicking another state completes the transition.
 interface TransitionDrawMode {
   fromStateId: string
-}
-
-// ─── Transition editor modal state ─────────────────────────────
-interface EditorState {
-  stateId: string
 }
 
 function buildNodes(
@@ -68,14 +64,20 @@ function buildNodes(
   }))
 }
 
+const PDA_TYPES = ['DPDA', 'NPDA']
+
 function buildEdges(
   machine: ReturnType<typeof useMachineStore.getState>['machine'],
   activeTransitionIds: string[],
   selectedTransitionIds: string[],
   transitionMode: TransitionDrawMode | null
 ): Edge[] {
+  const isPDA = PDA_TYPES.includes(machine.type)
+
   // Group by from__to pair so multiple transitions share one visual edge
-  const edgeMap = new Map<string, string[]>()
+  const edgeMap = new Map<string, string[]>()      // FA: merged symbols
+  const pdaLabelMap = new Map<string, string[]>()   // PDA: one label per transition
+  const memberMap = new Map<string, string[]>()     // all transition ids for the pair
   const edgeIdMap = new Map<string, string>()
   const edgeOffsetMap = new Map<string, { x: number; y: number } | undefined>()
 
@@ -83,13 +85,19 @@ function buildEdges(
     const key = `${t.from}__${t.to}`
     if (!edgeMap.has(key)) {
       edgeMap.set(key, [])
+      pdaLabelMap.set(key, [])
+      memberMap.set(key, [])
       edgeIdMap.set(key, t.id)
       edgeOffsetMap.set(key, t.controlPointOffset)
     }
-    // merge all symbols for this pair
-    for (const sym of t.symbols) {
-      if (!edgeMap.get(key)!.includes(sym)) {
-        edgeMap.get(key)!.push(sym)
+    memberMap.get(key)!.push(t.id)
+    if (isPDA) {
+      pdaLabelMap.get(key)!.push(formatPdaLabel(t.read, t.pop, t.push))
+    } else {
+      for (const sym of t.symbols) {
+        if (!edgeMap.get(key)!.includes(sym)) {
+          edgeMap.get(key)!.push(sym)
+        }
       }
     }
   }
@@ -98,7 +106,9 @@ function buildEdges(
   for (const [key, symbols] of edgeMap) {
     const [from, to] = key.split('__')
     const edgeId = edgeIdMap.get(key)!
-    const isActive = activeTransitionIds.includes(edgeId)
+    const memberTransitionIds = memberMap.get(key)!
+    const pdaLabels = pdaLabelMap.get(key)!
+    const isActive = memberTransitionIds.some((mid) => activeTransitionIds.includes(mid))
     const hasReverse = edgeMap.has(`${to}__${from}`) && from !== to
 
     edges.push({
@@ -106,11 +116,14 @@ function buildEdges(
       source: from,
       target: to,
       type: 'transitionEdge',
-      data: { 
-        symbols, 
+      data: {
+        symbols,
         isSelfLoop: from === to,
         hasReverse,
-        controlPointOffset: edgeOffsetMap.get(key)
+        controlPointOffset: edgeOffsetMap.get(key),
+        isPDA,
+        pdaLabels,
+        memberTransitionIds,
       },
       selected: selectedTransitionIds.includes(edgeId),
       markerEnd: {
@@ -174,6 +187,22 @@ function areEdgesEqual(edgesA: Edge[], edgesB: Edge[]): boolean {
       if (symsA[i] !== symsB[i]) { return false; }
     }
 
+    if ((dA.isPDA ?? false) !== (dB.isPDA ?? false)) { return false; }
+
+    const pdaA = dA.pdaLabels || []
+    const pdaB = dB.pdaLabels || []
+    if (pdaA.length !== pdaB.length) { return false; }
+    for (let i = 0; i < pdaA.length; i++) {
+      if (pdaA[i] !== pdaB[i]) { return false; }
+    }
+
+    const memA = dA.memberTransitionIds || []
+    const memB = dB.memberTransitionIds || []
+    if (memA.length !== memB.length) { return false; }
+    for (let i = 0; i < memA.length; i++) {
+      if (memA[i] !== memB[i]) { return false; }
+    }
+
     const oA = dA.controlPointOffset
     const oB = dB.controlPointOffset
     if (!!oA !== !!oB) { return false; }
@@ -194,16 +223,30 @@ function AutomataCanvasInner() {
     selectedStateIds, selectedTransitionIds,
     setSelectedStateIds, setSelectedTransitionIds,
     clearSelection, startRenaming, setEditingTransition,
+    openTransitionEditor, closeTransitionEditor, transitionEditorStateId,
     clipboard, setClipboard 
   } = useUIStore()
- 
+
+  const isPDA = PDA_TYPES.includes(machine.type)
+
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<any>(null)
   const [contextMenu, setContextMenu] = useState<ContextMenuConfig | null>(null)
   const [transitionMode, setTransitionMode] = useState<TransitionDrawMode | null>(null)
-  const [editorState, setEditorState] = useState<EditorState | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectionModeActive, setSelectionModeActive] = useState(false)
+
+  // After creating a transition, FA edits inline on the canvas; PDA opens the modal.
+  const beginEditingNewTransition = useCallback(
+    (transitionId: string, fromStateId: string) => {
+      if (isPDA) {
+        openTransitionEditor(fromStateId)
+      } else {
+        setEditingTransition(transitionId)
+      }
+    },
+    [isPDA, openTransitionEditor, setEditingTransition]
+  )
 
   // ── Derived nodes/edges from machine store ──────────────────
   const nodes = useMemo(
@@ -293,12 +336,12 @@ function AutomataCanvasInner() {
         if (s?.isText) return
 
         const newTrans = addTransition(fromStateId, node.id, [])
-        setEditingTransition(newTrans.id)
+        beginEditingNewTransition(newTrans.id, fromStateId)
         setTransitionMode(null)
         setMousePos(null)
       }
     },
-    [transitionMode, addTransition, machine.states, setEditingTransition]
+    [transitionMode, addTransition, machine.states, beginEditingNewTransition]
   )
 
   // ── React Flow selection change sync ────────────────────────
@@ -455,9 +498,9 @@ function AutomataCanvasInner() {
       if (targetState?.isText) return
 
       const newTrans = addTransition(connection.source, connection.target, [])
-      setEditingTransition(newTrans.id)
+      beginEditingNewTransition(newTrans.id, connection.source)
     },
-    [addTransition, machine.states, setEditingTransition]
+    [addTransition, machine.states, beginEditingNewTransition]
   )
 
   // ── Drag stop → persist position ────────────────────────────
@@ -693,12 +736,12 @@ function AutomataCanvasInner() {
             setContextMenu(null)
           }}
           onEditStateTransitions={(stateId) => {
-            setEditorState({ stateId })
+            openTransitionEditor(stateId)
             setContextMenu(null)
           }}
           onEditTransitionSymbols={(transitionId) => {
             const t = machine.transitions.find((tr) => tr.id === transitionId)
-            if (t) setEditorState({ stateId: t.from })
+            if (t) openTransitionEditor(t.from)
             setContextMenu(null)
           }}
           onRenameState={(stateId) => {
@@ -709,10 +752,10 @@ function AutomataCanvasInner() {
       )}
 
       {/* Transition editor modal */}
-      {editorState && (
+      {transitionEditorStateId && (
         <TransitionEditor
-          stateId={editorState.stateId}
-          onClose={() => setEditorState(null)}
+          stateId={transitionEditorStateId}
+          onClose={closeTransitionEditor}
         />
       )}
     </div>

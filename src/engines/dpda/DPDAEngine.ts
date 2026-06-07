@@ -1,0 +1,236 @@
+// ============================================================
+// AutomataLab — DPDA Engine
+// Deterministic Pushdown Automaton simulation engine.
+// A single configuration carries the current state + a stack.
+// Transition format: (state, read, pop) → (state', push).
+// Acceptance: by FINAL STATE with the input fully consumed.
+// Stack convention: the TOP of the stack is the LAST array element.
+// Pure TypeScript — zero React/UI dependencies.
+// ============================================================
+
+import type {
+  Automaton,
+  Configuration,
+  HistoryEntry,
+  MachineDefinition,
+  SimulationStatus,
+  StepResult,
+  Transition,
+} from '../core/types'
+import { buildConfig, getStartState, isEpsilon } from '../core/utils'
+
+/** Safety cap: guards against non-terminating ε-input/ε-pop push loops. */
+const DEFAULT_MAX_STEPS = 10_000
+
+export class DPDAEngine implements Automaton {
+  private definition: MachineDefinition
+  private currentStateId: string | null = null
+  /** Stack contents; the top of the stack is the LAST element. */
+  private stack: string[] = []
+  private inputChars: string[] = []
+  private inputIndex: number = 0
+  private status: SimulationStatus = 'idle'
+  private history: HistoryEntry[] = []
+  private stepGuard: number = 0
+  private readonly maxSteps: number
+
+  constructor(definition: MachineDefinition, maxSteps: number = DEFAULT_MAX_STEPS) {
+    this.definition = definition
+    this.maxSteps = maxSteps
+  }
+
+  initialize(input: string): void {
+    const startState = getStartState(this.definition)
+    if (!startState) {
+      this.status = 'error'
+      return
+    }
+    this.currentStateId = startState.id
+    this.stack = []
+    this.inputChars = input === '' ? [] : input.split('')
+    this.inputIndex = 0
+    this.status = 'running'
+    this.history = []
+    this.stepGuard = 0
+  }
+
+  step(): StepResult {
+    if (this.status !== 'running' || this.currentStateId === null) {
+      return this._makeResult('stuck')
+    }
+
+    // Guard against infinite ε-loops (e.g. a self-loop that only pushes).
+    this.stepGuard++
+    if (this.stepGuard > this.maxSteps) {
+      this.status = 'stuck'
+      return this._makeResult('stuck')
+    }
+
+    // Final-state acceptance: input fully consumed and in an accept state.
+    if (this.inputIndex >= this.inputChars.length && this._isAccept(this.currentStateId)) {
+      this.status = 'accepted'
+      return this._makeResult('accepted')
+    }
+
+    const t = this._pickTransition()
+    if (!t) {
+      // No applicable move → terminal. (We are not in an accepting halt,
+      // otherwise the check above would have fired.)
+      this.status = 'rejected'
+      return this._makeResult('rejected')
+    }
+
+    // ── Apply the transition ───────────────────────────────────
+    const fromStateId = this.currentStateId
+    const read = t.read ?? ''
+    const pop = t.pop ?? ''
+    const push = t.push ?? ''
+
+    if (!isEpsilon(pop)) {
+      this.stack.pop()
+    }
+    if (!isEpsilon(push)) {
+      // Push so the FIRST char of `push` ends up on top of the stack.
+      for (let i = push.length - 1; i >= 0; i--) {
+        this.stack.push(push[i])
+      }
+    }
+
+    const consumesInput = !isEpsilon(read)
+    if (consumesInput) {
+      this.inputIndex++
+    }
+    this.currentStateId = t.to
+
+    // ── Determine the resulting status ─────────────────────────
+    const noMoreInput = this.inputIndex >= this.inputChars.length
+    let newStatus: SimulationStatus
+    if (noMoreInput && this._isAccept(this.currentStateId)) {
+      newStatus = 'accepted'
+    } else if (this._pickTransition() !== null) {
+      newStatus = 'running'
+    } else {
+      newStatus = 'rejected'
+    }
+    this.status = newStatus
+
+    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
+    const remaining = this.inputChars.slice(this.inputIndex).join('')
+
+    const entry: HistoryEntry = {
+      step: this.history.length,
+      fromStateIds: [fromStateId],
+      toStateIds: [t.to],
+      // Log shows ε for stack-only moves; the tape highlight (StepResult.symbol) stays blank.
+      symbol: consumesInput ? read : 'ε',
+      transitionIds: [t.id],
+      status: newStatus,
+    }
+    this.history.push(entry)
+
+    return {
+      status: newStatus,
+      activeStateIds: [t.to],
+      consumedInput: consumed,
+      remainingInput: remaining,
+      symbol: consumesInput ? read : '',
+      transitionIds: [t.id],
+      historyEntry: entry,
+      configurations: [this._config(newStatus)],
+      stack: [...this.stack],
+    }
+  }
+
+  reset(): void {
+    this.currentStateId = null
+    this.stack = []
+    this.inputChars = []
+    this.inputIndex = 0
+    this.status = 'idle'
+    this.history = []
+    this.stepGuard = 0
+  }
+
+  getCurrentConfigurations(): Configuration[] {
+    if (this.currentStateId === null) return []
+    return [this._config(this.status)]
+  }
+
+  getExecutionHistory(): HistoryEntry[] {
+    return [...this.history]
+  }
+
+  isAccepted(): boolean | null {
+    if (this.status === 'accepted') return true
+    if (this.status === 'rejected' || this.status === 'stuck') return false
+    return null
+  }
+
+  getStatus(): SimulationStatus {
+    return this.status
+  }
+
+  // ── Internals ──────────────────────────────────────────────
+
+  private _isAccept(stateId: string): boolean {
+    return this.definition.states.find((s) => s.id === stateId)?.isAccept ?? false
+  }
+
+  /** A transition applies when its read matches (or is ε) and its pop matches the stack top (or is ε). */
+  private _applicable(): Transition[] {
+    const top = this.stack.length > 0 ? this.stack[this.stack.length - 1] : null
+    return this.definition.transitions.filter((t) => {
+      if (t.from !== this.currentStateId) return false
+      const read = t.read ?? ''
+      const pop = t.pop ?? ''
+      const readOk = isEpsilon(read) || (this.inputIndex < this.inputChars.length && this.inputChars[this.inputIndex] === read)
+      const popOk = isEpsilon(pop) || (top !== null && top === pop)
+      return readOk && popOk
+    })
+  }
+
+  /**
+   * Pick the single applicable transition. A well-formed DPDA never has more
+   * than one (the validator flags conflicts); when several match we take the
+   * first in definition order so behaviour stays deterministic and predictable.
+   */
+  private _pickTransition(): Transition | null {
+    return this._applicable()[0] ?? null
+  }
+
+  private _config(status: SimulationStatus): Configuration {
+    return buildConfig({
+      stateId: this.currentStateId!,
+      inputChars: this.inputChars,
+      inputIndex: this.inputIndex,
+      status,
+      stack: [...this.stack],
+    })
+  }
+
+  /** Build a terminal/no-move StepResult that reports the current configuration unchanged. */
+  private _makeResult(status: SimulationStatus): StepResult {
+    const activeStateIds = this.currentStateId ? [this.currentStateId] : []
+    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
+    const remaining = this.inputChars.slice(this.inputIndex).join('')
+    const entry: HistoryEntry = {
+      step: this.history.length,
+      fromStateIds: activeStateIds,
+      toStateIds: activeStateIds,
+      symbol: '',
+      transitionIds: [],
+      status,
+    }
+    return {
+      status,
+      activeStateIds,
+      consumedInput: consumed,
+      remainingInput: remaining,
+      symbol: '',
+      transitionIds: [],
+      historyEntry: entry,
+      configurations: this.currentStateId ? [this._config(status)] : [],
+      stack: [...this.stack],
+    }
+  }
+}

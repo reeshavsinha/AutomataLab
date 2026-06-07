@@ -6,7 +6,7 @@
 import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
-export type ActivePanel = 'history' | 'validation' | 'info'
+export type ActivePanel = 'history' | 'validation' | 'info' | 'stack'
 
 export interface ClipboardData {
   states: {
@@ -32,6 +32,8 @@ interface UIStore {
   selectedTransitionIds: string[]
   activePanel: ActivePanel
   isEditingTransition: string | null // transition id being edited
+  // State id whose outgoing-transitions modal is open (used for PDA editing), or null.
+  transitionEditorStateId: string | null
   renamingStateId: string | null
   clipboard: ClipboardData | null
 
@@ -44,6 +46,8 @@ interface UIStore {
   selectTransition: (id: string | null) => void
   setActivePanel: (panel: ActivePanel) => void
   setEditingTransition: (id: string | null) => void
+  openTransitionEditor: (stateId: string) => void
+  closeTransitionEditor: () => void
   startRenaming: (id: string) => void
   stopRenaming: () => void
   clearSelection: () => void
@@ -56,6 +60,7 @@ export const useUIStore = create<UIStore>((set) => ({
   selectedTransitionIds: [],
   activePanel: 'history',
   isEditingTransition: null,
+  transitionEditorStateId: null,
   renamingStateId: null,
   clipboard: null,
 
@@ -82,6 +87,9 @@ export const useUIStore = create<UIStore>((set) => ({
   setActivePanel: (activePanel) => set({ activePanel }),
 
   setEditingTransition: (isEditingTransition) => set({ isEditingTransition }),
+
+  openTransitionEditor: (transitionEditorStateId) => set({ transitionEditorStateId }),
+  closeTransitionEditor: () => set({ transitionEditorStateId: null }),
 
   startRenaming: (id) => set({ renamingStateId: id }),
 

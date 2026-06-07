@@ -247,6 +247,7 @@ export default function Toolbar() {
             <option value="DFA">DFA</option>
             <option value="NFA">NFA</option>
             <option value="ENFA">ε-NFA</option>
+            <option value="DPDA">DPDA</option>
           </select>
         </div>
       </div>
