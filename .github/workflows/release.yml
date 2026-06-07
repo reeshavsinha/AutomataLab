@@ -40,6 +40,7 @@ jobs:
 
       - name: Get version
         run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+        shell: bash
 
       - name: Build and Release Tauri app
         uses: tauri-apps/tauri-action@v0
