@@ -7,6 +7,7 @@ import InputBar from '@/components/controls/InputBar'
 import SimulationControls from '@/components/controls/SimulationControls'
 import AutomataCanvas from '@/components/canvas/AutomataCanvas'
 import SidePanel from '@/components/panels/SidePanel'
+import TabBar from '@/components/layout/TabBar'
 
 export default function AppLayout() {
   return (
@@ -34,6 +35,9 @@ export default function AppLayout() {
         {/* Right side panel */}
         <SidePanel />
       </div>
+
+      {/* Tab Bar */}
+      <TabBar />
 
       {/* Bottom simulation controls */}
       <SimulationControls />

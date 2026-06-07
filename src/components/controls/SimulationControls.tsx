@@ -181,9 +181,32 @@ export default function SimulationControls() {
             cursor: 'pointer',
           }}
         />
-        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', minWidth: '28px' }}>
-          {speed}×
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <input
+            type="number"
+            min={0.1}
+            step={0.1}
+            value={speed}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value)
+              if (!isNaN(val)) setSpeed(val)
+            }}
+            style={{
+              width: '40px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              fontSize: '11px',
+              fontFamily: 'var(--font-mono)',
+              outline: 'none',
+              textAlign: 'right',
+              padding: '0',
+            }}
+          />
+          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+            ×
+          </span>
+        </div>
       </div>
 
       <div style={{ flex: 1 }} />

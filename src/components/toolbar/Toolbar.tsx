@@ -8,9 +8,11 @@ import { useState, useEffect, useRef } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
 import packageJson from '../../../package.json'
 import { saveMachine, loadMachine as loadFromFile } from '@/utils/fileManager'
+import { isTauri } from '@tauri-apps/api/core'
+import { open } from '@tauri-apps/plugin-shell'
 
 export default function Toolbar() {
-  const { machine, setMachineName, setMachineType, setAlphabet, resetMachine, loadMachine } = useMachineStore()
+  const { machine, setMachineName, setMachineType, setAlphabet, addTab, loadMachine } = useMachineStore()
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
@@ -30,9 +32,7 @@ export default function Toolbar() {
   }, [])
 
   const handleNew = () => {
-    if (confirm('Are you sure you want to create a new machine? Any unsaved progress will be lost.')) {
-      resetMachine()
-    }
+    addTab()
     setIsFileMenuOpen(false)
   }
 
@@ -80,7 +80,12 @@ export default function Toolbar() {
         alert("You are on the latest version.")
       }
     } catch (error) {
-      alert("Failed to check for updates. Ensure you have internet access or the update server is reachable.")
+      const errMsg = String(error).toLowerCase()
+      if (errMsg.includes('404') || errMsg.includes('not found')) {
+        alert("You are on the latest version (no releases found).")
+      } else {
+        alert(`Failed to check for updates. Ensure you have internet access or the update server is reachable.\n\nError: ${error}`)
+      }
       console.error("Update check error:", error)
     } finally {
       setIsCheckingUpdate(false)
@@ -108,6 +113,12 @@ export default function Toolbar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <a 
           href="https://github.com/reeshavsinha/AutomataLab"
+          onClick={async (e) => {
+            if (isTauri()) {
+              e.preventDefault()
+              await open("https://github.com/reeshavsinha/AutomataLab")
+            }
+          }}
           target="_blank"
           rel="noopener noreferrer"
           title={`Version ${packageJson.version}`}
