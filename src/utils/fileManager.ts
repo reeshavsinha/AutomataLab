@@ -35,8 +35,12 @@ function parseMachineJson(jsonString: string): MachineDefinition {
   }
 }
 
-/** Serialize and save machine as .autolab.json */
-export async function saveMachine(machine: MachineDefinition): Promise<void> {
+/**
+ * Serialize and save machine as .autolab.json.
+ * Returns true if the file was actually written, false if the user
+ * cancelled the native save dialog.
+ */
+export async function saveMachine(machine: MachineDefinition): Promise<boolean> {
   const json = JSON.stringify(machine, null, 2)
   const defaultName = `${machine.name.replace(/\s+/g, '_')}${FILE_EXTENSION}`
 
@@ -51,7 +55,9 @@ export async function saveMachine(machine: MachineDefinition): Promise<void> {
       })
       if (path) {
         await writeTextFile(path, json)
+        return true
       }
+      return false
     } catch (err) {
       console.error('Failed to save file:', err)
       throw new Error('Failed to save file via native dialog')
@@ -67,6 +73,7 @@ export async function saveMachine(machine: MachineDefinition): Promise<void> {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+    return true
   }
 }
 
