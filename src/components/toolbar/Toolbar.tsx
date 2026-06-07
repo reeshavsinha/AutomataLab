@@ -13,7 +13,7 @@ import { open } from '@tauri-apps/plugin-shell'
 import { applyAutoLayout } from '@/utils/layout'
 
 export default function Toolbar() {
-  const { machine, setMachineName, setMachineType, setAlphabet, addTab, loadMachine } = useMachineStore()
+  const { machine, activeTabIndex, setMachineName, setMachineType, setAlphabet, addTab, loadMachine, markTabSaved } = useMachineStore()
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
@@ -49,14 +49,20 @@ export default function Toolbar() {
     setIsFileMenuOpen(false)
   }
 
-  const handleSave = () => {
-    saveMachine(machine)
+  const handleSave = async () => {
     setIsFileMenuOpen(false)
+    try {
+      const saved = await saveMachine(machine)
+      if (saved) markTabSaved(activeTabIndex)
+    } catch (err) {
+      if (err instanceof Error) alert(err.message)
+    }
   }
 
   const handleAutoLayout = () => {
     const layoutedMachine = applyAutoLayout(machine)
-    loadMachine(layoutedMachine)
+    // Rearranging positions is an unsaved modification, keep the tab dirty.
+    loadMachine(layoutedMachine, false)
   }
 
   const menuItemStyle: React.CSSProperties = {

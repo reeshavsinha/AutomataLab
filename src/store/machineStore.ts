@@ -12,6 +12,9 @@ interface MachineStore {
   tabs: MachineDefinition[]
   activeTabIndex: number
 
+  // Unsaved-changes tracking, keyed by tab id
+  dirtyTabs: Record<string, boolean>
+
   // State (Active Tab)
   machine: MachineDefinition
 
@@ -19,6 +22,7 @@ interface MachineStore {
   addTab: () => void
   switchTab: (index: number) => void
   closeTab: (index: number) => void
+  markTabSaved: (index: number) => void
 
   // Actions — Machine
   setMachineName: (name: string) => void
@@ -39,7 +43,7 @@ interface MachineStore {
   setAlphabet: (alphabet: string[]) => void
 
   // Actions — File
-  loadMachine: (def: MachineDefinition) => void
+  loadMachine: (def: MachineDefinition, markClean?: boolean) => void
   resetMachine: () => void
 }
 
@@ -53,12 +57,17 @@ const createDefaultMachine = (): MachineDefinition => ({
   alphabet: [],
 })
 
-// Helper to update both the active machine and the corresponding tab
+// Helper to update both the active machine and the corresponding tab.
+// Any edit routed through here flags the active tab as having unsaved changes.
 const sync = (s: MachineStore, patch: Partial<MachineDefinition>) => {
   const updatedMachine = { ...s.machine, ...patch }
   const newTabs = [...s.tabs]
   newTabs[s.activeTabIndex] = updatedMachine
-  return { machine: updatedMachine, tabs: newTabs }
+  return {
+    machine: updatedMachine,
+    tabs: newTabs,
+    dirtyTabs: { ...s.dirtyTabs, [updatedMachine.id]: true },
+  }
 }
 
 export const useMachineStore = create<MachineStore>((set, get) => {
@@ -67,6 +76,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
   return {
     tabs: [initialMachine],
     activeTabIndex: 0,
+    dirtyTabs: {},
     machine: initialMachine,
 
     addTab: () => {
@@ -90,6 +100,10 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     closeTab: (index) => {
       set((s) => {
+        const closedId = s.tabs[index]?.id
+        const dirtyTabs = { ...s.dirtyTabs }
+        if (closedId) delete dirtyTabs[closedId]
+
         const newTabs = [...s.tabs]
         newTabs.splice(index, 1)
         
@@ -99,7 +113,8 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           return {
             tabs: [freshMachine],
             activeTabIndex: 0,
-            machine: freshMachine
+            machine: freshMachine,
+            dirtyTabs,
           }
         }
 
@@ -108,10 +123,17 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         return {
           tabs: newTabs,
           activeTabIndex: newActiveIndex,
-          machine: newTabs[newActiveIndex]
+          machine: newTabs[newActiveIndex],
+          dirtyTabs,
         }
       })
     },
+
+    markTabSaved: (index) => set((s) => {
+      const tab = s.tabs[index]
+      if (!tab) return {}
+      return { dirtyTabs: { ...s.dirtyTabs, [tab.id]: false } }
+    }),
 
     setMachineName: (name) => set((s) => sync(s, { name })),
 
@@ -201,18 +223,26 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     setAlphabet: (alphabet) =>
       set((s) => sync(s, { alphabet })),
 
-    loadMachine: (def) => set((s) => {
+    loadMachine: (def, markClean = true) => set((s) => {
       // Overwrite current tab
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = def
-      return { machine: def, tabs: newTabs }
+      return {
+        machine: def,
+        tabs: newTabs,
+        dirtyTabs: { ...s.dirtyTabs, [def.id]: !markClean },
+      }
     }),
 
     resetMachine: () => set((s) => {
       const freshMachine = createDefaultMachine()
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = freshMachine
-      return { machine: freshMachine, tabs: newTabs }
+      return {
+        machine: freshMachine,
+        tabs: newTabs,
+        dirtyTabs: { ...s.dirtyTabs, [freshMachine.id]: false },
+      }
     }),
   }
 })
