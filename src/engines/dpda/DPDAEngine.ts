@@ -191,11 +191,19 @@ export class DPDAEngine implements Automaton {
 
   /**
    * Pick the single applicable transition. A well-formed DPDA never has more
-   * than one (the validator flags conflicts); when several match we take the
-   * first in definition order so behaviour stays deterministic and predictable.
+   * than one (the validator flags conflicts). When several match — typically an
+   * ε-move (e.g. an ε-accept on the bottom marker) overlapping an input-reading
+   * move — we deterministically prefer the move that CONSUMES input. This makes
+   * the engine independent of transition authoring order (previously the
+   * ε-accept move had to be listed last) while leaving strict DPDAs unaffected,
+   * since they never have such an overlap. Among equally-ranked moves we keep
+   * definition order.
    */
   private _pickTransition(): Transition | null {
-    return this._applicable()[0] ?? null
+    const applicable = this._applicable()
+    if (applicable.length === 0) return null
+    const inputReading = applicable.find((t) => !isEpsilon(t.read ?? ''))
+    return inputReading ?? applicable[0]
   }
 
   private _config(status: SimulationStatus): Configuration {

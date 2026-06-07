@@ -5,12 +5,7 @@
 // ============================================================
 
 import type { MachineDefinition, ValidationError } from '@/engines/core/types'
-import { isEpsilon } from '@/engines/core/utils'
-
-const PDA_TYPES = ['DPDA', 'NPDA']
-function isPDAType(type: string): boolean {
-  return PDA_TYPES.includes(type)
-}
+import { isEpsilon, isPDAType } from '@/engines/core/utils'
 
 export function validateMachine(machine: MachineDefinition): ValidationError[] {
   const errors: ValidationError[] = []
