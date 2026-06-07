@@ -54,3 +54,20 @@ jobs:
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: false
           prerelease: false
+          updaterJsonPreferNsis: true
+
+  # tauri-action publishes the updater manifest as `latest.json`, but the app's
+  # configured endpoint expects `updater.json`. Mirror it once all platforms are done.
+  updater-manifest:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Mirror latest.json as updater.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output updater.json
+          gh release upload "$tag" updater.json --repo "$GITHUB_REPOSITORY" --clobber
