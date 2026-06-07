@@ -9,7 +9,8 @@ AutomataLab is currently in active development, successfully functioning as a de
 - **Supported Machine Types**: Deterministic Finite Automata (DFA), Non-Deterministic Finite Automata (NFA), and Epsilon-NFA (e-NFA).
 - **Interactive Canvas**: Drag and drop states, draw transitions, and visually arrange your automata.
 - **Live Simulation**: Run step-by-step or continuous simulations with speed control to watch the automaton process strings. Full support for non-deterministic branching computations.
-- **Application Features**: Multi-tab interface for working on multiple automata simultaneously, native OS file dialogs for saving/loading `.autolab.json` projects, and integrated over-the-air updates.
+- **Application Features**: Multi-tab interface for working on multiple automata simultaneously, native OS file dialogs for saving/loading `.autolab.json` projects, and a prompt to save unsaved work before closing a tab.
+- **Over-the-Air Updates**: Built-in signed auto-updates via the **UPDATES** button. Functional from **v1.0.2 onward** — earlier builds (v1.0.0 / v1.0.1) shipped without the required updater capability and must be updated to v1.0.2 manually, once.
 - **Real-Time Validation**: Instant feedback on missing start states, unreachable states, or nondeterminism.
 - **Copy/Paste & Selection**: Full keyboard shortcut support for selecting, moving, cutting, copying, pasting, and deleting.
 - **Execution History**: Detailed step-by-step logs of active states and consumed symbols during simulation.
