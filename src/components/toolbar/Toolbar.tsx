@@ -4,15 +4,67 @@
 // ============================================================
 
 import { useMachineStore } from '@/store/machineStore'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
+import packageJson from '../../../package.json'
+import { saveMachine, loadMachine as loadFromFile } from '@/utils/fileManager'
 
 export default function Toolbar() {
-  const { machine, setMachineName, setMachineType, setAlphabet } = useMachineStore()
+  const { machine, setMachineName, setMachineType, setAlphabet, resetMachine, loadMachine } = useMachineStore()
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+  
+  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
+        setIsFileMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleNew = () => {
+    if (confirm('Are you sure you want to create a new machine? Any unsaved progress will be lost.')) {
+      resetMachine()
+    }
+    setIsFileMenuOpen(false)
+  }
+
+  const handleLoad = async () => {
+    try {
+      const def = await loadFromFile()
+      loadMachine(def)
+    } catch (err) {
+      if (err instanceof Error && err.message !== 'No file selected') {
+        alert(err.message)
+      }
+    }
+    setIsFileMenuOpen(false)
+  }
+
+  const handleSave = () => {
+    saveMachine(machine)
+    setIsFileMenuOpen(false)
+  }
+
+  const menuItemStyle: React.CSSProperties = {
+    background: 'transparent',
+    border: 'none',
+    padding: '8px 12px',
+    textAlign: 'left',
+    color: 'var(--text-primary)',
+    fontSize: '12px',
+    fontFamily: 'var(--font-mono)',
+    cursor: 'pointer',
+    outline: 'none',
+    borderBottom: '1px solid var(--border-default)',
+  }
 
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true)
@@ -54,14 +106,21 @@ export default function Toolbar() {
     }}>
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <div style={{
-          fontWeight: 800,
-          fontSize: '14px',
-          color: 'var(--text-primary)',
-          letterSpacing: '-0.5px'
-        }}>
+        <a 
+          href="https://github.com/reeshavsinha/AutomataLab"
+          target="_blank"
+          rel="noopener noreferrer"
+          title={`Version ${packageJson.version}`}
+          style={{
+            fontWeight: 800,
+            fontSize: '14px',
+            color: 'var(--text-primary)',
+            letterSpacing: '-0.5px',
+            textDecoration: 'none',
+            cursor: 'pointer'
+          }}>
           AutomataLab
-        </div>
+        </a>
       </div>
 
       <div style={{ width: '1px', height: '20px', background: 'var(--border-default)' }} />
@@ -191,6 +250,71 @@ export default function Toolbar() {
       >
         {isCheckingUpdate ? 'CHECKING...' : 'UPDATES'}
       </button>
+
+      {/* File Menu Dropdown */}
+      <div style={{ position: 'relative' }} ref={fileMenuRef}>
+        <button
+          onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
+          style={{
+            background: isFileMenuOpen ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-primary)',
+            fontSize: '11px',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            padding: '4px 12px',
+            outline: 'none',
+            cursor: 'pointer',
+            letterSpacing: '0.04em',
+          }}
+        >
+          FILE ▼
+        </button>
+        
+        {isFileMenuOpen && (
+          <div style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: '4px',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: '120px',
+            zIndex: 100,
+            overflow: 'hidden'
+          }}>
+            <button 
+              onClick={handleNew} 
+              style={menuItemStyle}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              New
+            </button>
+            <button 
+              onClick={handleLoad} 
+              style={menuItemStyle}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              Load
+            </button>
+            <button 
+              onClick={handleSave} 
+              style={{ ...menuItemStyle, borderBottom: 'none' }}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
