@@ -10,6 +10,7 @@ import packageJson from '../../../package.json'
 import { saveMachine, loadMachine as loadFromFile } from '@/utils/fileManager'
 import { isTauri } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
+import { applyAutoLayout } from '@/utils/layout'
 
 export default function Toolbar() {
   const { machine, setMachineName, setMachineType, setAlphabet, addTab, loadMachine } = useMachineStore()
@@ -51,6 +52,11 @@ export default function Toolbar() {
   const handleSave = () => {
     saveMachine(machine)
     setIsFileMenuOpen(false)
+  }
+
+  const handleAutoLayout = () => {
+    const layoutedMachine = applyAutoLayout(machine, 'LR')
+    loadMachine(layoutedMachine)
   }
 
   const menuItemStyle: React.CSSProperties = {
@@ -240,6 +246,27 @@ export default function Toolbar() {
       </div>
 
       <div style={{ width: '1px', height: '20px', background: 'var(--border-default)', marginLeft: '12px', marginRight: '12px' }} />
+
+      {/* Auto Layout Button */}
+      <button
+        onClick={handleAutoLayout}
+        style={{
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          fontSize: '11px',
+          fontFamily: 'var(--font-mono)',
+          fontWeight: 600,
+          padding: '4px 12px',
+          outline: 'none',
+          cursor: 'pointer',
+          letterSpacing: '0.04em',
+        }}
+        title="Automatically arrange diagram"
+      >
+        AUTO LAYOUT
+      </button>
 
       {/* Update Check Button */}
       <button

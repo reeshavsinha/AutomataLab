@@ -104,11 +104,14 @@ const TransitionEdge = memo(
       const cp2x = cx + 40 + offset.x
       const cp2y = cy - 40 + offset.y
 
-      // Intersection points on top-ish of the circle
-      const sx = sourceX - 10
-      const sy = sourceY - Math.sqrt(NODE_RADIUS * NODE_RADIUS - 10 * 10)
-      const tx = sourceX + 10
-      const ty = sourceY - Math.sqrt(NODE_RADIUS * NODE_RADIUS - 10 * 10)
+      // Compute dynamic intersections with the node circle
+      const start = getIntersection(sourceX, sourceY, cp1x, cp1y, NODE_RADIUS)
+      const end = getIntersection(targetX, targetY, cp2x, cp2y, NODE_RADIUS)
+
+      const sx = start.x
+      const sy = start.y
+      const tx = end.x
+      const ty = end.y
 
       edgePath = `M ${sx} ${sy} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${tx} ${ty}`
 
