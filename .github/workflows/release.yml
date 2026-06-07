@@ -53,4 +53,4 @@ jobs:
           releaseName: 'AutomataLab v${{ env.PACKAGE_VERSION }}'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: false
-          prerelease: true
+          prerelease: false
