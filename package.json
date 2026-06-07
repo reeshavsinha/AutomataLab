@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.0",
+    "@tauri-apps/plugin-updater": "^2.10.1",
     "@xyflow/react": "^12.6.4",
     "framer-motion": "^12.18.1",
     "react": "^19.1.0",

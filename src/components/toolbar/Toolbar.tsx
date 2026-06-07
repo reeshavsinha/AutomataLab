@@ -5,12 +5,35 @@
 
 import { useMachineStore } from '@/store/machineStore'
 import { useState, useEffect } from 'react'
+import { check } from '@tauri-apps/plugin-updater'
 
 export default function Toolbar() {
   const { machine, setMachineName, setMachineType, setAlphabet } = useMachineStore()
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+
+  const handleCheckUpdate = async () => {
+    setIsCheckingUpdate(true)
+    try {
+      const update = await check()
+      if (update) {
+        const yes = window.confirm(`Update to ${update.version} is available!\nRelease notes: ${update.body}\n\nDownload and install?`)
+        if (yes) {
+          await update.downloadAndInstall()
+          alert("Update installed successfully. Please restart the application.")
+        }
+      } else {
+        alert("You are on the latest version.")
+      }
+    } catch (error) {
+      alert("Failed to check for updates. Ensure you have internet access or the update server is reachable.")
+      console.error("Update check error:", error)
+    } finally {
+      setIsCheckingUpdate(false)
+    }
+  }
 
   useEffect(() => {
     if (!isFocused) {
@@ -145,6 +168,29 @@ export default function Toolbar() {
           </select>
         </div>
       </div>
+
+      <div style={{ width: '1px', height: '20px', background: 'var(--border-default)', marginLeft: '12px', marginRight: '12px' }} />
+
+      {/* Update Check Button */}
+      <button
+        onClick={handleCheckUpdate}
+        disabled={isCheckingUpdate}
+        style={{
+          background: isCheckingUpdate ? 'var(--bg-secondary)' : 'var(--bg-primary)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          fontSize: '11px',
+          fontFamily: 'var(--font-mono)',
+          fontWeight: 600,
+          padding: '4px 12px',
+          outline: 'none',
+          cursor: isCheckingUpdate ? 'not-allowed' : 'pointer',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {isCheckingUpdate ? 'CHECKING...' : 'UPDATES'}
+      </button>
     </div>
   )
 }
