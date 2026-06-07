@@ -39,7 +39,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEM0RDc5MDc0MkUzN0VBRDEKUldUUjZqY3VkSkRYeE1kbTFFOXNNdnl2M2FEd0ptMHJwQ1V1dFFKejc3K09VMWtCRXBDcHVpU1QK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYyOUQ3NTNCMjgxOTJFRjQKUldUMExoa29PM1dkOGtKbjZ4UW9VY2toZitVL09CUUZTUGdXOEx0dnN0Y2o2WjdNamVDTlRXSUoK",
       "endpoints": [
         "https://github.com/reeshavsinha/AutomataLab/releases/latest/download/updater.json"
       ]
