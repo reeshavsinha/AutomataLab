@@ -38,6 +38,9 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
+      - name: Get version
+        run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
+
       - name: Build and Release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -45,6 +48,8 @@ jobs:
           TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
         with:
+          tagName: v${{ env.PACKAGE_VERSION }}
+          releaseName: 'AutomataLab v${{ env.PACKAGE_VERSION }}'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: false
           prerelease: false
