@@ -22,7 +22,7 @@ import {
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
-import { formatPdaLabel } from '@/engines/core/utils'
+import { formatPdaLabel, isPDAType } from '@/engines/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -64,15 +64,13 @@ function buildNodes(
   }))
 }
 
-const PDA_TYPES = ['DPDA', 'NPDA']
-
 function buildEdges(
   machine: ReturnType<typeof useMachineStore.getState>['machine'],
   activeTransitionIds: string[],
   selectedTransitionIds: string[],
   transitionMode: TransitionDrawMode | null
 ): Edge[] {
-  const isPDA = PDA_TYPES.includes(machine.type)
+  const isPDA = isPDAType(machine.type)
 
   // Group by from__to pair so multiple transitions share one visual edge
   const edgeMap = new Map<string, string[]>()      // FA: merged symbols
@@ -227,7 +225,7 @@ function AutomataCanvasInner() {
     clipboard, setClipboard 
   } = useUIStore()
 
-  const isPDA = PDA_TYPES.includes(machine.type)
+  const isPDA = isPDAType(machine.type)
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<any>(null)

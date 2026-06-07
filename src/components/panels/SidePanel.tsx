@@ -6,13 +6,12 @@ import { useEffect } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
+import { isPDAType } from '@/engines/core/utils'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
 import StackPanel from './StackPanel'
 
 type Tab = 'history' | 'validation' | 'info' | 'stack'
-
-const PDA_TYPES = ['DPDA', 'NPDA']
 
 function InfoPanel() {
   const { machine } = useMachineStore()
@@ -50,7 +49,7 @@ function InfoPanel() {
 export default function SidePanel() {
   const { activePanel, setActivePanel } = useUIStore()
   const machineType = useMachineStore((s) => s.machine.type)
-  const isPDA = PDA_TYPES.includes(machineType)
+  const isPDA = isPDAType(machineType)
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'history',    label: 'History' },

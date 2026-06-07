@@ -19,6 +19,17 @@ export function isEpsilon(symbol: string | undefined): boolean {
 }
 
 /**
+ * Machine types backed by a stack. `'NPDA'` is listed ahead of its engine so
+ * the PDA-aware UI/validator branches light up the moment the type is added.
+ * This is the single source of truth — do not redeclare it elsewhere.
+ */
+export const PDA_TYPES = ['DPDA', 'NPDA'] as const
+
+export function isPDAType(type: string): boolean {
+  return (PDA_TYPES as readonly string[]).includes(type)
+}
+
+/**
  * Format a PDA transition for display as `read, pop → push`, rendering any
  * epsilon (empty/undefined) component as ε. Pure: no UI imports.
  */
