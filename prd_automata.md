@@ -1,8 +1,8 @@
 # AutomataLab — Product Requirements Document
 
 > **Version:** 1.0  
-> **Last Updated:** June 6, 2026  
-> **Status:** Draft  
+> **Last Updated:** June 7, 2026  
+> **Status:** Draft (Technology Stack updated to reflect as-built v1.0.2)  
 > **Author:** AutomataLab Team
 
 ---
@@ -556,18 +556,22 @@ interface StepResult {
 
 ## Technology Stack
 
+> **Note:** This table reflects the **as-built** stack as of v1.0.2. It diverges from the original draft in two notable ways: the desktop shell is **Tauri**, not Electron, and styling is done primarily with **inline styles + CSS custom-property design tokens** rather than Tailwind utility classes.
+
 | Layer | Technology | Rationale |
 |---|---|---|
 | **Language** | TypeScript | Type safety, IDE support, scalable codebase |
-| **UI Framework** | React 18+ | Component-based architecture, rich ecosystem |
-| **Graph Editor** | React Flow | Purpose-built for node-edge editors with drag-and-drop |
+| **UI Framework** | React 19 | Component-based architecture, rich ecosystem |
+| **Graph Editor** | React Flow (`@xyflow/react` v12) | Purpose-built for node-edge editors with drag-and-drop |
 | **State Management** | Zustand | Lightweight, minimal boilerplate, works well with React Flow |
-| **Styling** | Tailwind CSS | Rapid UI development, consistent design system |
+| **Styling** | Inline styles + CSS custom properties (design tokens) | Black-and-white theme via CSS variables; Tailwind v4 is imported via the Vite plugin but used in only a few components |
 | **Animations** | Framer Motion + CSS | Smooth micro-animations for simulation visualization |
-| **Desktop Shell** | Electron | Cross-platform native packaging |
+| **Auto-Layout** | d3-force | Force-directed graph layout for the "Auto Layout" action |
+| **Desktop Shell** | Tauri 2 (Rust core + system WebView) | Small cross-platform bundles, native dialogs/FS, built-in signed updater |
 | **Testing** | Vitest + React Testing Library | Fast unit and component tests |
 | **Build Tool** | Vite | Fast HMR, optimized builds |
-| **Version Control** | Git + GitHub | Standard collaboration and CI/CD |
+| **Auto-Update** | Tauri Updater plugin (minisign-signed) | OTA updates via signed GitHub release artifacts (functional from v1.0.2) |
+| **Version Control** | Git + GitHub (Actions CI/CD) | Standard collaboration; tag-triggered release builds for all three platforms |
 
 ---
 
@@ -611,7 +615,7 @@ interface StepResult {
 | Metric | Target (Year 1) | Measurement |
 |---|---|---|
 | GitHub stars | 500+ | GitHub |
-| Downloads | 1,000+ | Electron auto-update / GitHub releases |
+| Downloads | 1,000+ | Tauri auto-update / GitHub releases |
 | Active university adoptions | 5+ | Instructor feedback |
 
 ---
@@ -623,7 +627,7 @@ interface StepResult {
 | **Nondeterminism performance** — NFA/NPDA with large branching factor causes UI freeze | High | High | Cap computation tree depth; use Web Workers for simulation; implement lazy branch expansion |
 | **Scope creep** — Attempting all 7 machine types before MVP is stable | High | High | Strict phased release plan; DFA/NFA must be rock-solid before Phase 2 |
 | **React Flow limitations** — Custom edge labels, animations, or rendering may hit library limits | Medium | Medium | Prototype custom renderers early; evaluate alternatives (D3.js fallback) |
-| **Electron bundle size** — Application becomes too large for easy distribution | Low | Medium | Tree-shake dependencies; lazy-load machine engines |
+| **Bundle size** — Application becomes too large for easy distribution | Low | Low | Largely mitigated by Tauri (uses the system WebView, no bundled Chromium); tree-shake deps and lazy-load machine engines |
 | **Infinite TM execution** — User creates a non-halting TM and UI hangs | High | Medium | Configurable step limit (default: 10,000); timeout with user prompt to continue |
 | **Cross-platform inconsistencies** — Rendering or input handling differs across OS | Medium | Low | CI testing on all three platforms; platform-specific E2E tests |
 
@@ -669,7 +673,7 @@ graph LR
 | **Grammar Workbench** | Create, test, and visualize Regular, Context-Free, and Context-Sensitive grammars | v5.0 |
 | **Parser Generator** | Generate LL/LR parsers from CFGs with parse-tree visualization | v6.0 |
 | **Complexity Metrics** | Count steps, space usage, and classify machine complexity | v5.0 |
-| **Web Deployment** | Browser-based version (no Electron required) for classroom use | v5.0 |
+| **Web Deployment** | Browser-based version (no native shell required) for classroom use — the engines are already UI-decoupled and Tauri-free | v5.0 |
 | **Collaborative Editing** | Real-time multi-user editing via WebSocket | v6.0 |
 | **Interactive Tutorials** | Guided lessons: "Build your first DFA", "Understand the pumping lemma" | v6.0 |
 | **Machine Verification** | Formal proofs that a machine accepts a given language | v7.0 |
