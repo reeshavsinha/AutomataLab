@@ -14,6 +14,7 @@ import type {
   StepResult,
 } from '../core/types'
 import {
+  buildConfig,
   getStartState,
   getTransitionsOn,
   hasAcceptState,
@@ -115,6 +116,8 @@ export class NFAEngine implements Automaton {
       symbol,
       transitionIds: usedTransitionIds,
       historyEntry: entry,
+      configurations: this._configsFor([...nextStateIds], newStatus),
+      stack: [],
     }
   }
 
@@ -127,13 +130,7 @@ export class NFAEngine implements Automaton {
   }
 
   getCurrentConfigurations(): Configuration[] {
-    return [
-      {
-        stateIds: [...this.activeStateIds],
-        consumedInput: this.inputChars.slice(0, this.inputIndex).join(''),
-        remainingInput: this.inputChars.slice(this.inputIndex).join(''),
-      },
-    ]
+    return this._configsFor([...this.activeStateIds], this.status)
   }
 
   getExecutionHistory(): HistoryEntry[] {
@@ -148,6 +145,12 @@ export class NFAEngine implements Automaton {
 
   getStatus(): SimulationStatus {
     return this.status
+  }
+
+  protected _configsFor(stateIds: string[], status: SimulationStatus): Configuration[] {
+    return stateIds.map((stateId) =>
+      buildConfig({ stateId, inputChars: this.inputChars, inputIndex: this.inputIndex, status })
+    )
   }
 
   protected _makeResult(
@@ -172,6 +175,8 @@ export class NFAEngine implements Automaton {
       symbol: '',
       transitionIds: [],
       historyEntry: entry,
+      configurations: this._configsFor([...stateIds], status),
+      stack: [],
     }
   }
 }

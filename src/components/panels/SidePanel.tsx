@@ -2,19 +2,17 @@
 // SidePanel — Right sidebar. Plain B&W. Tabs: History, Validate, Info.
 // ============================================================
 
+import { useEffect } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
+import StackPanel from './StackPanel'
 
-type Tab = 'history' | 'validation' | 'info'
+type Tab = 'history' | 'validation' | 'info' | 'stack'
 
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'history',    label: 'History' },
-  { id: 'validation', label: 'Validate' },
-  { id: 'info',       label: 'Info' },
-]
+const PDA_TYPES = ['DPDA', 'NPDA']
 
 function InfoPanel() {
   const { machine } = useMachineStore()
@@ -51,6 +49,22 @@ function InfoPanel() {
 
 export default function SidePanel() {
   const { activePanel, setActivePanel } = useUIStore()
+  const machineType = useMachineStore((s) => s.machine.type)
+  const isPDA = PDA_TYPES.includes(machineType)
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'history',    label: 'History' },
+    { id: 'validation', label: 'Validate' },
+    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack' }] : []),
+    { id: 'info',       label: 'Info' },
+  ]
+
+  // If the Stack tab is active but we switch away from a PDA, fall back to History.
+  useEffect(() => {
+    if (activePanel === 'stack' && !isPDA) {
+      setActivePanel('history')
+    }
+  }, [activePanel, isPDA, setActivePanel])
 
   return (
     <aside style={{
@@ -68,7 +82,7 @@ export default function SidePanel() {
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
       }}>
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActivePanel(tab.id)}
@@ -93,6 +107,7 @@ export default function SidePanel() {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {activePanel === 'history'    && <HistoryLog />}
         {activePanel === 'validation' && <ValidationPanel />}
+        {activePanel === 'stack'      && <StackPanel />}
         {activePanel === 'info'       && <InfoPanel />}
       </div>
     </aside>

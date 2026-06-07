@@ -110,6 +110,8 @@ export class ENFAEngine extends NFAEngine {
       symbol,
       transitionIds: usedTransitionIds,
       historyEntry: entry,
+      configurations: this._configsFor([...nextStateIds], newStatus),
+      stack: [],
     }
   }
 }

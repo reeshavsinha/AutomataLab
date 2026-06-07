@@ -18,7 +18,7 @@ function parseMachineJson(jsonString: string): MachineDefinition {
     throw new Error('Invalid machine file: missing required fields')
   }
   
-  if (!['DFA', 'NFA', 'ENFA'].includes(raw.type)) {
+  if (!['DFA', 'NFA', 'ENFA', 'DPDA'].includes(raw.type)) {
     throw new Error('Invalid machine file: unknown machine type')
   }
 

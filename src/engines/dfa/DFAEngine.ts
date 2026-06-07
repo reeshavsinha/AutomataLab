@@ -13,6 +13,7 @@ import type {
   StepResult,
 } from '../core/types'
 import {
+  buildConfig,
   getStartState,
   getTransitionsOn,
   hasAcceptState,
@@ -93,6 +94,8 @@ export class DFAEngine implements Automaton {
         symbol,
         transitionIds: [],
         historyEntry: entry,
+        configurations: [],
+        stack: [],
       }
     }
 
@@ -135,6 +138,8 @@ export class DFAEngine implements Automaton {
       symbol,
       transitionIds: [t.id],
       historyEntry: entry,
+      configurations: this._configsFor([this.currentStateId], newStatus),
+      stack: [],
     }
   }
 
@@ -148,13 +153,7 @@ export class DFAEngine implements Automaton {
 
   getCurrentConfigurations(): Configuration[] {
     if (this.currentStateId === null) return []
-    return [
-      {
-        stateIds: [this.currentStateId],
-        consumedInput: this.inputChars.slice(0, this.inputIndex).join(''),
-        remainingInput: this.inputChars.slice(this.inputIndex).join(''),
-      },
-    ]
+    return this._configsFor([this.currentStateId], this.status)
   }
 
   getExecutionHistory(): HistoryEntry[] {
@@ -169,6 +168,12 @@ export class DFAEngine implements Automaton {
 
   getStatus(): SimulationStatus {
     return this.status
+  }
+
+  private _configsFor(stateIds: string[], status: SimulationStatus): Configuration[] {
+    return stateIds.map((stateId) =>
+      buildConfig({ stateId, inputChars: this.inputChars, inputIndex: this.inputIndex, status })
+    )
   }
 
   private _makeResult(
@@ -193,6 +198,8 @@ export class DFAEngine implements Automaton {
       symbol: '',
       transitionIds: [],
       historyEntry: entry,
+      configurations: this._configsFor(stateIds, status),
+      stack: [],
     }
   }
 }

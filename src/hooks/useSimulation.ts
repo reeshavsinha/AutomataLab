@@ -8,6 +8,7 @@ import { useRef, useCallback, useEffect } from 'react'
 import { DFAEngine } from '@/engines/dfa/DFAEngine'
 import { NFAEngine } from '@/engines/nfa/NFAEngine'
 import { ENFAEngine } from '@/engines/enfa/ENFAEngine'
+import { DPDAEngine } from '@/engines/dpda/DPDAEngine'
 import type { Automaton } from '@/engines/core/types'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
@@ -17,6 +18,7 @@ function createEngine(type: string, definition: ConstructorParameters<typeof DFA
   switch (type) {
     case 'NFA':  return new NFAEngine(definition)
     case 'ENFA': return new ENFAEngine(definition)
+    case 'DPDA': return new DPDAEngine(definition)
     default:     return new DFAEngine(definition)
   }
 }
@@ -59,6 +61,8 @@ export function useSimulation() {
       currentSymbol: result.symbol,
       status: result.status,
       historyEntry: result.historyEntry,
+      configurations: result.configurations,
+      activeStack: result.stack,
     })
 
     // Stop if simulation is finished

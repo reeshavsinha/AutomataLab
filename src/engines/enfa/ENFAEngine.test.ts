@@ -45,7 +45,7 @@ describe('ENFAEngine', () => {
   it('initial ε-closure includes q0, q1, q2', () => {
     engine.initialize('a')
     const configs = engine.getCurrentConfigurations()
-    const stateIds = configs[0].stateIds
+    const stateIds = configs.map((c) => c.stateId)
     expect(stateIds).toContain('q0')
     expect(stateIds).toContain('q1')
     expect(stateIds).toContain('q2')
@@ -105,7 +105,7 @@ describe('ENFAEngine', () => {
     const lambdaEngine = new ENFAEngine(lambdaEnfaDef)
     lambdaEngine.initialize('a')
     const configs = lambdaEngine.getCurrentConfigurations()
-    const stateIds = configs[0].stateIds
+    const stateIds = configs.map((c) => c.stateId)
     expect(stateIds).toContain('q0')
     expect(stateIds).toContain('q1')
 

@@ -19,6 +19,12 @@ export interface TransitionEdgeData {
   isSelfLoop?: boolean
   hasReverse?: boolean
   controlPointOffset?: { x: number; y: number }
+  /** PDA: pre-formatted `read, pop → push` labels, one per member transition. */
+  pdaLabels?: string[]
+  /** PDA flag — switches label rendering and routes editing to the modal. */
+  isPDA?: boolean
+  /** All transition ids represented by this visual edge (for active highlighting). */
+  memberTransitionIds?: string[]
   [key: string]: unknown
 }
 
@@ -54,8 +60,9 @@ const TransitionEdge = memo(
     const edgeData = data as TransitionEdgeData
     const { machine, updateTransition } = useMachineStore()
     const { activeTransitionIds } = useSimulationStore()
-    const { isEditingTransition, setEditingTransition } = useUIStore()
+    const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
+    const isPDA = !!edgeData?.isPDA
     const { screenToFlowPosition } = useReactFlow()
 
         const [isEditing, setIsEditing] = useState(false)
@@ -70,15 +77,17 @@ const TransitionEdge = memo(
     }, [isEditing])
 
     const isSelfLoop = source === target
-    const isActive = activeTransitionIds.includes(id)
+    const memberIds = edgeData?.memberTransitionIds ?? [id]
+    const isActive = memberIds.some((mid) => activeTransitionIds.includes(mid))
     const NODE_RADIUS = 26
 
     useEffect(() => {
-      if (isEditingTransition === id) {
+      // PDA labels are edited through the modal, never inline.
+      if (isEditingTransition === id && !isPDA) {
         setIsEditing(true)
         setTimeout(() => inputRef.current?.select(), 0)
       }
-    }, [isEditingTransition, id])
+    }, [isEditingTransition, id, isPDA])
 
     useEffect(() => {
       setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
@@ -420,8 +429,12 @@ const TransitionEdge = memo(
               <div
                 onDoubleClick={(e) => {
                   e.stopPropagation()
-                  setIsEditing(true)
-                  setTimeout(() => inputRef.current?.select(), 0)
+                  if (isPDA) {
+                    openTransitionEditor(source)
+                  } else {
+                    setIsEditing(true)
+                    setTimeout(() => inputRef.current?.select(), 0)
+                  }
                 }}
                 onPointerDown={(e) => {
                   // Let user drag edge from label as well
@@ -437,12 +450,16 @@ const TransitionEdge = memo(
                   color: isActive ? 'var(--state-active)' : 'var(--text-secondary)',
                   cursor: 'grab',
                   userSelect: 'none',
-                  whiteSpace: 'nowrap',
+                  whiteSpace: isPDA ? 'pre-line' : 'nowrap',
+                  textAlign: 'center',
+                  lineHeight: 1.35,
                   fontWeight: isActive ? 600 : 400,
                 }}
-                title="Double-click to edit. Drag to curve edge."
+                title={isPDA ? 'Double-click to edit PDA transitions.' : 'Double-click to edit. Drag to curve edge.'}
               >
-                {edgeData?.symbols?.join(', ') || '?'}
+                {isPDA
+                  ? (edgeData?.pdaLabels?.length ? edgeData.pdaLabels.join('\n') : '?')
+                  : (edgeData?.symbols?.join(', ') || '?')}
               </div>
             )}
           </div>
