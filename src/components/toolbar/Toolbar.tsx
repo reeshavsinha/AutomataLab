@@ -55,7 +55,7 @@ export default function Toolbar() {
   }
 
   const handleAutoLayout = () => {
-    const layoutedMachine = applyAutoLayout(machine, 'LR')
+    const layoutedMachine = applyAutoLayout(machine)
     loadMachine(layoutedMachine)
   }
 
