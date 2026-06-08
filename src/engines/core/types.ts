@@ -4,7 +4,7 @@
 // NO React imports in this file or any engine file.
 // ============================================================
 
-export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA'
+export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA'
 
 // ─── Machine definition types ────────────────────────────────
 

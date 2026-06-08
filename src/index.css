@@ -31,6 +31,13 @@
   --state-active:   #000000;
   --state-start:    #000000;
 
+  /* Branch status accents — used by the computation-tree viewer only.
+     A deliberate, scoped exception to the otherwise black-and-white palette
+     (PRD: colour-code computation-tree branches 🟢/🔴/🟡). */
+  --status-accept:  #1a7f37;
+  --status-reject:  #b42318;
+  --status-running: #9a6700;
+
   --font-sans:  'Inter', system-ui, sans-serif;
   --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
 

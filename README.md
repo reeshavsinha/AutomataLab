@@ -6,9 +6,11 @@ A modern, fast, and interactive cross-platform desktop application for designing
 
 AutomataLab is currently in active development, successfully functioning as a desktop application. The core engine is capable of simulating finite state machines with a highly interactive, node-based visual interface.
 
-- **Supported Machine Types**: Deterministic Finite Automata (DFA), Non-Deterministic Finite Automata (NFA), and Epsilon-NFA (e-NFA).
+- **Supported Machine Types**: Deterministic Finite Automata (DFA), Non-Deterministic Finite Automata (NFA), Epsilon-NFA (ε-NFA), and Pushdown Automata — both deterministic (DPDA) and non-deterministic (NPDA).
 - **Interactive Canvas**: Drag and drop states, draw transitions, and visually arrange your automata.
 - **Live Simulation**: Run step-by-step or continuous simulations with speed control to watch the automaton process strings. Full support for non-deterministic branching computations.
+- **Stack Visualization**: A live stack panel with push/pop animations and instantaneous-description (ID) display for PDA simulations.
+- **Computation-Tree Viewer**: For NFA, ε-NFA, and NPDA, explore the full tree of computation branches — colour-coded by status, collapsible, and click-to-inspect.
 - **Application Features**: Multi-tab interface for working on multiple automata simultaneously, native OS file dialogs for saving/loading `.autolab.json` projects, and a prompt to save unsaved work before closing a tab.
 - **Over-the-Air Updates**: Built-in signed auto-updates via the **UPDATES** button. Functional from **v1.0.2 onward** — earlier builds (v1.0.0 / v1.0.1) shipped without the required updater capability and must be updated to v1.0.2 manually, once.
 - **Real-Time Validation**: Instant feedback on missing start states, unreachable states, or nondeterminism.
@@ -20,7 +22,7 @@ AutomataLab is currently in active development, successfully functioning as a de
 The primary goal of AutomataLab is to evolve from a finite automata simulator into a comprehensive visual learning environment for all levels of computational theory.
 
 ### Phase 1: Advanced Computational Models
-*   **Pushdown Automata (PDA):** Implement stack memory logic in the simulation engine, with UI components for visual stack representation and push/pop animations.
+*   **Pushdown Automata (PDA):** ✅ Delivered in v2.0.0 — stack memory in the engine, a visual stack panel with push/pop animations, and a computation-tree viewer for nondeterministic branches.
 *   **Turing Machines (TM):** Implement an infinite tape memory model, with UI components for tape visualization and read/write head movement.
 
 ### Phase 2: Analytical and Educational Tools

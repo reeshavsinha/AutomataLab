@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install dependencies (ubuntu only)
         if: matrix.platform == 'ubuntu-22.04'
@@ -42,6 +44,23 @@ jobs:
         run: echo "PACKAGE_VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_ENV
         shell: bash
 
+      - name: Determine release channel
+        id: channel
+        shell: bash
+        run: |
+          # Default to a pre-release. Only publish as the latest/stable release when
+          # the tagged commit is already on the default branch (main). This stops a
+          # tag cut from a feature branch (e.g. feat/v2-pda) from hijacking the
+          # auto-updater's /releases/latest pointer until it has been merged to main.
+          channel=true
+          if git fetch --no-tags origin main >/dev/null 2>&1; then
+            if git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD >/dev/null 2>&1; then
+              channel=false
+            fi
+          fi
+          echo "prerelease=$channel" >> "$GITHUB_OUTPUT"
+          echo "Resolved prerelease=$channel for commit $GITHUB_SHA"
+
       - name: Build and Release Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -53,7 +72,7 @@ jobs:
           releaseName: 'AutomataLab v${{ env.PACKAGE_VERSION }}'
           releaseBody: 'See the assets below to download and install this version.'
           releaseDraft: false
-          prerelease: false
+          prerelease: ${{ steps.channel.outputs.prerelease }}
           updaterJsonPreferNsis: true
 
   # tauri-action publishes the updater manifest as `latest.json`, but the app's

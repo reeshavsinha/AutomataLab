@@ -137,6 +137,37 @@ describe('validateMachine — PDA rules', () => {
     expect(codes(m)).not.toContain('PDA_BAD_READ')
     expect(codes(m)).not.toContain('PDA_BAD_POP')
   })
+
+  it('allows nondeterminism for an NPDA (no determinism error)', () => {
+    const m = machine({
+      type: 'NPDA',
+      alphabet: ['a'],
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: true },
+      ],
+      transitions: [
+        { id: 't0', from: 'q0', to: 'q0', symbols: [], read: 'a', pop: 'A', push: '' },
+        { id: 't1', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'A', push: '' },
+      ],
+    })
+    expect(codes(m)).not.toContain('DPDA_NONDETERMINISTIC')
+  })
+
+  it('still flags a multi-character pop for an NPDA', () => {
+    const m = machine({
+      type: 'NPDA',
+      alphabet: ['a'],
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: true },
+      ],
+      transitions: [
+        { id: 't0', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'AB', push: '' },
+      ],
+    })
+    expect(codes(m)).toContain('PDA_BAD_POP')
+  })
 })
 
 describe('hasBlockingErrors', () => {

@@ -9,7 +9,9 @@ import { DFAEngine } from '@/engines/dfa/DFAEngine'
 import { NFAEngine } from '@/engines/nfa/NFAEngine'
 import { ENFAEngine } from '@/engines/enfa/ENFAEngine'
 import { DPDAEngine } from '@/engines/dpda/DPDAEngine'
+import { NPDAEngine } from '@/engines/npda/NPDAEngine'
 import type { Automaton } from '@/engines/core/types'
+import { supportsTree } from '@/engines/core/computationTree'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
@@ -19,6 +21,7 @@ function createEngine(type: string, definition: ConstructorParameters<typeof DFA
     case 'NFA':  return new NFAEngine(definition)
     case 'ENFA': return new ENFAEngine(definition)
     case 'DPDA': return new DPDAEngine(definition)
+    case 'NPDA': return new NPDAEngine(definition)
     default:     return new DFAEngine(definition)
   }
 }
@@ -34,8 +37,12 @@ export function useSimulation() {
 
   // ── Compute interval delay from speed multiplier ──────────
   const getDelay = useCallback(() => {
-    // speed 1 = 600ms, speed 2 = 300ms, speed 0.5 = 1200ms
-    return Math.round(600 / speed)
+    // speed 1 = 600ms, speed 2 = 300ms, speed 0.5 = 1200ms.
+    // The speed field accepts free-typed values, so guard against a
+    // non-positive / non-finite speed (which would make 600/speed yield 0 or ∞
+    // and spin the interval) and clamp the delay to a sane [40ms, 6000ms] range.
+    const safeSpeed = Number.isFinite(speed) && speed > 0 ? speed : 1
+    return Math.min(6000, Math.max(40, Math.round(600 / safeSpeed)))
   }, [speed])
 
   // ── Stop any running interval ──────────────────────────────
@@ -63,6 +70,8 @@ export function useSimulation() {
       historyEntry: result.historyEntry,
       configurations: result.configurations,
       activeStack: result.stack,
+      treeNodes: supportsTree(engine) ? engine.getTreeNodes() : [],
+      liveBranchIds: supportsTree(engine) ? engine.getLiveBranchIds() : [],
     })
 
     // Stop if simulation is finished

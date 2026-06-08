@@ -10,7 +10,7 @@ import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
-const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA']
+const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA']
 
 /** Copy only the known state fields, dropping anything unexpected from the file. */
 function sanitizeState(raw: any): AutomataState {

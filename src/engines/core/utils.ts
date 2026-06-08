@@ -30,6 +30,17 @@ export function isPDAType(type: string): boolean {
 }
 
 /**
+ * Machine types that explore multiple branches and therefore have a
+ * computation tree to visualise. Single source of truth gating the tree tab /
+ * panel, mirroring `PDA_TYPES`/`isPDAType`.
+ */
+export const NONDETERMINISTIC_TYPES = ['NFA', 'ENFA', 'NPDA'] as const
+
+export function supportsComputationTree(type: string): boolean {
+  return (NONDETERMINISTIC_TYPES as readonly string[]).includes(type)
+}
+
+/**
  * Format a PDA transition for display as `read, pop → push`, rendering any
  * epsilon (empty/undefined) component as ε. Pure: no UI imports.
  */
