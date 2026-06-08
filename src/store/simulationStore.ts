@@ -25,6 +25,11 @@ interface SimulationStore {
   // Stack of the primary active configuration (drives the PDA stack panel). Empty for finite automata.
   activeStack: string[]
 
+  // Accumulated computation-tree branch nodes (NFA/ε-NFA/NPDA), with lineage.
+  treeNodes: Configuration[]
+  // Ids of the currently-live frontier branches (empty once the run ends).
+  liveBranchIds: string[]
+
   // Actions
   setInputString: (input: string) => void
   setSpeed: (speed: number) => void
@@ -38,6 +43,8 @@ interface SimulationStore {
     historyEntry: HistoryEntry
     configurations: Configuration[]
     activeStack: string[]
+    treeNodes: Configuration[]
+    liveBranchIds: string[]
   }) => void
   resetSimulation: () => void
   setStatus: (status: SimulationStatus) => void
@@ -56,6 +63,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   speed: 1,
   configurations: [],
   activeStack: [],
+  treeNodes: [],
+  liveBranchIds: [],
 
   setInputString: (inputString) => set({ inputString }),
 
@@ -73,6 +82,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       stepCount: s.stepCount + 1,
       configurations: result.configurations,
       activeStack: result.activeStack,
+      treeNodes: result.treeNodes,
+      liveBranchIds: result.liveBranchIds,
     })),
 
   resetSimulation: () =>
@@ -87,6 +98,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       stepCount: 0,
       configurations: [],
       activeStack: [],
+      treeNodes: [],
+      liveBranchIds: [],
     }),
 
   setStatus: (status) => set({ status }),

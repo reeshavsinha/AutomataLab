@@ -26,15 +26,18 @@ export class ENFAEngine extends NFAEngine {
       this.status = 'error'
       return
     }
+    this.inputChars = input === '' ? [] : input.split('')
     // Apply ε-closure to the start state set
     this.activeStateIds = epsilonClosure(
       new Set([startState.id]),
       this.definition.transitions
     )
-    this.inputChars = input === '' ? [] : input.split('')
     this.inputIndex = 0
     this.status = 'running'
     this.history = []
+    // Lineage: root start node, then ε-closure members as ε-children.
+    this._seedLineage(startState.id)
+    this._epsilonExpandLineage(this.levelMap, 0)
   }
 
   /** Override step to apply ε-closure after each symbol consumption */
@@ -61,22 +64,28 @@ export class ENFAEngine extends NFAEngine {
 
     const fromStateIds = new Set(this.activeStateIds)
     const usedTransitionIds: string[] = []
+    const nextLevel = new Map<string, string>()
+    const childInputIndex = this.inputIndex + 1
 
     // Step 1: Move on the current symbol
     const movedStates = new Set<string>()
     for (const stateId of this.activeStateIds) {
+      const parentNodeId = this.levelMap.get(stateId) ?? null
       for (const t of this.definition.transitions) {
         if (t.from === stateId && t.symbols.includes(symbol)) {
           movedStates.add(t.to)
           usedTransitionIds.push(t.id)
+          this._recordBranch(nextLevel, t.to, parentNodeId, childInputIndex)
         }
       }
     }
 
-    // Step 2: Apply ε-closure to reached states
+    // Step 2: Apply ε-closure to reached states (with lineage for the viewer)
     const nextStateIds = epsilonClosure(movedStates, this.definition.transitions)
+    this._epsilonExpandLineage(nextLevel, childInputIndex)
 
     this.activeStateIds = nextStateIds
+    this.levelMap = nextLevel
     this.inputIndex++
 
     let newStatus: SimulationStatus

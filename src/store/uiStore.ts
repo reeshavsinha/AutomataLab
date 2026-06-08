@@ -6,7 +6,7 @@
 import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
-export type ActivePanel = 'history' | 'validation' | 'info' | 'stack'
+export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree'
 
 export interface ClipboardData {
   states: {
