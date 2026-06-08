@@ -10,6 +10,14 @@ export default function InputBar() {
 
   const isIdle = status === 'idle'
 
+  // Engines fold the just-read symbol into `consumedInput` AND report it again as
+  // `currentSymbol`. Render it once — as the highlighted most-recently-read cell —
+  // so the tape doesn't show the current symbol twice.
+  const headConsumed =
+    currentSymbol && consumedInput.endsWith(currentSymbol)
+      ? consumedInput.slice(0, consumedInput.length - currentSymbol.length)
+      : consumedInput
+
   return (
     <div style={{
       display: 'flex',
@@ -63,7 +71,7 @@ export default function InputBar() {
           flexShrink: 0,
         }}>
           <span style={{ color: 'var(--text-muted)', letterSpacing: '2px' }}>
-            {consumedInput}
+            {headConsumed}
           </span>
           {currentSymbol && (
             <span style={{

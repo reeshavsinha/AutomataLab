@@ -2,19 +2,17 @@
 // SidePanel — Right sidebar. Plain B&W. Tabs: History, Validate, Info.
 // ============================================================
 
+import { useEffect } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
+import { isPDAType, supportsComputationTree } from '@/engines/core/utils'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
+import StackPanel from './StackPanel'
+import ComputationTreePanel from './ComputationTreePanel'
 
-type Tab = 'history' | 'validation' | 'info'
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'history',    label: 'History' },
-  { id: 'validation', label: 'Validate' },
-  { id: 'info',       label: 'Info' },
-]
+type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree'
 
 function InfoPanel() {
   const { machine } = useMachineStore()
@@ -51,6 +49,26 @@ function InfoPanel() {
 
 export default function SidePanel() {
   const { activePanel, setActivePanel } = useUIStore()
+  const machineType = useMachineStore((s) => s.machine.type)
+  const isPDA = isPDAType(machineType)
+  const hasTree = supportsComputationTree(machineType)
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'history',    label: 'History' },
+    { id: 'validation', label: 'Validate' },
+    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack' }] : []),
+    ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree' }] : []),
+    { id: 'info',       label: 'Info' },
+  ]
+
+  // If a context-specific tab is active but no longer applies, fall back to History.
+  useEffect(() => {
+    if (activePanel === 'stack' && !isPDA) {
+      setActivePanel('history')
+    } else if (activePanel === 'tree' && !hasTree) {
+      setActivePanel('history')
+    }
+  }, [activePanel, isPDA, hasTree, setActivePanel])
 
   return (
     <aside style={{
@@ -68,7 +86,7 @@ export default function SidePanel() {
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
       }}>
-        {TABS.map((tab) => (
+        {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActivePanel(tab.id)}
@@ -93,6 +111,8 @@ export default function SidePanel() {
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         {activePanel === 'history'    && <HistoryLog />}
         {activePanel === 'validation' && <ValidationPanel />}
+        {activePanel === 'stack'      && <StackPanel />}
+        {activePanel === 'tree'       && <ComputationTreePanel />}
         {activePanel === 'info'       && <InfoPanel />}
       </div>
     </aside>

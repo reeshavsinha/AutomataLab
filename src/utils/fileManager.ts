@@ -2,7 +2,7 @@
 // File Manager — Save / Load machine definitions as JSON
 // ============================================================
 
-import type { MachineDefinition } from '@/engines/core/types'
+import type { AutomataState, MachineDefinition, Transition } from '@/engines/core/types'
 import { generateId } from '@/engines/core/utils'
 import { isTauri } from '@tauri-apps/api/core'
 import { save, open } from '@tauri-apps/plugin-dialog'
@@ -10,6 +10,46 @@ import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
 
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
+const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA']
+
+/** Copy only the known state fields, dropping anything unexpected from the file. */
+function sanitizeState(raw: any): AutomataState {
+  const state: AutomataState = {
+    id: typeof raw?.id === 'string' ? raw.id : generateId('state'),
+    label: typeof raw?.label === 'string' ? raw.label : '',
+    x: Number(raw?.x) || 0,
+    y: Number(raw?.y) || 0,
+    isStart: !!raw?.isStart,
+    isAccept: !!raw?.isAccept,
+  }
+  if (raw?.isReject) state.isReject = true
+  if (raw?.isText) state.isText = true
+  return state
+}
+
+/** Copy only the known transition fields (FA + PDA + reserved TM), dropping the rest. */
+function sanitizeTransition(raw: any): Transition {
+  const t: Transition = {
+    id: typeof raw?.id === 'string' ? raw.id : generateId('trans'),
+    from: String(raw?.from ?? ''),
+    to: String(raw?.to ?? ''),
+    symbols: Array.isArray(raw?.symbols) ? raw.symbols.map(String) : [],
+  }
+  if (raw?.controlPointOffset && typeof raw.controlPointOffset === 'object') {
+    t.controlPointOffset = {
+      x: Number(raw.controlPointOffset.x) || 0,
+      y: Number(raw.controlPointOffset.y) || 0,
+    }
+  }
+  if (typeof raw?.read === 'string') t.read = raw.read
+  if (typeof raw?.pop === 'string') t.pop = raw.pop
+  if (typeof raw?.push === 'string') t.push = raw.push
+  if (typeof raw?.write === 'string') t.write = raw.write
+  if (raw?.direction === 'L' || raw?.direction === 'R' || raw?.direction === 'S') {
+    t.direction = raw.direction
+  }
+  return t
+}
 
 function parseMachineJson(jsonString: string): MachineDefinition {
   const raw = JSON.parse(jsonString)
@@ -17,21 +57,21 @@ function parseMachineJson(jsonString: string): MachineDefinition {
   if (!raw.states || !raw.transitions || !raw.type) {
     throw new Error('Invalid machine file: missing required fields')
   }
-  
-  if (!['DFA', 'NFA', 'ENFA'].includes(raw.type)) {
+
+  if (!VALID_TYPES.includes(raw.type)) {
     throw new Error('Invalid machine file: unknown machine type')
   }
 
-  // Ensure unique id on load, and prevent prototype pollution / injection
-  // by explicitly picking only the expected fields.
+  // Ensure a unique id on load, and prevent prototype pollution / injection by
+  // explicitly rebuilding every state and transition from known fields only.
   return {
     id: generateId('machine'),
     name: raw.name ?? 'Imported Machine',
     type: raw.type,
     language: raw.language ?? '',
-    states: Array.isArray(raw.states) ? raw.states : [],
-    transitions: Array.isArray(raw.transitions) ? raw.transitions : [],
-    alphabet: Array.isArray(raw.alphabet) ? raw.alphabet : [],
+    states: Array.isArray(raw.states) ? raw.states.map(sanitizeState) : [],
+    transitions: Array.isArray(raw.transitions) ? raw.transitions.map(sanitizeTransition) : [],
+    alphabet: Array.isArray(raw.alphabet) ? raw.alphabet.map(String) : [],
   }
 }
 

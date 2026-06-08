@@ -28,3 +28,8 @@ src-tauri/target/
 .tauri/  
 *.key
 *.key.pub
+
+# Internal AI/dev context docs — never commit (cross-conversation handoff)
+project_context.md
+decisions.md
+handoff.md

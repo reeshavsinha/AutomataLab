@@ -13,12 +13,19 @@ import {
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
+import EpsilonInserter from './EpsilonInserter'
 
 export interface TransitionEdgeData {
   symbols: string[]
   isSelfLoop?: boolean
   hasReverse?: boolean
   controlPointOffset?: { x: number; y: number }
+  /** PDA: pre-formatted `read, pop → push` labels, one per member transition. */
+  pdaLabels?: string[]
+  /** PDA flag — switches label rendering and routes editing to the modal. */
+  isPDA?: boolean
+  /** All transition ids represented by this visual edge (for active highlighting). */
+  memberTransitionIds?: string[]
   [key: string]: unknown
 }
 
@@ -54,8 +61,9 @@ const TransitionEdge = memo(
     const edgeData = data as TransitionEdgeData
     const { machine, updateTransition } = useMachineStore()
     const { activeTransitionIds } = useSimulationStore()
-    const { isEditingTransition, setEditingTransition } = useUIStore()
+    const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
+    const isPDA = !!edgeData?.isPDA
     const { screenToFlowPosition } = useReactFlow()
 
         const [isEditing, setIsEditing] = useState(false)
@@ -70,15 +78,17 @@ const TransitionEdge = memo(
     }, [isEditing])
 
     const isSelfLoop = source === target
-    const isActive = activeTransitionIds.includes(id)
+    const memberIds = edgeData?.memberTransitionIds ?? [id]
+    const isActive = memberIds.some((mid) => activeTransitionIds.includes(mid))
     const NODE_RADIUS = 26
 
     useEffect(() => {
-      if (isEditingTransition === id) {
+      // PDA labels are edited through the modal, never inline.
+      if (isEditingTransition === id && !isPDA) {
         setIsEditing(true)
         setTimeout(() => inputRef.current?.select(), 0)
       }
-    }, [isEditingTransition, id])
+    }, [isEditingTransition, id, isPDA])
 
     useEffect(() => {
       setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
@@ -301,127 +311,25 @@ const TransitionEdge = memo(
                   }}
                 />
                 {isENFA && (
-                  <>
-                    <button
-                      type="button"
-                      onMouseDown={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setDropdownOpen(!dropdownOpen)
-                      }}
-                      style={{
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-default)',
-                        borderRadius: 'var(--radius-sm)',
-                        color: 'var(--text-primary)',
-                        fontSize: '11px',
-                        padding: '2px 6px',
-                        cursor: 'pointer',
-                        height: '22px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        userSelect: 'none',
-                      }}
-                    >
-                      ε/λ
-                    </button>
-                    {dropdownOpen && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '100%',
-                        right: 0,
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-strong)',
-                        borderRadius: 'var(--radius-sm)',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                        zIndex: 1000,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        marginTop: '4px',
-                        minWidth: '90px',
-                      }}>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            const input = inputRef.current
-                            if (input) {
-                              const start = input.selectionStart ?? 0
-                              const end = input.selectionEnd ?? 0
-                              const val = input.value
-                              const newVal = val.substring(0, start) + 'ε' + val.substring(end)
-                              setLabelDraft(newVal)
-                              setDropdownOpen(false)
-                              setTimeout(() => {
-                                input.focus()
-                                const pos = start + 1
-                                input.setSelectionRange(pos, pos)
-                              }, 0)
-                            }
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '6px 10px',
-                            fontSize: '12px',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            color: 'var(--text-primary)',
-                            fontFamily: 'var(--font-mono)',
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          ε (epsilon)
-                        </button>
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            const input = inputRef.current
-                            if (input) {
-                              const start = input.selectionStart ?? 0
-                              const end = input.selectionEnd ?? 0
-                              const val = input.value
-                              const newVal = val.substring(0, start) + 'λ' + val.substring(end)
-                              setLabelDraft(newVal)
-                              setDropdownOpen(false)
-                              setTimeout(() => {
-                                input.focus()
-                                const pos = start + 1
-                                input.setSelectionRange(pos, pos)
-                              }, 0)
-                            }
-                          }}
-                          style={{
-                            background: 'transparent',
-                            border: 'none',
-                            padding: '6px 10px',
-                            fontSize: '12px',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            color: 'var(--text-primary)',
-                            fontFamily: 'var(--font-mono)',
-                          }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                          λ (lambda)
-                        </button>
-                      </div>
-                    )}
-                  </>
+                  <EpsilonInserter
+                    targetRef={inputRef}
+                    open={dropdownOpen}
+                    setOpen={setDropdownOpen}
+                    onInsert={(val) => setLabelDraft(val)}
+                    size="sm"
+                  />
                 )}
               </div>
             ) : (
               <div
                 onDoubleClick={(e) => {
                   e.stopPropagation()
-                  setIsEditing(true)
-                  setTimeout(() => inputRef.current?.select(), 0)
+                  if (isPDA) {
+                    openTransitionEditor(source)
+                  } else {
+                    setIsEditing(true)
+                    setTimeout(() => inputRef.current?.select(), 0)
+                  }
                 }}
                 onPointerDown={(e) => {
                   // Let user drag edge from label as well
@@ -437,12 +345,16 @@ const TransitionEdge = memo(
                   color: isActive ? 'var(--state-active)' : 'var(--text-secondary)',
                   cursor: 'grab',
                   userSelect: 'none',
-                  whiteSpace: 'nowrap',
+                  whiteSpace: isPDA ? 'pre-line' : 'nowrap',
+                  textAlign: 'center',
+                  lineHeight: 1.35,
                   fontWeight: isActive ? 600 : 400,
                 }}
-                title="Double-click to edit. Drag to curve edge."
+                title={isPDA ? 'Double-click to edit PDA transitions.' : 'Double-click to edit. Drag to curve edge.'}
               >
-                {edgeData?.symbols?.join(', ') || '?'}
+                {isPDA
+                  ? (edgeData?.pdaLabels?.length ? edgeData.pdaLabels.join('\n') : '?')
+                  : (edgeData?.symbols?.join(', ') || '?')}
               </div>
             )}
           </div>

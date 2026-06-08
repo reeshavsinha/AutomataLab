@@ -23,7 +23,7 @@
 
 Ready to build some state machines? Download the latest stable release for your operating system:
 
-👉 **[Download AutomataLab v1.0.2](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
+👉 **[Download AutomataLab v2.0.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
 *Auto-updates are fully supported for all platforms from v1.0.2 onward.*
 
@@ -31,9 +31,10 @@ Ready to build some state machines? Download the latest stable release for your 
 
 ## ✨ Features
 
-- **🌐 Multiple Machine Types**: Supports Deterministic Finite Automata (DFA), Non-Deterministic (NFA), and Epsilon-NFA (ε-NFA).
+- **🌐 Multiple Machine Types**: Finite automata — Deterministic (DFA), Non-Deterministic (NFA), and Epsilon-NFA (ε-NFA) — plus Pushdown Automata, both deterministic (DPDA) and non-deterministic (NPDA).
 - **🖱️ Interactive Canvas**: Seamless drag-and-drop interface for placing states and drawing transitions. Powered by a dynamic d3-force auto-layout engine to keep things tidy.
 - **▶️ Live Simulation**: Run step-by-step or continuous simulations with custom speed controls. Watch the automaton process strings with full visual branching for non-deterministic paths.
+- **📚 Stack & Computation Tree**: A live stack panel with push/pop animations for PDAs, plus a status-coloured computation-tree viewer for exploring every branch of a nondeterministic run (NFA, ε-NFA, NPDA).
 - **🖥️ Desktop Native**: Enjoy a multi-tab interface, native file saving/loading (`.autolab.json`), and over-the-air auto-updates.
 - **⚡ Real-Time Validation**: Instant UI feedback on missing start states, unreachable nodes, or invalid configurations.
 
@@ -53,13 +54,13 @@ Ready to build some state machines? Download the latest stable release for your 
 
 The ultimate goal of AutomataLab is to evolve into a comprehensive visual learning environment for all levels of computational theory.
 
-- **Phase 1:** Advanced Models (Pushdown Automata & Turing Machines with stack/tape visualizations).
+- **Phase 1:** Advanced Models — ✅ Pushdown Automata (DPDA & NPDA) shipped in v2.0.0; Turing Machines (tape visualization) next.
 - **Phase 2:** Analytical Tools (NFA to DFA conversion, State Minimization, Regex integration).
 - **Phase 3:** Visual Exports (PNG/SVG) and Web-browser parity.
 
 ## 🛠️ Development
 
-Want to build it from source? 
+Want to build it from source?
 
 ```bash
 # Install dependencies

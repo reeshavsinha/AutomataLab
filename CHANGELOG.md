@@ -2,6 +2,19 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v2.0.0
+
+### Added
+- **Pushdown Automata.** Two new machine types extend AutomataLab beyond finite automata:
+  - **DPDA** (deterministic pushdown automaton) — single-configuration stack machine with a determinism check in the validator.
+  - **NPDA** (nondeterministic pushdown automaton) — explores all computation branches breadth-first, accepting by final state, with termination guards against ε-loops.
+- **Stack visualization** with push/pop animations and an instantaneous-description (ID) readout for PDA simulations.
+- **Computation-tree viewer** for NFA, ε-NFA, and NPDA: the full tree of explored branches, colour-coded by status (accepted / rejected / running), with collapsible subtrees, click-to-inspect, and depth/branch statistics.
+
+### Fixed
+- **Input tape no longer renders the current symbol twice** during simulation; the most-recently-read cell is highlighted once.
+- **Simulation speed control** is guarded against non-positive or non-finite values, preventing a runaway play interval.
+
 ## v1.0.2
 
 ### Fixed

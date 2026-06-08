@@ -5,7 +5,7 @@
 // ============================================================
 
 import { create } from 'zustand'
-import type { HistoryEntry, SimulationStatus } from '@/engines/core/types'
+import type { Configuration, HistoryEntry, SimulationStatus } from '@/engines/core/types'
 
 interface SimulationStore {
   // State
@@ -20,6 +20,16 @@ interface SimulationStore {
   stepCount: number
   speed: number // 0.25 to 8
 
+  // Per-branch configurations after the most recent step (computation tree / PDA).
+  configurations: Configuration[]
+  // Stack of the primary active configuration (drives the PDA stack panel). Empty for finite automata.
+  activeStack: string[]
+
+  // Accumulated computation-tree branch nodes (NFA/ε-NFA/NPDA), with lineage.
+  treeNodes: Configuration[]
+  // Ids of the currently-live frontier branches (empty once the run ends).
+  liveBranchIds: string[]
+
   // Actions
   setInputString: (input: string) => void
   setSpeed: (speed: number) => void
@@ -31,6 +41,10 @@ interface SimulationStore {
     currentSymbol: string
     status: SimulationStatus
     historyEntry: HistoryEntry
+    configurations: Configuration[]
+    activeStack: string[]
+    treeNodes: Configuration[]
+    liveBranchIds: string[]
   }) => void
   resetSimulation: () => void
   setStatus: (status: SimulationStatus) => void
@@ -47,6 +61,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   history: [],
   stepCount: 0,
   speed: 1,
+  configurations: [],
+  activeStack: [],
+  treeNodes: [],
+  liveBranchIds: [],
 
   setInputString: (inputString) => set({ inputString }),
 
@@ -62,6 +80,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       status: result.status,
       history: [...s.history, result.historyEntry],
       stepCount: s.stepCount + 1,
+      configurations: result.configurations,
+      activeStack: result.activeStack,
+      treeNodes: result.treeNodes,
+      liveBranchIds: result.liveBranchIds,
     })),
 
   resetSimulation: () =>
@@ -74,6 +96,10 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       status: 'idle',
       history: [],
       stepCount: 0,
+      configurations: [],
+      activeStack: [],
+      treeNodes: [],
+      liveBranchIds: [],
     }),
 
   setStatus: (status) => set({ status }),

@@ -3,13 +3,52 @@
 // Pure functions with no side effects. Used by all engines.
 // ============================================================
 
-import type { AutomataState, MachineDefinition, Transition } from './types'
+import type {
+  AutomataState,
+  Configuration,
+  MachineDefinition,
+  SimulationStatus,
+  Transition,
+} from './types'
 
 /** Normalize a symbol — empty string and 'ε' both represent epsilon */
 export const EPSILON = 'ε'
 
-export function isEpsilon(symbol: string): boolean {
-  return symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'λ' || symbol === 'lambda'
+export function isEpsilon(symbol: string | undefined): boolean {
+  return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'λ' || symbol === 'lambda'
+}
+
+/**
+ * Machine types backed by a stack. `'NPDA'` is listed ahead of its engine so
+ * the PDA-aware UI/validator branches light up the moment the type is added.
+ * This is the single source of truth — do not redeclare it elsewhere.
+ */
+export const PDA_TYPES = ['DPDA', 'NPDA'] as const
+
+export function isPDAType(type: string): boolean {
+  return (PDA_TYPES as readonly string[]).includes(type)
+}
+
+/**
+ * Machine types that explore multiple branches and therefore have a
+ * computation tree to visualise. Single source of truth gating the tree tab /
+ * panel, mirroring `PDA_TYPES`/`isPDAType`.
+ */
+export const NONDETERMINISTIC_TYPES = ['NFA', 'ENFA', 'NPDA'] as const
+
+export function supportsComputationTree(type: string): boolean {
+  return (NONDETERMINISTIC_TYPES as readonly string[]).includes(type)
+}
+
+/**
+ * Format a PDA transition for display as `read, pop → push`, rendering any
+ * epsilon (empty/undefined) component as ε. Pure: no UI imports.
+ */
+export function formatPdaLabel(read?: string, pop?: string, push?: string): string {
+  const r = isEpsilon(read) ? EPSILON : read
+  const p = isEpsilon(pop) ? EPSILON : pop
+  const u = isEpsilon(push) ? EPSILON : push
+  return `${r}, ${p} → ${u}`
 }
 
 /** Get all transitions leaving a given state */
@@ -100,4 +139,33 @@ export function hasAcceptState(
 /** Generate a unique ID */
 export function generateId(prefix = 'id'): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`
+}
+
+/**
+ * Build a per-branch Configuration. `inputChars` + `inputIndex` are used to
+ * derive the consumed/remaining input strings so panels don't need the raw
+ * input. For finite automata the stack is empty and there is no branch lineage
+ * (parentId defaults to null, id defaults to the stateId, which is unique
+ * within a powerset of active states).
+ */
+export function buildConfig(params: {
+  stateId: string
+  inputChars: string[]
+  inputIndex: number
+  status: SimulationStatus
+  stack?: string[]
+  parentId?: string | null
+  id?: string
+}): Configuration {
+  const { stateId, inputChars, inputIndex, status } = params
+  return {
+    id: params.id ?? stateId,
+    parentId: params.parentId ?? null,
+    stateId,
+    stack: params.stack ?? [],
+    inputIndex,
+    status,
+    consumedInput: inputChars.slice(0, inputIndex).join(''),
+    remainingInput: inputChars.slice(inputIndex).join(''),
+  }
 }
