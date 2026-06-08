@@ -1,64 +1,74 @@
-# AutomataLab
+<div align="center">
+  <h1>⚙️ AutomataLab</h1>
+  <p><strong>A modern, fast, and interactive cross-platform desktop application for designing, simulating, and testing finite state automata.</strong></p>
 
-A modern, fast, and interactive cross-platform desktop application for designing, simulating, and testing finite state automata. Powered by Tauri, React, and Vite.
+  <!-- Badges -->
+  <img src="https://img.shields.io/github/v/release/reeshavsinha/AutomataLab?style=flat-square&color=007ACC" alt="Release" />
+  <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platforms" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=flat-square" alt="License" />
+  <br/>
+  <img src="https://img.shields.io/badge/Built_with-Tauri-24C8DB?style=flat-square&logo=tauri&logoColor=white" alt="Tauri" />
+  <img src="https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB" alt="React" />
+  <img src="https://img.shields.io/badge/Vite-B73BFE?style=flat-square&logo=vite&logoColor=FFD62E" alt="Vite" />
+</div>
 
-## Current Status & Features
+<br/>
 
-AutomataLab is currently in active development, successfully functioning as a desktop application. The core engine is capable of simulating finite state machines with a highly interactive, node-based visual interface.
+<!-- REPLACE THIS LINK WITH YOUR ACTUAL SCREENSHOT/GIF -->
+![AutomataLab Screenshot](./docs/screenshot.png)
 
-- **Supported Machine Types**: Deterministic Finite Automata (DFA), Non-Deterministic Finite Automata (NFA), Epsilon-NFA (ε-NFA), and Pushdown Automata — both deterministic (DPDA) and non-deterministic (NPDA).
-- **Interactive Canvas**: Drag and drop states, draw transitions, and visually arrange your automata.
-- **Live Simulation**: Run step-by-step or continuous simulations with speed control to watch the automaton process strings. Full support for non-deterministic branching computations.
-- **Stack Visualization**: A live stack panel with push/pop animations and instantaneous-description (ID) display for PDA simulations.
-- **Computation-Tree Viewer**: For NFA, ε-NFA, and NPDA, explore the full tree of computation branches — colour-coded by status, collapsible, and click-to-inspect.
-- **Application Features**: Multi-tab interface for working on multiple automata simultaneously, native OS file dialogs for saving/loading `.autolab.json` projects, and a prompt to save unsaved work before closing a tab.
-- **Over-the-Air Updates**: Built-in signed auto-updates via the **UPDATES** button. Functional from **v1.0.2 onward** — earlier builds (v1.0.0 / v1.0.1) shipped without the required updater capability and must be updated to v1.0.2 manually, once.
-- **Real-Time Validation**: Instant feedback on missing start states, unreachable states, or nondeterminism.
-- **Copy/Paste & Selection**: Full keyboard shortcut support for selecting, moving, cutting, copying, pasting, and deleting.
-- **Execution History**: Detailed step-by-step logs of active states and consumed symbols during simulation.
+<br/>
 
-## Project Roadmap and Future Direction
+## 🚀 Download & Install
 
-The primary goal of AutomataLab is to evolve from a finite automata simulator into a comprehensive visual learning environment for all levels of computational theory.
+Ready to build some state machines? Download the latest stable release for your operating system:
 
-### Phase 1: Advanced Computational Models
-*   **Pushdown Automata (PDA):** ✅ Delivered in v2.0.0 — stack memory in the engine, a visual stack panel with push/pop animations, and a computation-tree viewer for nondeterministic branches.
-*   **Turing Machines (TM):** Implement an infinite tape memory model, with UI components for tape visualization and read/write head movement.
+👉 **[Download AutomataLab v2.0.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
-### Phase 2: Analytical and Educational Tools
-*   **Machine Conversion:** Implement automated tools to convert an NFA to a DFA.
-*   **State Minimization:** Implement algorithms to optimize and minimize DFA states.
-*   **Regex Integration:** Allow users to generate a DFA/NFA directly from a Regular Expression, and vice versa.
+*Auto-updates are fully supported for all platforms from v1.0.2 onward.*
 
-### Phase 3: Export and Accessibility
-*   **Visual Exports:** Add functionality to export the current canvas as a PNG, JPG, or SVG for use in assignments and presentations.
-*   **Web Version Parity:** Ensure that the core simulation engine remains completely decoupled from Tauri, allowing for a fully functional web-browser version of AutomataLab in the future.
+---
 
-## Quick Start (Development)
+## ✨ Features
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+- **🌐 Multiple Machine Types**: Finite automata — Deterministic (DFA), Non-Deterministic (NFA), and Epsilon-NFA (ε-NFA) — plus Pushdown Automata, both deterministic (DPDA) and non-deterministic (NPDA).
+- **🖱️ Interactive Canvas**: Seamless drag-and-drop interface for placing states and drawing transitions. Powered by a dynamic d3-force auto-layout engine to keep things tidy.
+- **▶️ Live Simulation**: Run step-by-step or continuous simulations with custom speed controls. Watch the automaton process strings with full visual branching for non-deterministic paths.
+- **📚 Stack & Computation Tree**: A live stack panel with push/pop animations for PDAs, plus a status-coloured computation-tree viewer for exploring every branch of a nondeterministic run (NFA, ε-NFA, NPDA).
+- **🖥️ Desktop Native**: Enjoy a multi-tab interface, native file saving/loading (`.autolab.json`), and over-the-air auto-updates.
+- **⚡ Real-Time Validation**: Instant UI feedback on missing start states, unreachable nodes, or invalid configurations.
 
-2. Run the Tauri development app:
-   ```bash
-   npm run tauri:dev
-   ```
+## ⌨️ Keyboard Shortcuts
 
-## Keyboard Shortcuts
+| Shortcut | Action |
+| :--- | :--- |
+| `Space` or `P` | Play / Pause Simulation |
+| `Right Arrow` or `S` | Step Forward Simulation |
+| `R` | Reset Simulation |
+| `Ctrl + Click` | Select multiple elements |
+| `Ctrl + C` / `V` / `X` | Copy / Paste / Cut |
+| `Delete` | Remove selected elements |
+| `Double Click` | Edit label / Enter drag mode |
 
-- `Space` or `P`: Play / Pause Simulation
-- `Right Arrow` or `S`: Step Forward Simulation
-- `R`: Reset Simulation
-- `Ctrl + Click`: Select multiple states/transitions
-- `Ctrl + A`: Select all elements
-- `Ctrl + C`: Copy selection
-- `Ctrl + X`: Cut selection
-- `Ctrl + V`: Paste selection
-- `Delete` or `Backspace`: Delete selected elements
-- `Double Click` (Canvas): Enter selection drag mode
-- `Double Click` (State/Edge): Edit label
+## 🗺️ Roadmap
 
-## License
-MIT License
+The ultimate goal of AutomataLab is to evolve into a comprehensive visual learning environment for all levels of computational theory.
+
+- **Phase 1:** Advanced Models — ✅ Pushdown Automata (DPDA & NPDA) shipped in v2.0.0; Turing Machines (tape visualization) next.
+- **Phase 2:** Analytical Tools (NFA to DFA conversion, State Minimization, Regex integration).
+- **Phase 3:** Visual Exports (PNG/SVG) and Web-browser parity.
+
+## 🛠️ Development
+
+Want to build it from source?
+
+```bash
+# Install dependencies
+npm install
+
+# Run the Tauri development app
+npm run tauri:dev
+```
+
+## 📄 License
+This project is licensed under the [MIT License](LICENSE).
