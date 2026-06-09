@@ -38,6 +38,10 @@
   --status-reject:  #b42318;
   --status-running: #9a6700;
 
+  /* Soft fills for accept/reject highlighting (result badges, final states). */
+  --status-accept-soft: #e6f4ea;
+  --status-reject-soft: #fdecea;
+
   --font-sans:  'Inter', system-ui, sans-serif;
   --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
 
@@ -54,6 +58,42 @@
   --transition-fast:   0ms;
   --transition-normal: 0ms;
   --transition-slow:   0ms;
+}
+
+/* ── Dark theme ─────────────────────────────────────────────────
+   Toggled by adding `.dark` to <html>. Only overrides the design
+   tokens, so the whole app (which reads var(--...)) flips at once. */
+:root.dark {
+  --bg-primary:     #18181b;
+  --bg-secondary:   #1f1f23;
+  --bg-tertiary:    #27272a;
+  --bg-card:        #1f1f23;
+  --bg-elevated:    #2e2e33;
+
+  --border-subtle:  #2a2a2e;
+  --border-default: #3f3f46;
+  --border-strong:  #71717a;
+
+  --text-primary:   #f4f4f5;
+  --text-secondary: #a1a1aa;
+  --text-muted:     #71717a;
+  --text-accent:    #ffffff;
+
+  --state-accept:   #f4f4f5;
+  --state-reject:   #71717a;
+  --state-active:   #f4f4f5;
+  --state-start:    #f4f4f5;
+
+  --status-accept:  #3fb950;
+  --status-reject:  #f85149;
+  --status-running: #d29922;
+
+  --status-accept-soft: rgba(63, 185, 80, 0.18);
+  --status-reject-soft: rgba(248, 81, 73, 0.18);
+
+  --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg:  0 8px 24px rgba(0,0,0,0.6);
 }
 
 /* ── Base Reset ─────────────────────────────────────────────── */
@@ -84,8 +124,8 @@ body {
 
 .react-flow__background pattern circle,
 .react-flow__background pattern path {
-  stroke: #e4e4e7 !important;
-  fill: #e4e4e7 !important;
+  stroke: var(--border-subtle) !important;
+  fill: var(--border-subtle) !important;
 }
 
 .react-flow__edge-path {
@@ -204,11 +244,44 @@ body {
   cursor: crosshair;
 }
 
+/* Accepted/rejected final states use colour so the outcome is unmistakable
+   (a deliberate, scoped exception to the B&W palette, like the tree viewer). */
 .state-node.accepted-final {
-  background: var(--bg-secondary);
+  border-color: var(--status-accept) !important;
+  background: var(--status-accept-soft);
+  box-shadow: 0 0 0 3px var(--status-accept-soft);
+}
+
+.state-node.accepted-final::after {
+  border-color: var(--status-accept);
 }
 
 .state-node.rejected-final {
-  border-color: var(--border-strong);
-  opacity: 0.5;
+  border-color: var(--status-reject) !important;
+  background: var(--status-reject-soft);
+  box-shadow: 0 0 0 3px var(--status-reject-soft);
 }
+
+/* ── Animations ─────────────────────────────────────────────────
+   Defined independently of the (disabled) --transition-* tokens. */
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* One-shot canvas border glow when a run finishes. */
+@keyframes result-flash-fade {
+  0%   { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+.result-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  animation: result-flash-fade 900ms ease-out forwards;
+}
+
+.result-flash.accept { box-shadow: inset 0 0 0 4px var(--status-accept); }
+.result-flash.reject { box-shadow: inset 0 0 0 4px var(--status-reject); }

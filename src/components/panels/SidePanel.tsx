@@ -2,7 +2,7 @@
 // SidePanel — Right sidebar. Plain B&W. Tabs: History, Validate, Info.
 // ============================================================
 
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
@@ -13,6 +13,10 @@ import StackPanel from './StackPanel'
 import ComputationTreePanel from './ComputationTreePanel'
 
 type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree'
+
+const WIDTH_KEY = 'automatalab-panel-width'
+const MIN_WIDTH = 220
+const MAX_WIDTH = 560
 
 function InfoPanel() {
   const { machine } = useMachineStore()
@@ -53,6 +57,39 @@ export default function SidePanel() {
   const isPDA = isPDAType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
+  // Width is user-resizable (persisted). Until the user drags, stack-machine
+  // and tree views default wider since their content is denser.
+  const [userWidth, setUserWidth] = useState<number | null>(() => {
+    if (typeof localStorage === 'undefined') return null
+    const n = parseInt(localStorage.getItem(WIDTH_KEY) ?? '', 10)
+    return Number.isFinite(n) ? Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) : null
+  })
+
+  const width = userWidth ?? (isPDA || hasTree ? 300 : 240)
+
+  useEffect(() => {
+    if (userWidth != null && typeof localStorage !== 'undefined') {
+      localStorage.setItem(WIDTH_KEY, String(userWidth))
+    }
+  }, [userWidth])
+
+  const startResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = width
+    const onMove = (ev: PointerEvent) => {
+      // Panel is on the right, so dragging the handle left widens it.
+      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW + (startX - ev.clientX)))
+      setUserWidth(next)
+    }
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+  }, [width])
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'history',    label: 'History' },
     { id: 'validation', label: 'Validate' },
@@ -72,14 +109,30 @@ export default function SidePanel() {
 
   return (
     <aside style={{
-      width: '230px',
+      width: `${width}px`,
       flexShrink: 0,
+      position: 'relative',
       background: 'var(--bg-secondary)',
       borderLeft: '1px solid var(--border-default)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
+      {/* Resize handle */}
+      <div
+        onPointerDown={startResize}
+        title="Drag to resize"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '6px',
+          marginLeft: '-3px',
+          cursor: 'col-resize',
+          zIndex: 20,
+        }}
+      />
       {/* Tab bar */}
       <div style={{
         display: 'flex',

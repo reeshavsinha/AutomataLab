@@ -2,12 +2,20 @@
 // HistoryLog — Execution step history. Plain B&W.
 // ============================================================
 
+import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 
 export default function HistoryLog() {
   const { history } = useSimulationStore()
   const { machine } = useMachineStore()
+
+  const endRef = useRef<HTMLDivElement>(null)
+
+  // Keep the latest step visible during continuous playback.
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [history.length])
 
   const getLabel = (id: string) =>
     machine.states.find((s) => s.id === id)?.label ?? id
@@ -97,6 +105,7 @@ export default function HistoryLog() {
           </div>
         )
       })}
+      <div ref={endRef} />
     </div>
   )
 }

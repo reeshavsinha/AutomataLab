@@ -2,6 +2,28 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v2.1.0
+
+### Added
+- **Undo / redo** for all machine edits (Ctrl+Z / Ctrl+Y), with rapid edits coalesced into single steps.
+- **Light / dark theme toggle**, remembered between sessions.
+- **Toast notifications** for save / load / update and machine-type changes, replacing blocking dialogs.
+- **Onboarding & help** — an empty-canvas hint plus a `?` quick-start and keyboard-shortcut cheat sheet.
+- **Resizable side panel** (width remembered) and **resizable, draggable text-annotation boxes** whose placeholder clears as you type.
+- **Recent files** menu (desktop) for quickly reopening machines.
+- **Keyboard shortcut `N`** to add a state at the viewport centre.
+
+### Changed
+- **Auto-layout** now produces a clean, organised arrangement in a single press and re-frames the view to fit; text notes keep their place.
+- **Accept / reject results are unmistakable** — a colour-coded status badge, highlighted final states, and a one-shot canvas flash.
+- **Transitions route around intermediate states** instead of crossing them, and labels lift to the front on hover.
+- **Tab bar moved to the top**; the simulation-speed input is clamped with quick presets; the history log auto-scrolls to the latest step.
+
+### Fixed
+- The "AutomataLab" title no longer opens the repository in two browser tabs.
+- Scrolling over a text box now scrolls the box instead of zooming the canvas.
+- The right-click menu no longer runs off the bottom of the screen, and the Help dialog's close button stays pinned while scrolling.
+
 ## v2.0.0
 
 ### Added

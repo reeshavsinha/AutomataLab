@@ -8,6 +8,23 @@ import { create } from 'zustand'
 export type Theme = 'dark' | 'light'
 export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree'
 
+const THEME_KEY = 'automatalab-theme'
+
+/** Read the persisted theme, defaulting to light (the app's original look). */
+function getInitialTheme(): Theme {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(THEME_KEY)
+    if (saved === 'dark' || saved === 'light') return saved
+  }
+  return 'light'
+}
+
+function persistTheme(theme: Theme) {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(THEME_KEY, theme)
+  }
+}
+
 export interface ClipboardData {
   states: {
     label: string
@@ -36,9 +53,12 @@ interface UIStore {
   transitionEditorStateId: string | null
   renamingStateId: string | null
   clipboard: ClipboardData | null
+  /** Bumped to ask the canvas to fit/frame all nodes (e.g. after auto-layout). */
+  fitViewNonce: number
 
   // Actions
   toggleTheme: () => void
+  requestFitView: () => void
   setTheme: (theme: Theme) => void
   setSelectedStateIds: (ids: string[]) => void
   setSelectedTransitionIds: (ids: string[]) => void
@@ -55,7 +75,7 @@ interface UIStore {
 }
 
 export const useUIStore = create<UIStore>((set) => ({
-  theme: 'dark',
+  theme: getInitialTheme(),
   selectedStateIds: [],
   selectedTransitionIds: [],
   activePanel: 'history',
@@ -63,11 +83,21 @@ export const useUIStore = create<UIStore>((set) => ({
   transitionEditorStateId: null,
   renamingStateId: null,
   clipboard: null,
+  fitViewNonce: 0,
+
+  requestFitView: () => set((s) => ({ fitViewNonce: s.fitViewNonce + 1 })),
 
   toggleTheme: () =>
-    set((s) => ({ theme: s.theme === 'dark' ? 'light' : 'dark' })),
+    set((s) => {
+      const theme: Theme = s.theme === 'dark' ? 'light' : 'dark'
+      persistTheme(theme)
+      return { theme }
+    }),
 
-  setTheme: (theme) => set({ theme }),
+  setTheme: (theme) => {
+    persistTheme(theme)
+    set({ theme })
+  },
 
   setSelectedStateIds: (ids) => set({ selectedStateIds: ids }),
   setSelectedTransitionIds: (ids) => set({ selectedTransitionIds: ids }),

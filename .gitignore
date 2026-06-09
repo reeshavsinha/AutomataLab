@@ -33,3 +33,7 @@ src-tauri/target/
 project_context.md
 decisions.md
 handoff.md
+git-identity.md
+
+# Local sample machines (not part of the shipped app)
+examples/

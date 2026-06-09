@@ -1,51 +1,82 @@
-import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force'
+import {
+  forceSimulation,
+  forceLink,
+  forceManyBody,
+  forceCenter,
+  forceCollide,
+  forceX,
+  forceY,
+} from 'd3-force'
 import { MachineDefinition } from '@/engines/core/types'
 
+const CENTER_X = 400
+const CENTER_Y = 300
+
+/**
+ * Arrange the automaton with a force-directed layout.
+ *
+ * The simulation is seeded from a deterministic ring (not the current, possibly
+ * messy/near-collinear positions) and run to convergence in one go. That makes
+ * a single press produce a clean, stable result instead of needing repeated
+ * presses to settle. Text annotations are left where the user placed them.
+ */
 export function applyAutoLayout(machine: MachineDefinition): MachineDefinition {
-  // Create nodes for the simulation
-  const nodes = machine.states.map((state) => ({
-    id: state.id,
-    // Use current positions as a starting point if they aren't stacked at 0,0,
-    // otherwise give them a random starting jitter so they explode outwards nicely
-    x: state.x === 0 ? Math.random() * 10 : state.x,
-    y: state.y === 0 ? Math.random() * 10 : state.y,
-    stateData: state
-  }))
+  const layoutStates = machine.states.filter((s) => !s.isText)
+  const n = layoutStates.length
+  if (n === 0) return machine
 
-  // Create links for the simulation (ignoring self-loops)
-  const links = machine.transitions
-    .filter((t) => t.from !== t.to)
-    .map((t) => ({
-      source: t.from,
-      target: t.to
-    }))
-
-  // Setup the physics simulation
-  const simulation = forceSimulation(nodes as any)
-    .force('link', forceLink(links).id((d: any) => d.id).distance(150))
-    .force('charge', forceManyBody().strength(-1000)) // Strong repel to push states apart
-    .force('center', forceCenter(400, 300)) // Center it roughly in the canvas
-    .force('collide', forceCollide().radius(60)) // Prevent nodes from intersecting
-    .stop() // We stop it so we can run it synchronously
-
-  // Fast-forward the simulation 300 ticks to calculate the final layout instantly
-  for (let i = 0; i < 300; ++i) {
-    simulation.tick()
+  if (n === 1) {
+    return {
+      ...machine,
+      states: machine.states.map((s) =>
+        s.id === layoutStates[0].id ? { ...s, x: CENTER_X, y: CENTER_Y } : s
+      ),
+    }
   }
 
-  // Map the new calculated coordinates back to our state objects
-  const updatedStates = nodes.map((node: any) => {
-    // node.x and node.y are center coordinates. 
-    // We adjust them slightly since our node components are drawn with top-left origins (width ~80)
+  // Deterministic, symmetric seed → avoids the degenerate (clustered/collinear)
+  // starting configurations that made the old layout look wild on first press.
+  const ringRadius = Math.max(200, (n * 70) / (2 * Math.PI))
+  const simNodes = layoutStates.map((state, i) => {
+    const angle = (i / n) * 2 * Math.PI - Math.PI / 2
     return {
-      ...node.stateData,
-      x: node.x - 40,
-      y: node.y - 40
+      id: state.id,
+      x: CENTER_X + ringRadius * Math.cos(angle),
+      y: CENTER_Y + ringRadius * Math.sin(angle),
     }
   })
 
+  const ids = new Set(simNodes.map((node) => node.id))
+  const links = machine.transitions
+    .filter((t) => t.from !== t.to && ids.has(t.from) && ids.has(t.to))
+    .map((t) => ({ source: t.from, target: t.to }))
+
+  const simulation = forceSimulation(simNodes as any)
+    .force('link', forceLink(links).id((d: any) => d.id).distance(170).strength(0.55))
+    .force('charge', forceManyBody().strength(-750).distanceMax(700))
+    .force('collide', forceCollide().radius(62).strength(1))
+    .force('center', forceCenter(CENTER_X, CENTER_Y))
+    .force('x', forceX(CENTER_X).strength(0.06))
+    .force('y', forceY(CENTER_Y).strength(0.06))
+    .alpha(1)
+    .alphaMin(0.001)
+    .alphaDecay(0.0228)
+    .velocityDecay(0.45)
+    .stop()
+
+  // Run to convergence synchronously.
+  for (let i = 0; i < 400; i++) simulation.tick()
+
+  const posById = new Map<string, { x: number; y: number }>()
+  for (const node of simNodes as any[]) {
+    posById.set(node.id, { x: Math.round(node.x), y: Math.round(node.y) })
+  }
+
   return {
     ...machine,
-    states: updatedStates
+    states: machine.states.map((s) => {
+      const p = posById.get(s.id)
+      return p ? { ...s, x: p.x, y: p.y } : s
+    }),
   }
 }

@@ -48,20 +48,28 @@ function buildNodes(
   selectedStateIds: string[],
   transitionMode: TransitionDrawMode | null
 ): Node[] {
-  return machine.states.map((s) => ({
-    id: s.id,
-    type: s.isText ? 'textNode' : 'stateNode',
-    position: { x: s.x, y: s.y },
-    data: {
-      label: s.label,
-      isStart: s.isStart,
-      isAccept: s.isAccept,
-      isReject: s.isReject ?? false,
-      isTransitionTarget: transitionMode !== null && transitionMode.fromStateId !== s.id && !s.isText,
-    },
-    draggable: true,
-    selected: selectedStateIds.includes(s.id),
-  }))
+  return machine.states.map((s) => {
+    const node: Node = {
+      id: s.id,
+      type: s.isText ? 'textNode' : 'stateNode',
+      position: { x: s.x, y: s.y },
+      data: {
+        label: s.label,
+        isStart: s.isStart,
+        isAccept: s.isAccept,
+        isReject: s.isReject ?? false,
+        isTransitionTarget: transitionMode !== null && transitionMode.fromStateId !== s.id && !s.isText,
+      },
+      draggable: true,
+      selected: selectedStateIds.includes(s.id),
+    }
+    // Text annotations are explicitly sized boxes so they can be resized.
+    if (s.isText) {
+      node.width = s.width ?? 190
+      node.height = s.height ?? 56
+    }
+    return node
+  })
 }
 
 function buildEdges(
@@ -213,7 +221,7 @@ function AutomataCanvasInner() {
   const machine = useMachineStore((s) => s.machine)
   const {
     addState, addTextState, deleteState, updateState, setStartState,
-    toggleAcceptState, addTransition, deleteTransition,
+    toggleAcceptState, addTransition, deleteTransition, undo, redo,
   } = useMachineStore()
   const { activeStateIds, activeTransitionIds, status } = useSimulationStore()
   
@@ -222,10 +230,11 @@ function AutomataCanvasInner() {
     setSelectedStateIds, setSelectedTransitionIds,
     clearSelection, startRenaming, setEditingTransition,
     openTransitionEditor, closeTransitionEditor, transitionEditorStateId,
-    clipboard, setClipboard 
+    clipboard, setClipboard, theme, fitViewNonce,
   } = useUIStore()
 
   const isPDA = isPDAType(machine.type)
+  const isDark = theme === 'dark'
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<any>(null)
@@ -233,6 +242,19 @@ function AutomataCanvasInner() {
   const [transitionMode, setTransitionMode] = useState<TransitionDrawMode | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectionModeActive, setSelectionModeActive] = useState(false)
+  // One-shot canvas glow when a run finishes (green=accept, red=reject).
+  const [flash, setFlash] = useState<{ kind: 'accept' | 'reject'; id: number } | null>(null)
+
+  useEffect(() => {
+    if (status === 'accepted') setFlash({ kind: 'accept', id: Date.now() })
+    else if (status === 'rejected' || status === 'stuck') setFlash({ kind: 'reject', id: Date.now() })
+  }, [status])
+
+  useEffect(() => {
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 950)
+    return () => clearTimeout(t)
+  }, [flash])
 
   // After creating a transition, FA edits inline on the canvas; PDA opens the modal.
   const beginEditingNewTransition = useCallback(
@@ -287,6 +309,15 @@ function AutomataCanvasInner() {
       })
     })
   }, [edges, setRfEdges])
+
+  // Frame all nodes when requested (e.g. after Auto Layout / file load).
+  useEffect(() => {
+    if (fitViewNonce === 0 || !rfInstance) return
+    const handle = setTimeout(() => {
+      rfInstance.fitView({ padding: 0.3, duration: 400 })
+    }, 80)
+    return () => clearTimeout(handle)
+  }, [fitViewNonce, rfInstance])
 
   // ── Track Mouse Position for Transition Mode ─────────────────
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -455,6 +486,23 @@ function AutomataCanvasInner() {
     setRfEdges((eds) => eds.map((e) => ({ ...e, selected: true })))
   }, [machine.states, machine.transitions, setSelectedStateIds, setSelectedTransitionIds, setRfNodes, setRfEdges])
 
+  // ── Add a state at the viewport centre (keyboard / empty-state button) ──
+  const handleAddStateAtCenter = useCallback(() => {
+    if (status !== 'idle') return
+    let x = 0
+    let y = 0
+    if (rfInstance && reactFlowWrapper.current) {
+      const rect = reactFlowWrapper.current.getBoundingClientRect()
+      const pos = rfInstance.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      })
+      x = pos.x
+      y = pos.y
+    }
+    addState(x, y)
+  }, [status, rfInstance, addState])
+
   // ── Keyboard Event Listener for Shortcuts ────────────────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -464,19 +512,29 @@ function AutomataCanvasInner() {
 
       const isMac = navigator.userAgent.toLowerCase().includes('mac')
       const isCtrl = isMac ? e.metaKey : e.ctrlKey
+      const key = e.key.toLowerCase()
 
-      if (isCtrl && e.key.toLowerCase() === 'c') {
+      if (isCtrl && key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        if (status === 'idle') { clearSelection(); undo() }
+      } else if (isCtrl && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault()
+        if (status === 'idle') { clearSelection(); redo() }
+      } else if (isCtrl && key === 'c') {
         e.preventDefault()
         handleCopy()
-      } else if (isCtrl && e.key.toLowerCase() === 'x') {
+      } else if (isCtrl && key === 'x') {
         e.preventDefault()
         handleCut()
-      } else if (isCtrl && e.key.toLowerCase() === 'v') {
+      } else if (isCtrl && key === 'v') {
         e.preventDefault()
         handlePaste()
-      } else if (isCtrl && e.key.toLowerCase() === 'a') {
+      } else if (isCtrl && key === 'a') {
         e.preventDefault()
         handleSelectAll()
+      } else if (!isCtrl && key === 'n') {
+        e.preventDefault()
+        handleAddStateAtCenter()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         handleDeleteSelected()
@@ -485,7 +543,7 @@ function AutomataCanvasInner() {
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleCopy, handleCut, handlePaste, handleSelectAll, handleDeleteSelected])
+  }, [handleCopy, handleCut, handlePaste, handleSelectAll, handleDeleteSelected, handleAddStateAtCenter, undo, redo, clearSelection, status])
 
   // ── Connect via drag ─────────────────────────────────────────
   const onConnect = useCallback(
@@ -666,6 +724,7 @@ function AutomataCanvasInner() {
         onInit={setRfInstance}
         nodeTypes={NODE_TYPES}
         edgeTypes={EDGE_TYPES}
+        proOptions={{ hideAttribution: true }}
         fitView
         fitViewOptions={{ padding: 0.4 }}
         deleteKeyCode={null} // Keyboard delete/backspace custom-handled for store sync
@@ -699,16 +758,16 @@ function AutomataCanvasInner() {
           nodeColor={(node) => {
             if (node.id === 'cursor-node') return 'transparent'
             const d = node.data as { isAccept?: boolean; isStart?: boolean }
-            if (activeStateIds.includes(node.id)) return '#000'
-            if (d?.isAccept) return '#ccc'
-            return '#fff'
+            if (activeStateIds.includes(node.id)) return isDark ? '#f4f4f5' : '#000'
+            if (d?.isAccept) return isDark ? '#52525b' : '#ccc'
+            return isDark ? '#27272a' : '#fff'
           }}
-          nodeStrokeColor="#000"
+          nodeStrokeColor={isDark ? '#a1a1aa' : '#000'}
           nodeStrokeWidth={2}
-          maskColor="rgba(244, 244, 245, 0.7)"
+          maskColor={isDark ? 'rgba(24, 24, 27, 0.7)' : 'rgba(244, 244, 245, 0.7)'}
           style={{
-            background: '#fff',
-            border: '1px solid #d4d4d8',
+            background: isDark ? '#18181b' : '#fff',
+            border: `1px solid ${isDark ? '#3f3f46' : '#d4d4d8'}`,
             borderRadius: 'var(--radius-md)',
             bottom: 16,
             left: 16,
@@ -718,13 +777,67 @@ function AutomataCanvasInner() {
         />
       </ReactFlow>
 
+      {/* Result flash — brief green/red glow when a run finishes */}
+      {flash && <div key={flash.id} className={`result-flash ${flash.kind}`} />}
+
+      {/* Empty-state onboarding hint */}
+      {!machine.states.some((s) => !s.isText) && !transitionMode && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '14px',
+            pointerEvents: 'none',
+            zIndex: 5,
+            textAlign: 'center',
+            padding: '24px',
+          }}
+        >
+          <div style={{
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--text-muted)',
+            fontSize: '13px',
+            lineHeight: 1.7,
+            maxWidth: '360px',
+          }}>
+            <div style={{ fontSize: '15px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>
+              Start building your automaton
+            </div>
+            Right-click the canvas or press <strong style={{ color: 'var(--text-secondary)' }}>N</strong> to add a state.<br />
+            Drag from one state to another to create a transition.
+          </div>
+          <button
+            onClick={handleAddStateAtCenter}
+            style={{
+              pointerEvents: 'auto',
+              background: 'var(--text-primary)',
+              color: 'var(--bg-primary)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              padding: '8px 18px',
+              cursor: 'pointer',
+            }}
+          >
+            + Add a state
+          </button>
+        </div>
+      )}
+
       {/* Context menu */}
       {contextMenu && (
         <ContextMenu
           config={contextMenu}
           onClose={() => setContextMenu(null)}
           onAddState={(x, y) => { addState(x, y); setContextMenu(null) }}
-          onAddText={(x, y) => { addTextState(x, y); setContextMenu(null) }}
+          onAddText={(x, y) => { const t = addTextState(x, y); startRenaming(t.id); setContextMenu(null) }}
           onDeleteState={(id) => { deleteState(id); setContextMenu(null) }}
           onSetStart={(id) => { setStartState(id); setContextMenu(null) }}
           onToggleAccept={(id) => { toggleAcceptState(id); setContextMenu(null) }}

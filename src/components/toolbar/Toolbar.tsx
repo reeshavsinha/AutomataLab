@@ -1,24 +1,50 @@
 // ============================================================
 // Toolbar — Top navigation bar. Black & white styling.
-// Includes logo, machine name, type selector, and language input.
+// Includes logo, machine name, type selector, edit/theme/help
+// controls, and the File menu (with recent files).
 // ============================================================
 
 import { useMachineStore } from '@/store/machineStore'
+import { useSimulationStore } from '@/store/simulationStore'
+import { useUIStore } from '@/store/uiStore'
 import { useState, useEffect, useRef } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
 import packageJson from '../../../package.json'
-import { saveMachine, loadMachine as loadFromFile } from '@/utils/fileManager'
+import { saveMachine, loadMachine as loadFromFile, loadMachineFromPath } from '@/utils/fileManager'
+import { getRecentFiles, removeRecentFile, clearRecentFiles, type RecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-shell'
 import { applyAutoLayout } from '@/utils/layout'
+import { toast } from '@/store/toastStore'
+import { isPDAType } from '@/engines/core/utils'
+import type { MachineType } from '@/engines/core/types'
+import HelpModal from '@/components/layout/HelpModal'
+
+const TYPE_LABELS: Record<MachineType, string> = {
+  DFA: 'DFA',
+  NFA: 'NFA',
+  ENFA: 'ε-NFA',
+  DPDA: 'DPDA',
+  NPDA: 'NPDA',
+}
 
 export default function Toolbar() {
-  const { machine, activeTabIndex, setMachineName, setMachineType, setAlphabet, addTab, loadMachine, markTabSaved } = useMachineStore()
+  const {
+    machine, activeTabIndex, setMachineName, setMachineType, setAlphabet,
+    addTab, loadMachine, markTabSaved, undo, redo, past, future,
+  } = useMachineStore()
+  const status = useSimulationStore((s) => s.status)
+  const { theme, toggleTheme, clearSelection, requestFitView } = useUIStore()
+
+  const isIdle = status === 'idle'
+  const canUndo = past.length > 0 && isIdle
+  const canRedo = future.length > 0 && isIdle
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
-  
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
+
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false)
   const fileMenuRef = useRef<HTMLDivElement>(null)
 
@@ -38,24 +64,48 @@ export default function Toolbar() {
   }
 
   const handleLoad = async () => {
+    setIsFileMenuOpen(false)
     try {
-      const def = await loadFromFile()
+      const { def } = await loadFromFile()
       loadMachine(def)
+      requestFitView()
+      toast.success(`Opened "${def.name}".`)
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') {
-        alert(err.message)
+        toast.error(err.message)
       }
     }
+  }
+
+  const handleOpenRecent = async (file: RecentFile) => {
     setIsFileMenuOpen(false)
+    try {
+      const def = await loadMachineFromPath(file.path)
+      loadMachine(def)
+      requestFitView()
+      toast.success(`Opened "${def.name}".`)
+    } catch (err) {
+      removeRecentFile(file.path)
+      toast.error(`Could not open "${file.name}". It may have been moved or deleted.`)
+    }
+  }
+
+  const handleClearRecent = () => {
+    clearRecentFiles()
+    setIsFileMenuOpen(false)
+    toast.info('Recent files cleared.')
   }
 
   const handleSave = async () => {
     setIsFileMenuOpen(false)
     try {
       const saved = await saveMachine(machine)
-      if (saved) markTabSaved(activeTabIndex)
+      if (saved) {
+        markTabSaved(activeTabIndex)
+        toast.success(`Saved "${machine.name}".`)
+      }
     } catch (err) {
-      if (err instanceof Error) alert(err.message)
+      if (err instanceof Error) toast.error(err.message)
     }
   }
 
@@ -63,6 +113,36 @@ export default function Toolbar() {
     const layoutedMachine = applyAutoLayout(machine)
     // Rearranging positions is an unsaved modification, keep the tab dirty.
     loadMachine(layoutedMachine, false)
+    requestFitView()
+  }
+
+  const handleTypeChange = (newType: MachineType) => {
+    const oldType = machine.type
+    if (newType === oldType) return
+    setMachineType(newType)
+    clearSelection()
+
+    const formatChanged = isPDAType(oldType) !== isPDAType(newType)
+    if (formatChanged && machine.transitions.length > 0) {
+      const fmt = isPDAType(newType) ? 'read, pop → push' : 'input symbols'
+      toast.warning(
+        `Switched to ${TYPE_LABELS[newType]}. Existing transitions now use a different format (${fmt}) — re-check their labels.`
+      )
+    } else {
+      toast.info(`Machine type set to ${TYPE_LABELS[newType]}.`)
+    }
+  }
+
+  const handleUndo = () => {
+    if (!canUndo) return
+    clearSelection()
+    undo()
+  }
+
+  const handleRedo = () => {
+    if (!canRedo) return
+    clearSelection()
+    redo()
   }
 
   const menuItemStyle: React.CSSProperties = {
@@ -86,17 +166,17 @@ export default function Toolbar() {
         const yes = window.confirm(`Update to ${update.version} is available!\nRelease notes: ${update.body}\n\nDownload and install?`)
         if (yes) {
           await update.downloadAndInstall()
-          alert("Update installed successfully. Please restart the application.")
+          toast.success('Update installed. Please restart the application.', 8000)
         }
       } else {
-        alert("You are on the latest version.")
+        toast.info('You are on the latest version.')
       }
     } catch (error) {
       const errMsg = String(error).toLowerCase()
       if (errMsg.includes('404') || errMsg.includes('not found')) {
-        alert("You are on the latest version (no releases found).")
+        toast.info('You are on the latest version (no releases found).')
       } else {
-        alert(`Failed to check for updates. Ensure you have internet access or the update server is reachable.\n\nError: ${error}`)
+        toast.error('Failed to check for updates. Check your internet connection or the update server.')
       }
       console.error("Update check error:", error)
     } finally {
@@ -110,6 +190,25 @@ export default function Toolbar() {
     }
   }, [machine.alphabet, isFocused])
 
+  const iconButtonStyle = (enabled: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '30px',
+    height: '28px',
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border-default)',
+    borderRadius: 'var(--radius-sm)',
+    color: enabled ? 'var(--text-primary)' : 'var(--text-muted)',
+    fontSize: '14px',
+    cursor: enabled ? 'pointer' : 'not-allowed',
+    opacity: enabled ? 1 : 0.4,
+    outline: 'none',
+    padding: 0,
+  })
+
+  const recentFiles = isTauri() ? getRecentFiles() : []
+
   return (
     <div style={{
       display: 'flex',
@@ -119,19 +218,24 @@ export default function Toolbar() {
       background: 'var(--bg-secondary)',
       borderBottom: '1px solid var(--border-default)',
       flexShrink: 0,
-      gap: '24px',
+      gap: '16px',
     }}>
       {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <a 
           href="https://github.com/reeshavsinha/AutomataLab"
-          onClick={async (e) => {
+          onClick={(e) => {
+            // Always handle navigation ourselves so the link opens exactly once.
+            // (A bare <a target="_blank"> inside the Tauri webview would also be
+            // opened natively, resulting in two browser tabs.)
+            e.preventDefault()
+            const url = 'https://github.com/reeshavsinha/AutomataLab'
             if (isTauri()) {
-              e.preventDefault()
-              await open("https://github.com/reeshavsinha/AutomataLab")
+              void open(url)
+            } else {
+              window.open(url, '_blank', 'noopener,noreferrer')
             }
           }}
-          target="_blank"
           rel="noopener noreferrer"
           title={`Version ${packageJson.version}`}
           style={{
@@ -163,6 +267,26 @@ export default function Toolbar() {
           width: '140px',
         }}
       />
+
+      {/* Undo / Redo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <button
+          onClick={handleUndo}
+          disabled={!canUndo}
+          title="Undo (Ctrl+Z)"
+          style={iconButtonStyle(canUndo)}
+        >
+          ↶
+        </button>
+        <button
+          onClick={handleRedo}
+          disabled={!canRedo}
+          title="Redo (Ctrl+Y)"
+          style={iconButtonStyle(canRedo)}
+        >
+          ↷
+        </button>
+      </div>
 
       <div style={{ flex: 1 }} />
 
@@ -225,7 +349,7 @@ export default function Toolbar() {
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <select
             value={machine.type}
-            onChange={(e) => setMachineType(e.target.value as any)}
+            onChange={(e) => handleTypeChange(e.target.value as MachineType)}
             style={{
               background: 'var(--bg-primary)',
               border: '1px solid var(--border-default)',
@@ -238,7 +362,7 @@ export default function Toolbar() {
               outline: 'none',
               cursor: 'pointer',
               appearance: 'none',
-              backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='black' d='M0 0l5 5 5-5z'/></svg>")`,
+              backgroundImage: `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888888' d='M0 0l5 5 5-5z'/></svg>")`,
               backgroundRepeat: 'no-repeat',
               backgroundPosition: 'right 8px center',
               backgroundSize: '10px 6px',
@@ -274,6 +398,24 @@ export default function Toolbar() {
         title="Automatically arrange diagram"
       >
         AUTO LAYOUT
+      </button>
+
+      {/* Theme toggle */}
+      <button
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        style={iconButtonStyle(true)}
+      >
+        {theme === 'dark' ? '☀' : '🌙'}
+      </button>
+
+      {/* Help */}
+      <button
+        onClick={() => setIsHelpOpen(true)}
+        title="Help & keyboard shortcuts"
+        style={iconButtonStyle(true)}
+      >
+        ?
       </button>
 
       {/* Update Check Button */}
@@ -327,10 +469,10 @@ export default function Toolbar() {
             background: 'var(--bg-card)',
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-sm)',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+            boxShadow: 'var(--shadow-md)',
             display: 'flex',
             flexDirection: 'column',
-            minWidth: '120px',
+            minWidth: '220px',
             zIndex: 100,
             overflow: 'hidden'
           }}>
@@ -352,15 +494,61 @@ export default function Toolbar() {
             </button>
             <button 
               onClick={handleSave} 
-              style={{ ...menuItemStyle, borderBottom: 'none' }}
+              style={recentFiles.length > 0 ? menuItemStyle : { ...menuItemStyle, borderBottom: 'none' }}
               onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
               onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
             >
               Save
             </button>
+
+            {recentFiles.length > 0 && (
+              <>
+                <div style={{
+                  padding: '6px 12px',
+                  fontSize: '9px',
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  fontFamily: 'var(--font-mono)',
+                  background: 'var(--bg-secondary)',
+                  borderBottom: '1px solid var(--border-subtle)',
+                }}>
+                  Recent
+                </div>
+                {recentFiles.map((file) => (
+                  <button
+                    key={file.path}
+                    onClick={() => handleOpenRecent(file)}
+                    title={file.path}
+                    style={{ ...menuItemStyle, fontSize: '11px' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span style={{
+                      display: 'block',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      {file.name}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={handleClearRecent}
+                  style={{ ...menuItemStyle, borderBottom: 'none', color: 'var(--text-muted)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  Clear recent
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
+
+      {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     </div>
   )
 }

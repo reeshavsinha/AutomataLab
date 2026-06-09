@@ -2,14 +2,24 @@
 // AppLayout — Main application shell layout
 // ============================================================
 
+import { useEffect } from 'react'
+import { useUIStore } from '@/store/uiStore'
 import Toolbar from '@/components/toolbar/Toolbar'
 import InputBar from '@/components/controls/InputBar'
 import SimulationControls from '@/components/controls/SimulationControls'
 import AutomataCanvas from '@/components/canvas/AutomataCanvas'
 import SidePanel from '@/components/panels/SidePanel'
 import TabBar from '@/components/layout/TabBar'
+import ToastContainer from '@/components/layout/ToastContainer'
 
 export default function AppLayout() {
+  const theme = useUIStore((s) => s.theme)
+
+  // Reflect the active theme onto <html> so the CSS token overrides apply.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark')
+  }, [theme])
+
   return (
     <div style={{
       display: 'flex',
@@ -21,6 +31,9 @@ export default function AppLayout() {
     }}>
       {/* Top bar */}
       <Toolbar />
+
+      {/* Tab Bar — top placement, just below the toolbar (conventional). */}
+      <TabBar />
 
       {/* Input tape bar */}
       <InputBar />
@@ -36,11 +49,11 @@ export default function AppLayout() {
         <SidePanel />
       </div>
 
-      {/* Tab Bar */}
-      <TabBar />
-
       {/* Bottom simulation controls */}
       <SimulationControls />
+
+      {/* Toast notifications */}
+      <ToastContainer />
     </div>
   )
 }

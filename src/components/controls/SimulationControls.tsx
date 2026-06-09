@@ -126,6 +126,17 @@ export default function SimulationControls() {
 
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
+  // Colour-coded result badge so accept/reject is unmistakable.
+  const badge = (() => {
+    if (status === 'accepted') return { bg: 'var(--status-accept)', fg: '#ffffff', border: 'var(--status-accept)' }
+    if (status === 'rejected' || status === 'stuck' || status === 'error')
+      return { bg: 'var(--status-reject)', fg: '#ffffff', border: 'var(--status-reject)' }
+    if (status === 'running') return { bg: 'transparent', fg: 'var(--status-running)', border: 'var(--status-running)' }
+    return { bg: 'transparent', fg: 'var(--text-primary)', border: 'var(--border-default)' }
+  })()
+
+  const clampSpeed = (v: number) => Math.min(8, Math.max(0.25, v))
+
   return (
     <div style={{
       display: 'flex',
@@ -184,13 +195,15 @@ export default function SimulationControls() {
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <input
             type="number"
-            min={0.1}
-            step={0.1}
+            min={0.25}
+            max={8}
+            step={0.25}
             value={speed}
             onChange={(e) => {
               const val = parseFloat(e.target.value)
               if (!isNaN(val)) setSpeed(val)
             }}
+            onBlur={() => setSpeed(clampSpeed(Number.isFinite(speed) && speed > 0 ? speed : 1))}
             style={{
               width: '40px',
               background: 'transparent',
@@ -207,6 +220,30 @@ export default function SimulationControls() {
             ×
           </span>
         </div>
+
+        {/* Speed presets */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+          {[0.5, 1, 2, 4].map((p) => (
+            <button
+              key={p}
+              onClick={() => setSpeed(p)}
+              title={`${p}× speed`}
+              style={{
+                background: speed === p ? 'var(--bg-elevated)' : 'transparent',
+                border: `1px solid ${speed === p ? 'var(--text-primary)' : 'var(--border-default)'}`,
+                borderRadius: 'var(--radius-sm)',
+                color: speed === p ? 'var(--text-primary)' : 'var(--text-secondary)',
+                fontSize: '10px',
+                fontFamily: 'var(--font-mono)',
+                padding: '2px 5px',
+                cursor: 'pointer',
+                lineHeight: 1,
+              }}
+            >
+              {p}×
+            </button>
+          ))}
+        </div>
       </div>
 
       <div style={{ flex: 1 }} />
@@ -220,13 +257,13 @@ export default function SimulationControls() {
 
       {/* Status */}
       <div style={{
-        padding: '3px 10px',
+        padding: '3px 12px',
         borderRadius: 'var(--radius-sm)',
-        border: `1px solid ${isDone && status === 'accepted' ? 'var(--text-primary)' : 'var(--border-default)'}`,
-        background: isDone && status === 'accepted' ? 'var(--bg-elevated)' : 'transparent',
-        color: isDone && status === 'rejected' ? 'var(--text-muted)' : 'var(--text-primary)',
+        border: `1px solid ${badge.border}`,
+        background: badge.bg,
+        color: badge.fg,
         fontSize: '12px',
-        fontWeight: 600,
+        fontWeight: 700,
         fontFamily: 'var(--font-mono)',
         letterSpacing: '0.04em',
       }}>

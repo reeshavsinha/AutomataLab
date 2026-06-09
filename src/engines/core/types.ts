@@ -19,6 +19,9 @@ export interface AutomataState {
   isReject?: boolean
   /** Text annotation node type */
   isText?: boolean
+  /** Explicit box size (text annotation nodes only) */
+  width?: number
+  height?: number
 }
 
 export interface Transition {

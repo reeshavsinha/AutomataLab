@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { saveMachine } from '@/utils/fileManager'
+import { toast } from '@/store/toastStore'
 
 export default function TabBar() {
   const { tabs, activeTabIndex, dirtyTabs, switchTab, addTab, closeTab } = useMachineStore()
@@ -29,12 +30,13 @@ export default function TabBar() {
     try {
       const saved = await saveMachine(tab)
       if (saved) {
+        toast.success(`Saved "${tab.name || 'Untitled'}".`)
         closeTab(pendingCloseIndex)
         setPendingCloseIndex(null)
       }
       // If the user cancelled the save dialog, keep the tab open.
     } catch (err) {
-      if (err instanceof Error) alert(err.message)
+      if (err instanceof Error) toast.error(err.message)
     } finally {
       setIsSaving(false)
     }
@@ -56,7 +58,7 @@ export default function TabBar() {
       display: 'flex',
       alignItems: 'flex-end',
       background: 'var(--bg-secondary)',
-      borderTop: '1px solid var(--border-default)',
+      borderBottom: '1px solid var(--border-default)',
       height: '36px',
       padding: '0 8px',
       gap: '4px',

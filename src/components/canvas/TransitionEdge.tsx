@@ -69,7 +69,11 @@ const TransitionEdge = memo(
         const [isEditing, setIsEditing] = useState(false)
     const [labelDraft, setLabelDraft] = useState(edgeData?.symbols?.join(', ') ?? '')
     const [dropdownOpen, setDropdownOpen] = useState(false)
+    // Bring an overlapping label to the front on hover (dense-graph readability).
+    const [hovered, setHovered] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
+    // Default curve offset (incl. auto-routing around states); shared with drag start.
+    const defaultOffsetRef = useRef({ x: 0, y: 0 })
 
     useEffect(() => {
       if (!isEditing) {
@@ -106,6 +110,7 @@ const TransitionEdge = memo(
 
       const defaultOffsetX = 0
       const defaultOffsetY = -60
+      defaultOffsetRef.current = { x: defaultOffsetX, y: defaultOffsetY }
 
       const offset = edgeData.controlPointOffset || { x: defaultOffsetX, y: defaultOffsetY }
 
@@ -138,13 +143,53 @@ const TransitionEdge = memo(
       const mx = (sourceX + targetX) / 2
       const my = (sourceY + targetY) / 2
 
-      // If there's a reverse edge, bow outward slightly by default
+      // Default curve: bow apart from a reverse edge, and bow around any state
+      // node the straight path would otherwise run over (and dump its label on).
       let defaultOffsetX = 0
       let defaultOffsetY = 0
-      if (edgeData.hasReverse && dist_centers > 0) {
-        defaultOffsetX = (-dy_centers / dist_centers) * 35
-        defaultOffsetY = (dx_centers / dist_centers) * 35
+      if (dist_centers > 0) {
+        const perpX = -dy_centers / dist_centers
+        const perpY = dx_centers / dist_centers
+
+        if (edgeData.hasReverse) {
+          defaultOffsetX = perpX * 35
+          defaultOffsetY = perpY * 35
+        }
+
+        // Only auto-route when the user hasn't manually curved this edge.
+        if (!edgeData.controlPointOffset) {
+          const ux = dx_centers / dist_centers
+          const uy = dy_centers / dist_centers
+          // Calibrate stored top-left → center using the known source mapping.
+          const srcState = machine.states.find((s) => s.id === source)
+          const offX = srcState ? sourceX - srcState.x : NODE_RADIUS
+          const offY = srcState ? sourceY - srcState.y : NODE_RADIUS
+          const clearance = NODE_RADIUS + 22
+
+          let bow = edgeData.hasReverse ? 35 : 0
+          for (const st of machine.states) {
+            if (st.isText || st.id === source || st.id === target) continue
+            const relX = st.x + offX - sourceX
+            const relY = st.y + offY - sourceY
+            const t = (relX * ux + relY * uy) / dist_centers
+            if (t < 0.12 || t > 0.88) continue // not between the endpoints
+            const perpDist = relX * perpX + relY * perpY
+            if (Math.abs(perpDist) > clearance) continue // not on the path
+            // Bow to the side away from the node, far enough to clear it.
+            const side = perpDist === 0 ? -1 : -Math.sign(perpDist)
+            const factor = 2 * t * (1 - t)
+            if (factor < 0.001) continue
+            let candidate = (perpDist + side * clearance) / factor
+            candidate = Math.sign(candidate) * Math.min(Math.abs(candidate), 180)
+            if (Math.abs(candidate) > Math.abs(bow)) bow = candidate
+          }
+          if (bow !== 0) {
+            defaultOffsetX = perpX * bow
+            defaultOffsetY = perpY * bow
+          }
+        }
       }
+      defaultOffsetRef.current = { x: defaultOffsetX, y: defaultOffsetY }
 
       const offset = edgeData.controlPointOffset || { x: defaultOffsetX, y: defaultOffsetY }
       const cx = mx + offset.x
@@ -204,22 +249,10 @@ const TransitionEdge = memo(
       e.stopPropagation()
       
       const startClient = { x: e.clientX, y: e.clientY }
-      
-      // Compute default offset if none exists (same as render logic)
-      let defaultX = 0, defaultY = 0
-      if (isSelfLoop) {
-        defaultY = -60
-      } else if (edgeData.hasReverse) {
-        const dx = targetX - sourceX
-        const dy = targetY - sourceY
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        if (dist > 0) {
-          defaultX = (-dy / dist) * 35
-          defaultY = (dx / dist) * 35
-        }
-      }
-      
-      const startOffset = edgeData.controlPointOffset || { x: defaultX, y: defaultY }
+
+      // Start dragging from the same default the edge is currently drawn with
+      // (kept in sync via defaultOffsetRef so the curve doesn't jump).
+      const startOffset = edgeData.controlPointOffset || defaultOffsetRef.current
       
       const onPointerMove = (e2: PointerEvent) => {
         const startFlow = screenToFlowPosition(startClient)
@@ -242,7 +275,7 @@ const TransitionEdge = memo(
       
       window.addEventListener('pointermove', onPointerMove)
       window.addEventListener('pointerup', onPointerUp)
-    }, [isEditing, isSelfLoop, edgeData.controlPointOffset, edgeData.hasReverse, screenToFlowPosition, sourceX, sourceY, targetX, targetY, id, updateTransition])
+    }, [isEditing, edgeData.controlPointOffset, screenToFlowPosition, id, updateTransition])
 
     const edgeColor = isActive
       ? 'var(--state-active)'
@@ -278,11 +311,13 @@ const TransitionEdge = memo(
 
         <EdgeLabelRenderer>
           <div
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               pointerEvents: 'all',
-              zIndex: selected || isActive ? 10 : 1,
+              zIndex: hovered ? 50 : selected || isActive ? 10 : 1,
             }}
             className="nodrag nopan"
           >

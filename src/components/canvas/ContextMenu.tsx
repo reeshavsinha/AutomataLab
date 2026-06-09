@@ -4,7 +4,7 @@
 // Plain black & white. No animations.
 // ============================================================
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useUIStore } from '@/store/uiStore'
 
 // ─── State context menu options ────────────────────────────────
@@ -64,6 +64,9 @@ function MenuContainer({ x, y, onClose, children }: {
   children: React.ReactNode
 }) {
   const menuRef = useRef<HTMLDivElement>(null)
+  // Start at the requested point, then clamp to the viewport once we can
+  // measure the menu's real size (different menus have different heights).
+  const [pos, setPos] = useState({ left: x, top: y })
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -75,23 +78,36 @@ function MenuContainer({ x, y, onClose, children }: {
     return () => document.removeEventListener('mousedown', handler)
   }, [onClose])
 
-  const adjustedX = Math.min(x, window.innerWidth - 220)
-  const adjustedY = Math.min(y, window.innerHeight - 280)
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    if (!el) return
+    const margin = 8
+    const { width, height } = el.getBoundingClientRect()
+    let left = x
+    let top = y
+    if (left + width > window.innerWidth - margin) left = window.innerWidth - width - margin
+    if (top + height > window.innerHeight - margin) top = window.innerHeight - height - margin
+    left = Math.max(margin, left)
+    top = Math.max(margin, top)
+    setPos({ left, top })
+  }, [x, y])
 
   return (
     <div
       ref={menuRef}
       style={{
         position: 'fixed',
-        top: adjustedY,
-        left: adjustedX,
+        top: pos.top,
+        left: pos.left,
         background: 'var(--bg-card)',
         border: '1px solid var(--border-strong)',
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-lg)',
         minWidth: '200px',
+        maxHeight: 'calc(100vh - 16px)',
         zIndex: 1000,
-        overflow: 'hidden',
+        overflowY: 'auto',
+        overflowX: 'hidden',
       }}
       onClick={(e) => e.stopPropagation()}
     >

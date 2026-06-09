@@ -1,11 +1,17 @@
 // ============================================================
 // Machine Store — Zustand
 // Holds the machine definition: states, transitions, type, name.
+// Includes a snapshot-based undo/redo history for the active tab.
 // ============================================================
 
 import { create } from 'zustand'
 import { generateId } from '@/engines/core/utils'
 import type { AutomataState, MachineDefinition, MachineType, Transition } from '@/engines/core/types'
+
+/** Max snapshots kept in the undo stack. */
+const MAX_HISTORY = 100
+/** Edits sharing a coalesce key within this window collapse into one undo step. */
+const COALESCE_MS = 500
 
 interface MachineStore {
   // Tabs
@@ -18,11 +24,22 @@ interface MachineStore {
   // State (Active Tab)
   machine: MachineDefinition
 
+  // Undo/redo snapshots for the active tab (cleared on tab switch / load).
+  past: MachineDefinition[]
+  future: MachineDefinition[]
+  // Internal coalescing bookkeeping (groups rapid same-kind edits).
+  _lastCoalesceKey: string | null
+  _lastEditAt: number
+
   // Actions — Tabs
   addTab: () => void
   switchTab: (index: number) => void
   closeTab: (index: number) => void
   markTabSaved: (index: number) => void
+
+  // Actions — History
+  undo: () => void
+  redo: () => void
 
   // Actions — Machine
   setMachineName: (name: string) => void
@@ -58,26 +75,56 @@ const createDefaultMachine = (): MachineDefinition => ({
 })
 
 // Helper to update both the active machine and the corresponding tab.
-// Any edit routed through here flags the active tab as having unsaved changes.
-const sync = (s: MachineStore, patch: Partial<MachineDefinition>) => {
-  const updatedMachine = { ...s.machine, ...patch }
+// Any edit routed through here flags the active tab as dirty AND records an
+// undo snapshot (with optional coalescing for rapid same-kind edits).
+const sync = (
+  s: MachineStore,
+  patch: Partial<MachineDefinition>,
+  coalesceKey?: string
+): Partial<MachineStore> => {
+  const prev = s.machine
+  const updatedMachine = { ...prev, ...patch }
   const newTabs = [...s.tabs]
   newTabs[s.activeTabIndex] = updatedMachine
+
+  const now = Date.now()
+  const coalesce =
+    coalesceKey != null &&
+    coalesceKey === s._lastCoalesceKey &&
+    now - s._lastEditAt < COALESCE_MS
+  const past = coalesce ? s.past : [...s.past, prev].slice(-MAX_HISTORY)
+
   return {
     machine: updatedMachine,
     tabs: newTabs,
     dirtyTabs: { ...s.dirtyTabs, [updatedMachine.id]: true },
+    past,
+    future: [],
+    _lastCoalesceKey: coalesceKey ?? null,
+    _lastEditAt: now,
   }
 }
 
+// Clears the undo/redo history (used when the editing context changes).
+const freshHistory = () => ({
+  past: [] as MachineDefinition[],
+  future: [] as MachineDefinition[],
+  _lastCoalesceKey: null,
+  _lastEditAt: 0,
+})
+
 export const useMachineStore = create<MachineStore>((set, get) => {
   const initialMachine = createDefaultMachine()
-  
+
   return {
     tabs: [initialMachine],
     activeTabIndex: 0,
     dirtyTabs: {},
     machine: initialMachine,
+    past: [],
+    future: [],
+    _lastCoalesceKey: null,
+    _lastEditAt: 0,
 
     addTab: () => {
       const newMachine = createDefaultMachine()
@@ -85,6 +132,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         tabs: [...s.tabs, newMachine],
         activeTabIndex: s.tabs.length,
         machine: newMachine,
+        ...freshHistory(),
       }))
     },
 
@@ -94,6 +142,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         return {
           activeTabIndex: index,
           machine: s.tabs[index],
+          ...freshHistory(),
         }
       })
     },
@@ -106,7 +155,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
         const newTabs = [...s.tabs]
         newTabs.splice(index, 1)
-        
+
         // If it's the last tab being closed, create a fresh one
         if (newTabs.length === 0) {
           const freshMachine = createDefaultMachine()
@@ -115,6 +164,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
             activeTabIndex: 0,
             machine: freshMachine,
             dirtyTabs,
+            ...freshHistory(),
           }
         }
 
@@ -125,6 +175,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           activeTabIndex: newActiveIndex,
           machine: newTabs[newActiveIndex],
           dirtyTabs,
+          ...freshHistory(),
         }
       })
     },
@@ -135,7 +186,41 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       return { dirtyTabs: { ...s.dirtyTabs, [tab.id]: false } }
     }),
 
-    setMachineName: (name) => set((s) => sync(s, { name })),
+    undo: () => set((s) => {
+      if (s.past.length === 0) return {}
+      const previous = s.past[s.past.length - 1]
+      const current = s.machine
+      const newTabs = [...s.tabs]
+      newTabs[s.activeTabIndex] = previous
+      return {
+        machine: previous,
+        tabs: newTabs,
+        past: s.past.slice(0, -1),
+        future: [current, ...s.future].slice(0, MAX_HISTORY),
+        dirtyTabs: { ...s.dirtyTabs, [previous.id]: true },
+        _lastCoalesceKey: null,
+        _lastEditAt: 0,
+      }
+    }),
+
+    redo: () => set((s) => {
+      if (s.future.length === 0) return {}
+      const next = s.future[0]
+      const current = s.machine
+      const newTabs = [...s.tabs]
+      newTabs[s.activeTabIndex] = next
+      return {
+        machine: next,
+        tabs: newTabs,
+        past: [...s.past, current].slice(-MAX_HISTORY),
+        future: s.future.slice(1),
+        dirtyTabs: { ...s.dirtyTabs, [next.id]: true },
+        _lastCoalesceKey: null,
+        _lastEditAt: 0,
+      }
+    }),
+
+    setMachineName: (name) => set((s) => sync(s, { name }, 'name')),
 
     setMachineType: (type) => set((s) => sync(s, { type })),
 
@@ -162,6 +247,8 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         isStart: false,
         isAccept: false,
         isText: true,
+        width: 190,
+        height: 56,
       }
       set((s) => sync(s, { states: [...s.machine.states, newTextState] }))
       return newTextState
@@ -213,7 +300,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         transitions: s.machine.transitions.map((t) =>
           t.id === id ? { ...t, ...patch } : t
         )
-      })),
+      }, `transition:${id}`)),
 
     deleteTransition: (id) =>
       set((s) => sync(s, {
@@ -231,6 +318,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         machine: def,
         tabs: newTabs,
         dirtyTabs: { ...s.dirtyTabs, [def.id]: !markClean },
+        ...freshHistory(),
       }
     }),
 
@@ -242,6 +330,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         machine: freshMachine,
         tabs: newTabs,
         dirtyTabs: { ...s.dirtyTabs, [freshMachine.id]: false },
+        ...freshHistory(),
       }
     }),
   }

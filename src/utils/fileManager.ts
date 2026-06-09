@@ -4,6 +4,7 @@
 
 import type { AutomataState, MachineDefinition, Transition } from '@/engines/core/types'
 import { generateId } from '@/engines/core/utils'
+import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { save, open } from '@tauri-apps/plugin-dialog'
 import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
@@ -24,6 +25,8 @@ function sanitizeState(raw: any): AutomataState {
   }
   if (raw?.isReject) state.isReject = true
   if (raw?.isText) state.isText = true
+  if (Number.isFinite(raw?.width)) state.width = Number(raw.width)
+  if (Number.isFinite(raw?.height)) state.height = Number(raw.height)
   return state
 }
 
@@ -75,12 +78,18 @@ function parseMachineJson(jsonString: string): MachineDefinition {
   }
 }
 
+/** Result of a load operation: the parsed machine plus its source path (Tauri only). */
+export interface LoadedMachine {
+  def: MachineDefinition
+  path: string | null
+}
+
 /**
  * Serialize and save machine as .autolab.json.
- * Returns true if the file was actually written, false if the user
- * cancelled the native save dialog.
+ * Returns the saved file path (Tauri) or the download filename (web) on success,
+ * or null if the user cancelled the native save dialog.
  */
-export async function saveMachine(machine: MachineDefinition): Promise<boolean> {
+export async function saveMachine(machine: MachineDefinition): Promise<string | null> {
   const json = JSON.stringify(machine, null, 2)
   const defaultName = `${machine.name.replace(/\s+/g, '_')}${FILE_EXTENSION}`
 
@@ -95,9 +104,10 @@ export async function saveMachine(machine: MachineDefinition): Promise<boolean> 
       })
       if (path) {
         await writeTextFile(path, json)
-        return true
+        addRecentFile(path, machine.name)
+        return path
       }
-      return false
+      return null
     } catch (err) {
       console.error('Failed to save file:', err)
       throw new Error('Failed to save file via native dialog')
@@ -113,12 +123,12 @@ export async function saveMachine(machine: MachineDefinition): Promise<boolean> 
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    return true
+    return defaultName
   }
 }
 
-/** Open file picker and parse a .autolab.json file */
-export async function loadMachine(): Promise<MachineDefinition> {
+/** Open file picker and parse a .autolab.json file. */
+export async function loadMachine(): Promise<LoadedMachine> {
   if (isTauri()) {
     const path = await open({
       multiple: false,
@@ -134,7 +144,9 @@ export async function loadMachine(): Promise<MachineDefinition> {
 
     const filePath = Array.isArray(path) ? path[0] : path
     const content = await readTextFile(filePath)
-    return parseMachineJson(content)
+    const def = parseMachineJson(content)
+    addRecentFile(filePath, def.name)
+    return { def, path: filePath }
   } else {
     // Web fallback
     return new Promise((resolve, reject) => {
@@ -150,7 +162,7 @@ export async function loadMachine(): Promise<MachineDefinition> {
         const reader = new FileReader()
         reader.onload = (e) => {
           try {
-            resolve(parseMachineJson(e.target?.result as string))
+            resolve({ def: parseMachineJson(e.target?.result as string), path: null })
           } catch (err) {
             reject(new Error('Failed to parse machine file'))
           }
@@ -160,6 +172,17 @@ export async function loadMachine(): Promise<MachineDefinition> {
       input.click()
     })
   }
+}
+
+/** Load a machine directly from a known absolute path (Tauri — recent files). */
+export async function loadMachineFromPath(path: string): Promise<MachineDefinition> {
+  if (!isTauri()) {
+    throw new Error('Opening files by path is only supported in the desktop app')
+  }
+  const content = await readTextFile(path)
+  const def = parseMachineJson(content)
+  addRecentFile(path, def.name)
+  return def
 }
 
 /** Export machine as plain JSON string (for clipboard or other uses) */
