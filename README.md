@@ -58,6 +58,8 @@ The ultimate goal of AutomataLab is to evolve into a comprehensive visual learni
 - **Phase 2:** Analytical Tools (NFA to DFA conversion, State Minimization, Regex integration).
 - **Phase 3:** Visual Exports (PNG/SVG) and Web-browser parity.
 
+For more detailed information, please check out our **[Project Wiki](https://github.com/reeshavsinha/AutomataLab/wiki)**.
+
 ## 🛠️ Development
 
 Want to build it from source?
