@@ -8,12 +8,10 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import { useState, useEffect, useRef } from 'react'
-import { check } from '@tauri-apps/plugin-updater'
 import packageJson from '../../../package.json'
 import { saveMachine, loadMachine as loadFromFile, loadMachineFromPath } from '@/utils/fileManager'
 import { getRecentFiles, removeRecentFile, clearRecentFiles, type RecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
-import { open } from '@tauri-apps/plugin-shell'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
 import { isPDAType } from '@/engines/core/utils'
@@ -161,6 +159,7 @@ export default function Toolbar() {
   const handleCheckUpdate = async () => {
     setIsCheckingUpdate(true)
     try {
+      const { check } = await import('@tauri-apps/plugin-updater')
       const update = await check()
       if (update) {
         const yes = window.confirm(`Update to ${update.version} is available!\nRelease notes: ${update.body}\n\nDownload and install?`)
@@ -231,7 +230,7 @@ export default function Toolbar() {
             e.preventDefault()
             const url = 'https://github.com/reeshavsinha/AutomataLab'
             if (isTauri()) {
-              void open(url)
+              import('@tauri-apps/plugin-shell').then(({ open }) => open(url))
             } else {
               window.open(url, '_blank', 'noopener,noreferrer')
             }

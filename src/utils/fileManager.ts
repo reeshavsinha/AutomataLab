@@ -6,9 +6,6 @@ import type { AutomataState, MachineDefinition, Transition } from '@/engines/cor
 import { generateId } from '@/engines/core/utils'
 import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
-import { save, open } from '@tauri-apps/plugin-dialog'
-import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs'
-
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
 const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA']
@@ -95,6 +92,8 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
 
   if (isTauri()) {
     try {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const { writeTextFile } = await import('@tauri-apps/plugin-fs')
       const path = await save({
         defaultPath: defaultName,
         filters: [{
@@ -130,6 +129,8 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
 /** Open file picker and parse a .autolab.json file. */
 export async function loadMachine(): Promise<LoadedMachine> {
   if (isTauri()) {
+    const { open } = await import('@tauri-apps/plugin-dialog')
+    const { readTextFile } = await import('@tauri-apps/plugin-fs')
     const path = await open({
       multiple: false,
       filters: [{
@@ -179,6 +180,7 @@ export async function loadMachineFromPath(path: string): Promise<MachineDefiniti
   if (!isTauri()) {
     throw new Error('Opening files by path is only supported in the desktop app')
   }
+  const { readTextFile } = await import('@tauri-apps/plugin-fs')
   const content = await readTextFile(path)
   const def = parseMachineJson(content)
   addRecentFile(path, def.name)
