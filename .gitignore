@@ -37,3 +37,6 @@ git-identity.md
 
 # Local sample machines (not part of the shipped app)
 examples/
+
+# Custom scripts
+rewrite.sh
