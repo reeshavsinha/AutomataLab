@@ -117,7 +117,9 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()} // Prevent drag while typing
             style={{
-              width: '40px',
+              // Grow with the text so long labels aren't clipped while editing.
+              width: `${Math.max(40, labelDraft.length * 8 + 8)}px`,
+              maxWidth: '160px',
               background: 'transparent',
               border: 'none',
               outline: 'none',

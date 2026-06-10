@@ -87,7 +87,12 @@ function buildEdges(
   const edgeIdMap = new Map<string, string>()
   const edgeOffsetMap = new Map<string, { x: number; y: number } | undefined>()
 
+  // Skip orphan transitions whose endpoints no longer exist (e.g. corrupt /
+  // partially-loaded files) so React Flow never tries to draw a dangling edge.
+  const stateIds = new Set(machine.states.map((s) => s.id))
+
   for (const t of machine.transitions) {
+    if (!stateIds.has(t.from) || !stateIds.has(t.to)) continue
     const key = `${t.from}__${t.to}`
     if (!edgeMap.has(key)) {
       edgeMap.set(key, [])
@@ -221,7 +226,7 @@ function AutomataCanvasInner() {
   const machine = useMachineStore((s) => s.machine)
   const {
     addState, addTextState, deleteState, updateState, setStartState,
-    toggleAcceptState, addTransition, deleteTransition, undo, redo,
+    toggleAcceptState, addTransition, updateTransition, deleteTransition, undo, redo,
   } = useMachineStore()
   const { activeStateIds, activeTransitionIds, status } = useSimulationStore()
   
@@ -310,14 +315,55 @@ function AutomataCanvasInner() {
     })
   }, [edges, setRfEdges])
 
-  // Frame all nodes when requested (e.g. after Auto Layout / file load).
+  // Frame the WHOLE machine — states *and* their transition curves. React Flow's
+  // built-in fitView only measures node boxes, so tall self-loops or long bowed
+  // edges spill outside the view. We union the node bounds with the actual edge
+  // path bounding boxes (read from the rendered SVG, already in flow coords) and
+  // fit to that rectangle instead.
+  const fitToContent = useCallback(
+    (duration = 400) => {
+      if (!rfInstance) return
+      const rfNodesNow = rfInstance.getNodes()
+      if (rfNodesNow.length === 0) return
+
+      const nb = rfInstance.getNodesBounds(rfNodesNow)
+      let minX = nb.x
+      let minY = nb.y
+      let maxX = nb.x + nb.width
+      let maxY = nb.y + nb.height
+
+      const wrap = reactFlowWrapper.current
+      if (wrap) {
+        const paths = wrap.querySelectorAll<SVGPathElement>('.react-flow__edge-path')
+        paths.forEach((p) => {
+          let bb: { x: number; y: number; width: number; height: number } | null = null
+          try {
+            bb = p.getBBox()
+          } catch {
+            bb = null
+          }
+          if (!bb || (bb.width === 0 && bb.height === 0)) return
+          minX = Math.min(minX, bb.x)
+          minY = Math.min(minY, bb.y)
+          maxX = Math.max(maxX, bb.x + bb.width)
+          maxY = Math.max(maxY, bb.y + bb.height)
+        })
+      }
+
+      rfInstance.fitBounds(
+        { x: minX, y: minY, width: maxX - minX, height: maxY - minY },
+        { padding: 0.18, duration }
+      )
+    },
+    [rfInstance]
+  )
+
+  // Frame the whole machine when requested (e.g. after Auto Layout / file load).
   useEffect(() => {
     if (fitViewNonce === 0 || !rfInstance) return
-    const handle = setTimeout(() => {
-      rfInstance.fitView({ padding: 0.3, duration: 400 })
-    }, 80)
+    const handle = setTimeout(() => fitToContent(400), 80)
     return () => clearTimeout(handle)
-  }, [fitViewNonce, rfInstance])
+  }, [fitViewNonce, rfInstance, fitToContent])
 
   // ── Track Mouse Position for Transition Mode ─────────────────
   const onPointerMove = useCallback((e: React.PointerEvent) => {
@@ -339,10 +385,13 @@ function AutomataCanvasInner() {
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // ── Double-click canvas → enter selection mode ──────────────
+  // ── Double-click empty canvas → enter selection mode ────────
+  // Only the bare pane toggles selection mode — never nodes, edges, the
+  // zoom/fit controls, the minimap, or any other panel rendered on top of
+  // the canvas (double-clicking those used to wrongly arm selection mode).
   const onDoubleClick = useCallback(
     (event: React.MouseEvent) => {
-      if ((event.target as HTMLElement).closest('.react-flow__node')) return
+      if (!(event.target as HTMLElement).closest('.react-flow__pane')) return
       setSelectionModeActive(true)
     },
     []
@@ -364,21 +413,51 @@ function AutomataCanvasInner() {
         const s = machine.states.find((st) => st.id === node.id)
         if (s?.isText) return
 
-        const newTrans = addTransition(fromStateId, node.id, [])
-        beginEditingNewTransition(newTrans.id, fromStateId)
+        // FA: edit the existing edge instead of stacking an empty duplicate.
+        const existing = !isPDA
+          ? machine.transitions.find((t) => t.from === fromStateId && t.to === node.id)
+          : undefined
+        if (existing) {
+          setEditingTransition(existing.id)
+        } else {
+          const newTrans = addTransition(fromStateId, node.id, [])
+          beginEditingNewTransition(newTrans.id, fromStateId)
+        }
         setTransitionMode(null)
         setMousePos(null)
       }
     },
-    [transitionMode, addTransition, machine.states, beginEditingNewTransition]
+    [transitionMode, addTransition, machine.states, machine.transitions, beginEditingNewTransition, isPDA, setEditingTransition]
+  )
+
+  // Expand a list of transition/edge ids to EVERY underlying transition that
+  // shares the same from→to pair. A single visual edge can bundle many
+  // transitions (always for PDAs, sometimes for FAs), so any edge-level
+  // operation — select, delete, cut — must act on all of them, not just the
+  // representative whose id the edge happens to carry.
+  const expandEdgeMembers = useCallback(
+    (transitionIds: string[]): string[] => {
+      const pairs = new Set<string>()
+      for (const tid of transitionIds) {
+        const t = machine.transitions.find((tr) => tr.id === tid)
+        if (t) pairs.add(`${t.from}__${t.to}`)
+      }
+      return machine.transitions
+        .filter((t) => pairs.has(`${t.from}__${t.to}`))
+        .map((t) => t.id)
+    },
+    [machine.transitions]
   )
 
   // ── React Flow selection change sync ────────────────────────
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
     const nodeIds = params.nodes.map((n) => n.id)
-    const edgeIds = params.edges.map((e) => e.id)
+    // Store all member transition ids so delete/cut affect the whole edge.
+    const edgeMemberIds = params.edges.flatMap(
+      (e) => ((e.data as { memberTransitionIds?: string[] })?.memberTransitionIds) ?? [e.id]
+    )
     setSelectedStateIds(nodeIds)
-    setSelectedTransitionIds(edgeIds)
+    setSelectedTransitionIds(edgeMemberIds)
   }, [setSelectedStateIds, setSelectedTransitionIds])
 
   // ── Copy Action ──────────────────────────────────────────────
@@ -404,27 +483,41 @@ function AutomataCanvasInner() {
         oldFrom: t.from,
         oldTo: t.to,
         symbols: t.symbols,
+        read: t.read,
+        pop: t.pop,
+        push: t.push,
       })),
     })
   }, [machine, selectedStateIds, setClipboard])
 
   // ── Cut Action ───────────────────────────────────────────────
   const handleCut = useCallback(() => {
-    if (selectedStateIds.length === 0) return
+    if (status !== 'idle') return // don't mutate the graph mid-simulation
+    if (selectedStateIds.length === 0 && selectedTransitionIds.length === 0) return
     handleCopy()
 
     selectedStateIds.forEach((id) => deleteState(id))
+    // selectedTransitionIds already holds every member of each selected edge.
     selectedTransitionIds.forEach((id) => deleteTransition(id))
     clearSelection()
-  }, [selectedStateIds, selectedTransitionIds, handleCopy, deleteState, deleteTransition, clearSelection])
+  }, [status, selectedStateIds, selectedTransitionIds, handleCopy, deleteState, deleteTransition, clearSelection])
 
   // ── Paste Action ─────────────────────────────────────────────
   const handlePaste = useCallback(() => {
+    if (status !== 'idle') return // don't mutate the graph mid-simulation
     if (!clipboard) return
 
     const idMapping: Record<string, string> = {}
     const newSelectedStateIds: string[] = []
     const newSelectedTransitionIds: string[] = []
+    // Track labels created this paste so multi-node pastes stay unique too.
+    const usedLabels = new Set(machine.states.map((s) => s.label))
+    const uniqueLabel = (base: string): string => {
+      let label = base
+      while (usedLabels.has(label)) label = `${label}_copy`
+      usedLabels.add(label)
+      return label
+    }
 
     clipboard.states.forEach((s) => {
       const x = s.x + 40
@@ -436,11 +529,8 @@ function AutomataCanvasInner() {
         updateState(pastedState.id, { label: s.label })
       } else {
         pastedState = addState(x, y)
-        const labelExists = machine.states.some((ms) => ms.label === s.label)
-        const label = labelExists ? `${s.label}_copy` : s.label
-
         updateState(pastedState.id, {
-          label,
+          label: uniqueLabel(s.label),
           isAccept: s.isAccept,
           isStart: false,
         })
@@ -455,6 +545,10 @@ function AutomataCanvasInner() {
       const newTo = idMapping[t.oldTo]
       if (newFrom && newTo) {
         const newTrans = addTransition(newFrom, newTo, t.symbols)
+        // Preserve PDA stack operations (read/pop/push) when present.
+        if (t.read !== undefined || t.pop !== undefined || t.push !== undefined) {
+          updateTransition(newTrans.id, { read: t.read, pop: t.pop, push: t.push })
+        }
         newSelectedTransitionIds.push(newTrans.id)
       }
     })
@@ -465,14 +559,16 @@ function AutomataCanvasInner() {
     // Force select new nodes in React Flow internal state
     setRfNodes((nds) => nds.map((n) => ({ ...n, selected: newSelectedStateIds.includes(n.id) })))
     setRfEdges((eds) => eds.map((e) => ({ ...e, selected: newSelectedTransitionIds.includes(e.id) })))
-  }, [clipboard, machine.states, addState, addTextState, updateState, addTransition, setSelectedStateIds, setSelectedTransitionIds, setRfNodes, setRfEdges])
+  }, [status, clipboard, machine.states, addState, addTextState, updateState, addTransition, updateTransition, setSelectedStateIds, setSelectedTransitionIds, setRfNodes, setRfEdges])
 
   // ── Delete Selection ─────────────────────────────────────────
   const handleDeleteSelected = useCallback(() => {
+    if (status !== 'idle') return // don't mutate the graph mid-simulation
     selectedStateIds.forEach((id) => deleteState(id))
+    // selectedTransitionIds already holds every member of each selected edge.
     selectedTransitionIds.forEach((id) => deleteTransition(id))
     clearSelection()
-  }, [selectedStateIds, selectedTransitionIds, deleteState, deleteTransition, clearSelection])
+  }, [status, selectedStateIds, selectedTransitionIds, deleteState, deleteTransition, clearSelection])
 
   // ── Select All ───────────────────────────────────────────────
   const handleSelectAll = useCallback(() => {
@@ -553,10 +649,19 @@ function AutomataCanvasInner() {
       const targetState = machine.states.find(s => s.id === connection.target)
       if (targetState?.isText) return
 
+      // FA: edit the existing edge instead of stacking an empty duplicate.
+      const existing = !isPDA
+        ? machine.transitions.find((t) => t.from === connection.source && t.to === connection.target)
+        : undefined
+      if (existing) {
+        setEditingTransition(existing.id)
+        return
+      }
+
       const newTrans = addTransition(connection.source, connection.target, [])
       beginEditingNewTransition(newTrans.id, connection.source)
     },
-    [addTransition, machine.states, beginEditingNewTransition]
+    [addTransition, machine.states, machine.transitions, beginEditingNewTransition, isPDA, setEditingTransition]
   )
 
   // ── Drag stop → persist position ────────────────────────────
@@ -752,9 +857,18 @@ function AutomataCanvasInner() {
         />
         <Controls
           showInteractive={false}
+          onFitView={() => fitToContent(400)}
           style={{ bottom: 16, right: 16, top: 'auto', left: 'auto' }}
         />
         <MiniMap
+          pannable
+          zoomable
+          ariaLabel="Minimap — drag to pan, scroll to zoom, click to recenter"
+          onClick={(_, pos) => {
+            if (!rfInstance) return
+            const { zoom } = rfInstance.getViewport()
+            rfInstance.setCenter(pos.x, pos.y, { zoom, duration: 300 })
+          }}
           nodeColor={(node) => {
             if (node.id === 'cursor-node') return 'transparent'
             const d = node.data as { isAccept?: boolean; isStart?: boolean }
@@ -841,7 +955,11 @@ function AutomataCanvasInner() {
           onDeleteState={(id) => { deleteState(id); setContextMenu(null) }}
           onSetStart={(id) => { setStartState(id); setContextMenu(null) }}
           onToggleAccept={(id) => { toggleAcceptState(id); setContextMenu(null) }}
-          onDeleteTransition={(id) => { deleteTransition(id); setContextMenu(null) }}
+          onDeleteTransition={(id) => {
+            // Delete every transition bundled into this visual edge, not just one.
+            expandEdgeMembers([id]).forEach((mid) => deleteTransition(mid))
+            setContextMenu(null)
+          }}
           onStartTransition={(fromStateId) => {
             setTransitionMode({ fromStateId })
             setContextMenu(null)

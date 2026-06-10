@@ -5,6 +5,8 @@
 // label editor and the transition-editor modal.
 // ============================================================
 
+import { useEffect } from 'react'
+
 const SYMBOLS = [
   { char: 'ε', label: 'ε (epsilon)' },
   { char: 'λ', label: 'λ (lambda)' },
@@ -25,6 +27,15 @@ export default function EpsilonInserter({
   /** 'sm' for the compact inline edge label, 'md' for the modal. */
   size?: 'sm' | 'md'
 }) {
+  // Close on any outside click. The toggle button and menu items stop
+  // propagation on pointerdown, so this only fires for clicks elsewhere.
+  useEffect(() => {
+    if (!open) return
+    const onDocDown = () => setOpen(false)
+    document.addEventListener('mousedown', onDocDown)
+    return () => document.removeEventListener('mousedown', onDocDown)
+  }, [open, setOpen])
+
   const insert = (char: string) => {
     const input = targetRef.current
     if (!input) return

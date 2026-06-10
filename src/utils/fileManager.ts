@@ -126,6 +126,26 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
   }
 }
 
+/**
+ * Save a machine directly to a known path without showing a dialog (Tauri only).
+ * Used by "Save" once a file already has a location. Returns the path on success.
+ */
+export async function saveMachineToPath(machine: MachineDefinition, path: string): Promise<string> {
+  if (!isTauri()) {
+    throw new Error('Saving to a path is only supported in the desktop app')
+  }
+  const json = JSON.stringify(machine, null, 2)
+  try {
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs')
+    await writeTextFile(path, json)
+    addRecentFile(path, machine.name)
+    return path
+  } catch (err) {
+    console.error('Failed to save file:', err)
+    throw new Error('Failed to save file')
+  }
+}
+
 /** Open file picker and parse a .autolab.json file. */
 export async function loadMachine(): Promise<LoadedMachine> {
   if (isTauri()) {

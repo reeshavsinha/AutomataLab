@@ -9,7 +9,7 @@
 // (Configuration.{id,parentId}); see engines/core/computationTree.ts.
 // ============================================================
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
@@ -60,6 +60,15 @@ export default function ComputationTreePanel() {
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Branch ids restart at n0/b0 every run, so stale selection/collapse would
+  // silently point at unrelated nodes. Clear them when the tree is reset.
+  useEffect(() => {
+    if (status === 'idle' || treeNodes.length === 0) {
+      setSelectedId(null)
+      setCollapsed((prev) => (prev.size ? new Set() : prev))
+    }
+  }, [status, treeNodes.length])
 
   const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
 

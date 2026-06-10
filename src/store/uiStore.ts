@@ -39,6 +39,10 @@ export interface ClipboardData {
     oldFrom: string
     oldTo: string
     symbols: string[]
+    /** PDA fields — preserved so copy/paste keeps stack operations. */
+    read?: string
+    pop?: string
+    push?: string
   }[]
 }
 

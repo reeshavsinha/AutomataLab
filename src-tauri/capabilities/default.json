@@ -7,6 +7,8 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-destroy",
+    "core:window:allow-set-title",
     "dialog:default",
     "fs:default",
     "fs:allow-read-text-file",

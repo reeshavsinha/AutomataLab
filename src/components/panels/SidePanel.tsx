@@ -85,9 +85,13 @@ export default function SidePanel() {
     const onUp = () => {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
+    // pointercancel covers gestures interrupted outside the window so the
+    // move listener can't leak and keep resizing on the next click.
+    window.addEventListener('pointercancel', onUp)
   }, [width])
 
   const tabs: { id: Tab; label: string }[] = [

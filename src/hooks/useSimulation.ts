@@ -10,7 +10,7 @@ import { NFAEngine } from '@/engines/nfa/NFAEngine'
 import { ENFAEngine } from '@/engines/enfa/ENFAEngine'
 import { DPDAEngine } from '@/engines/dpda/DPDAEngine'
 import { NPDAEngine } from '@/engines/npda/NPDAEngine'
-import type { Automaton } from '@/engines/core/types'
+import type { Automaton, StepResult } from '@/engines/core/types'
 import { supportsTree } from '@/engines/core/computationTree'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
@@ -54,25 +54,33 @@ export function useSimulation() {
     isPlayingRef.current = false
   }, [])
 
+  // ── Push an engine StepResult into the simulation store ─────
+  const applyEngineResult = useCallback(
+    (engine: Automaton, result: StepResult) => {
+      applyStepResult({
+        activeStateIds: result.activeStateIds,
+        activeTransitionIds: result.transitionIds,
+        consumedInput: result.consumedInput,
+        remainingInput: result.remainingInput,
+        currentSymbol: result.symbol,
+        status: result.status,
+        historyEntry: result.historyEntry,
+        configurations: result.configurations,
+        activeStack: result.stack,
+        treeNodes: supportsTree(engine) ? engine.getTreeNodes() : [],
+        liveBranchIds: supportsTree(engine) ? engine.getLiveBranchIds() : [],
+      })
+    },
+    [applyStepResult]
+  )
+
   // ── Execute a single step ──────────────────────────────────
   const executeStep = useCallback(() => {
     const engine = engineRef.current
     if (!engine) return false
 
     const result = engine.step()
-    applyStepResult({
-      activeStateIds: result.activeStateIds,
-      activeTransitionIds: result.transitionIds,
-      consumedInput: result.consumedInput,
-      remainingInput: result.remainingInput,
-      currentSymbol: result.symbol,
-      status: result.status,
-      historyEntry: result.historyEntry,
-      configurations: result.configurations,
-      activeStack: result.stack,
-      treeNodes: supportsTree(engine) ? engine.getTreeNodes() : [],
-      liveBranchIds: supportsTree(engine) ? engine.getLiveBranchIds() : [],
-    })
+    applyEngineResult(engine, result)
 
     // Stop if simulation is finished
     if (result.status !== 'running') {
@@ -80,7 +88,7 @@ export function useSimulation() {
       return false
     }
     return true
-  }, [applyStepResult, stopInterval])
+  }, [applyEngineResult, stopInterval])
 
   // ── Initialize (called on Play or Step from idle) ─────────
   const initEngine = useCallback(() => {
@@ -106,20 +114,29 @@ export function useSimulation() {
   }, [status, initEngine, executeStep])
 
   // ── Play continuous execution ─────────────────────────────
-  const play = useCallback(() => {
-    if (isPlayingRef.current) return
+  // Returns true if a run is now in progress (lets the UI sync its play/pause
+  // state honestly instead of assuming play always starts).
+  const play = useCallback((): boolean => {
+    if (isPlayingRef.current) return true
 
     if (status === 'idle') {
-      if (!initEngine()) return
-    } else if (status !== 'running') {
-      return
+      if (!initEngine()) return false
+      isPlayingRef.current = true
+      // Advance one step synchronously so the store leaves 'idle' immediately
+      // (which locks the input tape). Otherwise the input stays editable for one
+      // interval delay and the user could change the string mid-run.
+      if (!executeStep()) return false // finished/failed in a single step
+    } else if (status === 'running') {
+      isPlayingRef.current = true
+    } else {
+      return false
     }
 
-    isPlayingRef.current = true
     intervalRef.current = setInterval(() => {
       const cont = executeStep()
       if (!cont) stopInterval()
     }, getDelay())
+    return true
   }, [status, initEngine, executeStep, getDelay, stopInterval])
 
   // ── Pause ──────────────────────────────────────────────────
@@ -133,6 +150,40 @@ export function useSimulation() {
     engineRef.current = null
     resetSimulation()
   }, [stopInterval, resetSimulation])
+
+  // ── Step back — retrace one step ───────────────────────────
+  // Engines are stateful and not serialisable, so the robust way to "undo" a
+  // step is to rebuild a fresh engine from the start and re-run (stepCount − 1)
+  // steps. The engines are deterministic, so this reproduces the exact prior
+  // configuration (active states, stack, computation-tree frontier, history).
+  const stepBack = useCallback(() => {
+    const { stepCount, status: simStatus } = useSimulationStore.getState()
+    if (simStatus === 'idle' || stepCount <= 0) return
+    stopInterval()
+
+    const target = stepCount - 1
+    if (target === 0) {
+      // Back to the very start → idle, before the first step.
+      engineRef.current = null
+      resetSimulation()
+      return
+    }
+
+    const errors = validateMachine(machine)
+    if (hasBlockingErrors(errors)) {
+      setStatus('error')
+      return
+    }
+    const engine = createEngine(machine.type, machine)
+    engine.initialize(inputString)
+    engineRef.current = engine
+    resetSimulation() // clear history; replay rebuilds it up to `target`
+    for (let i = 0; i < target; i++) {
+      const result = engine.step()
+      applyEngineResult(engine, result)
+      if (result.status !== 'running') break // safety (shouldn't trip before target)
+    }
+  }, [machine, inputString, stopInterval, resetSimulation, setStatus, applyEngineResult])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -152,6 +203,7 @@ export function useSimulation() {
 
   return {
     step,
+    stepBack,
     play,
     pause,
     reset,

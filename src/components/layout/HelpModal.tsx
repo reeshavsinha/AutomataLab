@@ -8,6 +8,11 @@ interface HelpModalProps {
 }
 
 const SHORTCUTS: { keys: string; action: string }[] = [
+  { keys: 'Ctrl + N', action: 'New machine (new tab)' },
+  { keys: 'Ctrl + O', action: 'Open a machine file' },
+  { keys: 'Ctrl + S', action: 'Save' },
+  { keys: 'Ctrl + Shift + S', action: 'Save As…' },
+  { keys: 'Ctrl + T / Ctrl + W', action: 'New tab / Close tab' },
   { keys: 'Right-click / N', action: 'Add a state' },
   { keys: 'Drag from a state', action: 'Create a transition' },
   { keys: 'Double-click', action: 'Rename a state / edit a label' },
@@ -18,6 +23,7 @@ const SHORTCUTS: { keys: string; action: string }[] = [
   { keys: 'Ctrl + A', action: 'Select all' },
   { keys: 'Space / P', action: 'Play / Pause simulation' },
   { keys: '→ / S', action: 'Step forward' },
+  { keys: '←', action: 'Step back' },
   { keys: 'R', action: 'Reset simulation' },
   { keys: 'Esc', action: 'Cancel current action' },
 ]

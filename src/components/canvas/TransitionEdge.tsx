@@ -59,7 +59,7 @@ const TransitionEdge = memo(
     markerEnd,
   }: EdgeProps) => {
     const edgeData = data as TransitionEdgeData
-    const { machine, updateTransition } = useMachineStore()
+    const { machine, updateTransition, deleteTransition } = useMachineStore()
     const { activeTransitionIds } = useSimulationStore()
     const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
@@ -218,6 +218,12 @@ const TransitionEdge = memo(
           .map((s) => s.trim())
           .filter(Boolean)
         updateTransition(id, { symbols })
+        // The inline editor represents the WHOLE visual edge (which can bundle
+        // several FA transitions on the same pair). Collapse the siblings into
+        // this one so the rendered label and the stored transitions stay in sync.
+        for (const mid of memberIds) {
+          if (mid !== id) deleteTransition(mid)
+        }
       } else {
         setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
       }
@@ -225,21 +231,28 @@ const TransitionEdge = memo(
       if (isEditingTransition === id) {
         setEditingTransition(null)
       }
-    }, [id, labelDraft, updateTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
+    }, [id, memberIds, labelDraft, updateTransition, deleteTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
+
+    const cancelEdit = useCallback(() => {
+      setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
+      setIsEditing(false)
+      // Clear the global "editing" flag too, otherwise it stays pinned to this
+      // edge id and the auto-open-on-create effect can't retrigger later.
+      if (isEditingTransition === id) {
+        setEditingTransition(null)
+      }
+    }, [edgeData?.symbols, isEditingTransition, id, setEditingTransition])
 
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent) => {
         e.stopPropagation()
         if (e.key === 'Enter') commitEdit()
-        if (e.key === 'Escape') {
-          setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
-          setIsEditing(false)
-        }
+        if (e.key === 'Escape') cancelEdit()
         if (e.key === 'Delete' || e.key === 'Backspace') {
           e.stopPropagation()
         }
       },
-      [commitEdit, edgeData?.symbols]
+      [commitEdit, cancelEdit]
     )
 
     // ─── Drag functionality for curve adjustment ───────────────
@@ -271,10 +284,14 @@ const TransitionEdge = memo(
       const onPointerUp = () => {
         window.removeEventListener('pointermove', onPointerMove)
         window.removeEventListener('pointerup', onPointerUp)
+        window.removeEventListener('pointercancel', onPointerUp)
       }
       
       window.addEventListener('pointermove', onPointerMove)
       window.addEventListener('pointerup', onPointerUp)
+      // pointercancel fires when the gesture is interrupted (e.g. the pointer
+      // leaves the window or the OS steals it) — without it the move listener leaks.
+      window.addEventListener('pointercancel', onPointerUp)
     }, [isEditing, edgeData.controlPointOffset, screenToFlowPosition, id, updateTransition])
 
     const edgeColor = isActive

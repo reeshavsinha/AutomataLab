@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { saveMachine } from '@/utils/fileManager'
 import { toast } from '@/store/toastStore'
@@ -18,6 +18,27 @@ export default function TabBar() {
       closeTab(index)
     }
   }
+
+  // Tab keyboard shortcuts: Ctrl/Cmd+W closes the active tab (dirty-aware),
+  // Ctrl/Cmd+T opens a new one — matching browser/editor conventions.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.userAgent.toLowerCase().includes('mac')
+      const mod = isMac ? e.metaKey : e.ctrlKey
+      if (!mod) return
+      const k = e.key.toLowerCase()
+      if (k === 'w') {
+        e.preventDefault()
+        requestClose(activeTabIndex)
+      } else if (k === 't') {
+        e.preventDefault()
+        addTab()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabIndex, tabs, dirtyTabs, addTab])
 
   const handleSaveAndClose = async () => {
     if (pendingCloseIndex === null) return

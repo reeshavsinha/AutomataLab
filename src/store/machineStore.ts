@@ -21,6 +21,10 @@ interface MachineStore {
   // Unsaved-changes tracking, keyed by tab id
   dirtyTabs: Record<string, boolean>
 
+  // Source file path for each tab (Tauri only), keyed by tab id. Drives
+  // "Save" (write in place) vs "Save As" (pick a new path).
+  tabPaths: Record<string, string>
+
   // State (Active Tab)
   machine: MachineDefinition
 
@@ -35,7 +39,7 @@ interface MachineStore {
   addTab: () => void
   switchTab: (index: number) => void
   closeTab: (index: number) => void
-  markTabSaved: (index: number) => void
+  markTabSaved: (index: number, path?: string | null) => void
 
   // Actions — History
   undo: () => void
@@ -60,8 +64,19 @@ interface MachineStore {
   setAlphabet: (alphabet: string[]) => void
 
   // Actions — File
-  loadMachine: (def: MachineDefinition, markClean?: boolean) => void
+  loadMachine: (def: MachineDefinition, markClean?: boolean, path?: string | null) => void
+  /**
+   * Open a loaded machine the way a desktop editor would: reuse the current tab
+   * if it's a pristine, untouched "Untitled" tab, otherwise open it in a new tab
+   * so existing work is never clobbered. Returns the resulting tab index.
+   */
+  openMachine: (def: MachineDefinition, path?: string | null) => number
   resetMachine: () => void
+}
+
+/** A tab is "pristine" when it has no diagram content yet (safe to reuse on open). */
+export function isPristineTab(m: MachineDefinition): boolean {
+  return m.states.length === 0 && m.transitions.length === 0
 }
 
 const createDefaultMachine = (): MachineDefinition => ({
@@ -120,6 +135,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     tabs: [initialMachine],
     activeTabIndex: 0,
     dirtyTabs: {},
+    tabPaths: {},
     machine: initialMachine,
     past: [],
     future: [],
@@ -151,7 +167,11 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       set((s) => {
         const closedId = s.tabs[index]?.id
         const dirtyTabs = { ...s.dirtyTabs }
-        if (closedId) delete dirtyTabs[closedId]
+        const tabPaths = { ...s.tabPaths }
+        if (closedId) {
+          delete dirtyTabs[closedId]
+          delete tabPaths[closedId]
+        }
 
         const newTabs = [...s.tabs]
         newTabs.splice(index, 1)
@@ -164,6 +184,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
             activeTabIndex: 0,
             machine: freshMachine,
             dirtyTabs,
+            tabPaths,
             ...freshHistory(),
           }
         }
@@ -175,15 +196,19 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           activeTabIndex: newActiveIndex,
           machine: newTabs[newActiveIndex],
           dirtyTabs,
+          tabPaths,
           ...freshHistory(),
         }
       })
     },
 
-    markTabSaved: (index) => set((s) => {
+    markTabSaved: (index, path) => set((s) => {
       const tab = s.tabs[index]
       if (!tab) return {}
-      return { dirtyTabs: { ...s.dirtyTabs, [tab.id]: false } }
+      return {
+        dirtyTabs: { ...s.dirtyTabs, [tab.id]: false },
+        tabPaths: path != null ? { ...s.tabPaths, [tab.id]: path } : s.tabPaths,
+      }
     }),
 
     undo: () => set((s) => {
@@ -310,26 +335,58 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     setAlphabet: (alphabet) =>
       set((s) => sync(s, { alphabet })),
 
-    loadMachine: (def, markClean = true) => set((s) => {
+    loadMachine: (def, markClean = true, path) => set((s) => {
       // Overwrite current tab
+      const prevId = s.tabs[s.activeTabIndex]?.id
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = def
+
+      const dirtyTabs = { ...s.dirtyTabs }
+      const tabPaths = { ...s.tabPaths }
+      // Drop the replaced machine's bookkeeping when its id actually changes
+      // (e.g. opening a file). In-place reloads (auto-layout) keep the same id.
+      if (prevId && prevId !== def.id) {
+        delete dirtyTabs[prevId]
+        delete tabPaths[prevId]
+      }
+      dirtyTabs[def.id] = !markClean
+      // `path === undefined` means "leave the path untouched" (in-place reload);
+      // `path === null` explicitly clears it (e.g. a brand-new untitled machine).
+      if (path !== undefined) {
+        if (path) tabPaths[def.id] = path
+        else delete tabPaths[def.id]
+      }
+
       return {
         machine: def,
         tabs: newTabs,
-        dirtyTabs: { ...s.dirtyTabs, [def.id]: !markClean },
+        dirtyTabs,
+        tabPaths,
         ...freshHistory(),
       }
     }),
 
+    openMachine: (def, path) => {
+      const s = get()
+      const current = s.machine
+      const reuse = isPristineTab(current) && !s.dirtyTabs[current.id]
+      if (!reuse) get().addTab()
+      get().loadMachine(def, true, path ?? null)
+      return get().activeTabIndex
+    },
+
     resetMachine: () => set((s) => {
+      const prevId = s.tabs[s.activeTabIndex]?.id
       const freshMachine = createDefaultMachine()
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = freshMachine
+      const tabPaths = { ...s.tabPaths }
+      if (prevId) delete tabPaths[prevId]
       return {
         machine: freshMachine,
         tabs: newTabs,
         dirtyTabs: { ...s.dirtyTabs, [freshMachine.id]: false },
+        tabPaths,
         ...freshHistory(),
       }
     }),

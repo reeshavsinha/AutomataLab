@@ -566,7 +566,7 @@ interface StepResult {
 | **State Management** | Zustand | Lightweight, minimal boilerplate, works well with React Flow |
 | **Styling** | Inline styles + CSS custom properties (design tokens) | Black-and-white theme via CSS variables; Tailwind v4 is imported via the Vite plugin but used in only a few components |
 | **Animations** | Framer Motion + CSS | Smooth micro-animations for simulation visualization |
-| **Auto-Layout** | d3-force | Force-directed graph layout for the "Auto Layout" action |
+| **Auto-Layout** | ELK (`elkjs`, lazy-loaded) | Compact `stress` graph layout for the "Auto Layout" action (deterministic, overlap-free, start-on-left) |
 | **Desktop Shell** | Tauri 2 (Rust core + system WebView) | Small cross-platform bundles, native dialogs/FS, built-in signed updater |
 | **Testing** | Vitest + React Testing Library | Fast unit and component tests |
 | **Build Tool** | Vite | Fast HMR, optimized builds |

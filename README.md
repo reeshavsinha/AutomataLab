@@ -32,7 +32,7 @@ Ready to build some state machines? Download the latest stable release for your 
 ## ✨ Features
 
 - **🌐 Multiple Machine Types**: Finite automata — Deterministic (DFA), Non-Deterministic (NFA), and Epsilon-NFA (ε-NFA) — plus Pushdown Automata, both deterministic (DPDA) and non-deterministic (NPDA).
-- **🖱️ Interactive Canvas**: Seamless drag-and-drop interface for placing states and drawing transitions. Powered by a dynamic d3-force auto-layout engine to keep things tidy.
+- **🖱️ Interactive Canvas**: Seamless drag-and-drop interface for placing states and drawing transitions. A one-click auto-layout (powered by ELK) tidies messy diagrams into a compact, readable arrangement.
 - **▶️ Live Simulation**: Run step-by-step or continuous simulations with custom speed controls. Watch the automaton process strings with full visual branching for non-deterministic paths.
 - **📚 Stack & Computation Tree**: A live stack panel with push/pop animations for PDAs, plus a status-coloured computation-tree viewer for exploring every branch of a nondeterministic run (NFA, ε-NFA, NPDA).
 - **🖥️ Desktop Native**: Enjoy a multi-tab interface, native file saving/loading (`.autolab.json`), and over-the-air auto-updates.

@@ -7,16 +7,15 @@
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import packageJson from '../../../package.json'
-import { saveMachine, loadMachine as loadFromFile, loadMachineFromPath } from '@/utils/fileManager'
-import { getRecentFiles, removeRecentFile, clearRecentFiles, type RecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
 import { isPDAType } from '@/engines/core/utils'
 import type { MachineType } from '@/engines/core/types'
 import HelpModal from '@/components/layout/HelpModal'
+import FileControls from '@/components/toolbar/FileControls'
 
 const TYPE_LABELS: Record<MachineType, string> = {
   DFA: 'DFA',
@@ -28,8 +27,8 @@ const TYPE_LABELS: Record<MachineType, string> = {
 
 export default function Toolbar() {
   const {
-    machine, activeTabIndex, setMachineName, setMachineType, setAlphabet,
-    addTab, loadMachine, markTabSaved, undo, redo, past, future,
+    machine, setMachineName, setMachineType, setAlphabet,
+    loadMachine, undo, redo, past, future,
   } = useMachineStore()
   const status = useSimulationStore((s) => s.status)
   const { theme, toggleTheme, clearSelection, requestFitView } = useUIStore()
@@ -43,75 +42,16 @@ export default function Toolbar() {
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
 
-  const [isFileMenuOpen, setIsFileMenuOpen] = useState(false)
-  const fileMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
-        setIsFileMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
-  const handleNew = () => {
-    addTab()
-    setIsFileMenuOpen(false)
-  }
-
-  const handleLoad = async () => {
-    setIsFileMenuOpen(false)
+  const handleAutoLayout = async () => {
     try {
-      const { def } = await loadFromFile()
-      loadMachine(def)
+      const layoutedMachine = await applyAutoLayout(machine)
+      // Rearranging positions is an unsaved modification, keep the tab dirty.
+      loadMachine(layoutedMachine, false)
       requestFitView()
-      toast.success(`Opened "${def.name}".`)
     } catch (err) {
-      if (err instanceof Error && err.message !== 'No file selected') {
-        toast.error(err.message)
-      }
+      toast.error('Auto layout failed.')
+      console.error('Auto layout error:', err)
     }
-  }
-
-  const handleOpenRecent = async (file: RecentFile) => {
-    setIsFileMenuOpen(false)
-    try {
-      const def = await loadMachineFromPath(file.path)
-      loadMachine(def)
-      requestFitView()
-      toast.success(`Opened "${def.name}".`)
-    } catch (err) {
-      removeRecentFile(file.path)
-      toast.error(`Could not open "${file.name}". It may have been moved or deleted.`)
-    }
-  }
-
-  const handleClearRecent = () => {
-    clearRecentFiles()
-    setIsFileMenuOpen(false)
-    toast.info('Recent files cleared.')
-  }
-
-  const handleSave = async () => {
-    setIsFileMenuOpen(false)
-    try {
-      const saved = await saveMachine(machine)
-      if (saved) {
-        markTabSaved(activeTabIndex)
-        toast.success(`Saved "${machine.name}".`)
-      }
-    } catch (err) {
-      if (err instanceof Error) toast.error(err.message)
-    }
-  }
-
-  const handleAutoLayout = () => {
-    const layoutedMachine = applyAutoLayout(machine)
-    // Rearranging positions is an unsaved modification, keep the tab dirty.
-    loadMachine(layoutedMachine, false)
-    requestFitView()
   }
 
   const handleTypeChange = (newType: MachineType) => {
@@ -141,19 +81,6 @@ export default function Toolbar() {
     if (!canRedo) return
     clearSelection()
     redo()
-  }
-
-  const menuItemStyle: React.CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    padding: '8px 12px',
-    textAlign: 'left',
-    color: 'var(--text-primary)',
-    fontSize: '12px',
-    fontFamily: 'var(--font-mono)',
-    cursor: 'pointer',
-    outline: 'none',
-    borderBottom: '1px solid var(--border-default)',
   }
 
   const handleCheckUpdate = async () => {
@@ -206,8 +133,6 @@ export default function Toolbar() {
     padding: 0,
   })
 
-  const recentFiles = isTauri() ? getRecentFiles() : []
-
   return (
     <div style={{
       display: 'flex',
@@ -251,19 +176,39 @@ export default function Toolbar() {
 
       <div style={{ width: '1px', height: '20px', background: 'var(--border-default)' }} />
 
-      {/* Title Input */}
+      {/* Title Input — bordered so it's clearly an editable field */}
       <input
         type="text"
         value={machine.name}
         onChange={(e) => setMachineName(e.target.value)}
+        placeholder="Machine name"
+        title="Rename this machine"
+        spellCheck={false}
         style={{
-          background: 'transparent',
-          border: 'none',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
           outline: 'none',
           color: 'var(--text-secondary)',
           fontSize: '13px',
           fontWeight: 500,
-          width: '140px',
+          width: '160px',
+          padding: '4px 8px',
+          transition: 'border-color 150ms ease, background 150ms ease',
+        }}
+        onMouseEnter={(e) => {
+          if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'var(--border-strong)'
+        }}
+        onMouseLeave={(e) => {
+          if (document.activeElement !== e.currentTarget) e.currentTarget.style.borderColor = 'var(--border-default)'
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = 'var(--border-strong)'
+          e.currentTarget.style.background = 'var(--bg-elevated)'
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = 'var(--border-default)'
+          e.currentTarget.style.background = 'var(--bg-card)'
         }}
       />
 
@@ -438,114 +383,8 @@ export default function Toolbar() {
         {isCheckingUpdate ? 'CHECKING...' : 'UPDATES'}
       </button>
 
-      {/* File Menu Dropdown */}
-      <div style={{ position: 'relative' }} ref={fileMenuRef}>
-        <button
-          onClick={() => setIsFileMenuOpen(!isFileMenuOpen)}
-          style={{
-            background: isFileMenuOpen ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-primary)',
-            fontSize: '11px',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 600,
-            padding: '4px 12px',
-            outline: 'none',
-            cursor: 'pointer',
-            letterSpacing: '0.04em',
-          }}
-        >
-          FILE ▼
-        </button>
-        
-        {isFileMenuOpen && (
-          <div style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: '4px',
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-sm)',
-            boxShadow: 'var(--shadow-md)',
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: '220px',
-            zIndex: 100,
-            overflow: 'hidden'
-          }}>
-            <button 
-              onClick={handleNew} 
-              style={menuItemStyle}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              New
-            </button>
-            <button 
-              onClick={handleLoad} 
-              style={menuItemStyle}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              Load
-            </button>
-            <button 
-              onClick={handleSave} 
-              style={recentFiles.length > 0 ? menuItemStyle : { ...menuItemStyle, borderBottom: 'none' }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-            >
-              Save
-            </button>
-
-            {recentFiles.length > 0 && (
-              <>
-                <div style={{
-                  padding: '6px 12px',
-                  fontSize: '9px',
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-muted)',
-                  fontFamily: 'var(--font-mono)',
-                  background: 'var(--bg-secondary)',
-                  borderBottom: '1px solid var(--border-subtle)',
-                }}>
-                  Recent
-                </div>
-                {recentFiles.map((file) => (
-                  <button
-                    key={file.path}
-                    onClick={() => handleOpenRecent(file)}
-                    title={file.path}
-                    style={{ ...menuItemStyle, fontSize: '11px' }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <span style={{
-                      display: 'block',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      {file.name}
-                    </span>
-                  </button>
-                ))}
-                <button
-                  onClick={handleClearRecent}
-                  style={{ ...menuItemStyle, borderBottom: 'none', color: 'var(--text-muted)' }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  Clear recent
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      {/* File operations — New / Open / Save */}
+      <FileControls />
 
       {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
     </div>

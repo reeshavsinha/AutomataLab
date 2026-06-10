@@ -28,7 +28,10 @@ export const useToastStore = create<ToastStore>((set) => ({
 
   addToast: (type, message, duration = 3500) => {
     const id = generateId('toast')
-    set((s) => ({ toasts: [...s.toasts, { id, type, message, duration }] }))
+    // Guard against NaN/Infinity/negative durations (e.g. computed delays) which
+    // would otherwise make the timer fire immediately or never. 0 = keep open.
+    const safeDuration = Number.isFinite(duration) && duration >= 0 ? duration : 3500
+    set((s) => ({ toasts: [...s.toasts, { id, type, message, duration: safeDuration }] }))
     return id
   },
 

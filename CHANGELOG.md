@@ -2,6 +2,27 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v2.1.1
+
+### Added
+- **Redesigned file controls** — dedicated **New / Open / Save** toolbar buttons (with **Save As…** and a **Recent files** menu) replacing the old FILE dropdown, plus standard shortcuts **Ctrl/Cmd+N/O/S/Shift+S** and **Ctrl+T / Ctrl+W** for tabs.
+- **Unsaved-changes guard** — closing the app (or a tab) with unsaved work now prompts **Save All / Discard / Cancel** instead of losing it silently, and the title shows a **“●”** dot while there are unsaved changes.
+- **Simulation Step Back** (**⏮ / ←**) to retrace one step of a run.
+- **Interactive minimap** — pan, scroll to zoom, and click to recenter.
+
+### Changed
+- **Auto-layout rebuilt on ELK “stress”** for compact, roughly-symmetric, deterministic arrangements with no overlapping states (start state on the left); text notes stay put.
+- **Fit-view frames the whole machine** — self-loops and curved transition edges are included, not just the state boxes.
+- **Opening a file never clobbers unsaved work** — it reuses an empty tab or opens a new one; **Save writes in place** once a file’s path is known.
+- The **machine-name field** now reads as editable (bordered with a hover/focus highlight).
+
+### Fixed
+- **Deleting a transition edge that bundles several transitions** (common for PDAs) now removes the whole edge instead of leaving a “ghost”; editing such an edge’s label updates it consistently.
+- **Pressing Play** no longer leaves the input briefly editable / out of sync at the start of a run.
+- **Copy/paste now preserves PDA stack operations** (read / pop / push).
+- Graph edits are disabled during a running simulation, and transitions whose endpoints were removed no longer render as broken edges.
+- Smaller fixes: Escape cancels inline label editing cleanly, the computation-tree selection resets on a new run, drag interactions clean up reliably, and toast durations are guarded against bad values.
+
 ## v2.1.0
 
 ### Added

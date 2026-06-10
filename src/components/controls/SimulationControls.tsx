@@ -56,7 +56,7 @@ function ControlButton({
 }
 
 export default function SimulationControls() {
-  const { step, play, pause, reset } = useSimulation()
+  const { step, stepBack, play, pause, reset } = useSimulation()
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
   const [isPlaying, setIsPlaying] = useState(false)
 
@@ -68,8 +68,9 @@ export default function SimulationControls() {
       pause()
       setIsPlaying(false)
     } else {
-      play()
-      setIsPlaying(true)
+      // Only show the "playing" state if a run actually started — play() returns
+      // false on validation failure or a single-step machine that finished at once.
+      setIsPlaying(play())
     }
   }, [isPlaying, play, pause])
 
@@ -80,6 +81,14 @@ export default function SimulationControls() {
     }
     step()
   }, [isPlaying, pause, step])
+
+  const handleStepBack = useCallback(() => {
+    if (isPlaying) {
+      pause()
+      setIsPlaying(false)
+    }
+    stepBack()
+  }, [isPlaying, pause, stepBack])
 
   const handleReset = useCallback(() => {
     pause()
@@ -97,6 +106,9 @@ export default function SimulationControls() {
       const target = e.target as HTMLElement
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
       if (isInput) return
+      // Let Ctrl/Cmd combos (e.g. Ctrl+S = Save) through to their own handlers —
+      // the single-letter sim shortcuts below are bare-key only.
+      if (e.ctrlKey || e.metaKey) return
 
       const keyLower = e.key.toLowerCase()
 
@@ -112,6 +124,11 @@ export default function SimulationControls() {
           e.preventDefault()
           handleStep()
         }
+      } else if (e.key === 'ArrowLeft') {
+        if (stepCount > 0) {
+          e.preventDefault()
+          handleStepBack()
+        }
       } else if (keyLower === 'r' || (e.altKey && keyLower === 'r')) {
         if (!isIdle) {
           e.preventDefault()
@@ -122,7 +139,7 @@ export default function SimulationControls() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePlay, handleStep, handleReset, isDone, isIdle, isPlaying])
+  }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount])
 
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
@@ -156,7 +173,15 @@ export default function SimulationControls() {
         disabled={isDone && !isPlaying}
       />
 
-      {/* Step */}
+      {/* Step Back */}
+      <ControlButton
+        icon="⏮"
+        label="Step Back (Left Arrow)"
+        onClick={handleStepBack}
+        disabled={stepCount === 0}
+      />
+
+      {/* Step Forward */}
       <ControlButton
         icon="⏭"
         label="Step Forward (Right Arrow / S)"

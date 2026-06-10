@@ -11,6 +11,7 @@ import AutomataCanvas from '@/components/canvas/AutomataCanvas'
 import SidePanel from '@/components/panels/SidePanel'
 import TabBar from '@/components/layout/TabBar'
 import ToastContainer from '@/components/layout/ToastContainer'
+import UnsavedChangesGuard from '@/components/layout/UnsavedChangesGuard'
 
 export default function AppLayout() {
   const theme = useUIStore((s) => s.theme)
@@ -54,6 +55,9 @@ export default function AppLayout() {
 
       {/* Toast notifications */}
       <ToastContainer />
+
+      {/* Guards against quitting with unsaved work */}
+      <UnsavedChangesGuard />
     </div>
   )
 }
