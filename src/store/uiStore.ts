@@ -7,8 +7,13 @@ import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
 export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
+/** Top-level modal dialogs that can be opened from both the menu bar and toolbar. */
+export type ModalKind = 'help' | 'export' | 'convert' | 'batch'
 
 const THEME_KEY = 'automatalab-theme'
+const PANEL_KEY = 'automatalab-active-panel'
+const COLLAPSE_KEY = 'automatalab-panel-collapsed'
+const ALL_PANELS: ActivePanel[] = ['history', 'validation', 'info', 'stack', 'tree', 'tape', 'delta']
 
 /** Read the persisted theme, defaulting to light (the app's original look). */
 function getInitialTheme(): Theme {
@@ -23,6 +28,21 @@ function persistTheme(theme: Theme) {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(THEME_KEY, theme)
   }
+}
+
+/** Last-used panel persists across sessions; defaults to δ (the machine
+    definition) rather than the empty History tab (UX audit NAV-1). */
+function getInitialPanel(): ActivePanel {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(PANEL_KEY)
+    if (saved && (ALL_PANELS as string[]).includes(saved)) return saved as ActivePanel
+  }
+  return 'delta'
+}
+
+function getInitialCollapsed(): boolean {
+  if (typeof localStorage !== 'undefined') return localStorage.getItem(COLLAPSE_KEY) === '1'
+  return false
 }
 
 export interface ClipboardData {
@@ -61,11 +81,15 @@ interface UIStore {
   selectedStateIds: string[]
   selectedTransitionIds: string[]
   activePanel: ActivePanel
+  /** Whether the right side panel is collapsed to a thin reopen strip. */
+  panelCollapsed: boolean
   isEditingTransition: string | null // transition id being edited
   // State id whose outgoing-transitions modal is open (used for PDA editing), or null.
   transitionEditorStateId: string | null
   renamingStateId: string | null
   clipboard: ClipboardData | null
+  /** Which top-level modal dialog is open (help / export / convert), or null. */
+  activeModal: ModalKind | null
   /** Bumped to ask the canvas to fit/frame all nodes (e.g. after auto-layout). */
   fitViewNonce: number
   /** Set to ask the canvas to pan to + highlight a specific element (e.g. when a
@@ -83,6 +107,7 @@ interface UIStore {
   selectState: (id: string | null) => void
   selectTransition: (id: string | null) => void
   setActivePanel: (panel: ActivePanel) => void
+  togglePanel: () => void
   setEditingTransition: (id: string | null) => void
   openTransitionEditor: (stateId: string) => void
   closeTransitionEditor: () => void
@@ -90,17 +115,21 @@ interface UIStore {
   stopRenaming: () => void
   clearSelection: () => void
   setClipboard: (data: ClipboardData | null) => void
+  openModal: (kind: ModalKind) => void
+  closeModal: () => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
   theme: getInitialTheme(),
   selectedStateIds: [],
   selectedTransitionIds: [],
-  activePanel: 'history',
+  activePanel: getInitialPanel(),
+  panelCollapsed: getInitialCollapsed(),
   isEditingTransition: null,
   transitionEditorStateId: null,
   renamingStateId: null,
   clipboard: null,
+  activeModal: null,
   fitViewNonce: 0,
   focusRequest: null,
 
@@ -136,7 +165,17 @@ export const useUIStore = create<UIStore>((set) => ({
       selectedStateIds: [],
     }),
 
-  setActivePanel: (activePanel) => set({ activePanel }),
+  setActivePanel: (activePanel) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(PANEL_KEY, activePanel)
+    set({ activePanel })
+  },
+
+  togglePanel: () =>
+    set((s) => {
+      const panelCollapsed = !s.panelCollapsed
+      if (typeof localStorage !== 'undefined') localStorage.setItem(COLLAPSE_KEY, panelCollapsed ? '1' : '0')
+      return { panelCollapsed }
+    }),
 
   setEditingTransition: (isEditingTransition) => set({ isEditingTransition }),
 
@@ -151,4 +190,7 @@ export const useUIStore = create<UIStore>((set) => ({
     set({ selectedStateIds: [], selectedTransitionIds: [] }),
 
   setClipboard: (clipboard) => set({ clipboard }),
+
+  openModal: (kind) => set({ activeModal: kind }),
+  closeModal: () => set({ activeModal: null }),
 }))

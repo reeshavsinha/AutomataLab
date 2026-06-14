@@ -61,7 +61,10 @@ export class TMEngine implements Automaton {
 
   constructor(definition: MachineDefinition, maxSteps?: number) {
     this.definition = definition
-    this.maxSteps = maxSteps ?? definition.stepLimit ?? DEFAULT_MAX_STEPS
+    // A non-positive / non-finite limit would trip the step guard on the first
+    // move and brick the machine, so fall back to the default in that case.
+    const limit = maxSteps ?? definition.stepLimit ?? DEFAULT_MAX_STEPS
+    this.maxSteps = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : DEFAULT_MAX_STEPS
     this.blank = definition.blankSymbol || BLANK
     this.tapeCount = Math.max(1, Math.floor(definition.tapeCount ?? 1) || 1)
   }

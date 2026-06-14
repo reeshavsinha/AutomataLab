@@ -2,6 +2,40 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v4.0.0
+
+### Added
+- **Conversion & transformation utilities.** A new **CONVERT** toolbar button opens a dedicated workspace that runs the classic constructions and plays them back **step by step** on a live diagram preview, then lets you **open the result in a new tab**:
+  - **NFA → DFA** and **ε-NFA → DFA** — subset (powerset) construction.
+  - **ε-NFA → NFA** — ε-transition elimination via epsilon-closures.
+  - **DFA minimization** — partition refinement (Moore/Hopcroft), after completing the automaton and dropping unreachable states.
+  - **Regex → NFA** — Thompson's construction from a regular expression (`|`, `*`, `+`, `?`, grouping, `ε`).
+  - **CFG → PDA** — the standard one-state nondeterministic pushdown construction from a context-free grammar.
+- **Step-by-step construction player.** Each conversion is broken into ordered steps with a title and explanation; play/pause, scrub, or click any step to reveal exactly the states and transitions it adds (the new states/edges are highlighted), with a **Source ⇄ Result** toggle to compare against the input.
+- **Readable converted states with provenance.** Subset construction and minimization no longer produce illegible nested-set labels like `{{q3,q5},{q6}}`. Converted states are named compactly (`q0, q1, …`), and the set / equivalence class they stand for is shown **on hover**, via a **short ⇄ full labels** toggle in the preview, and in the step text — so the diagram stays clean without losing the construction's meaning (ε-elimination states also show their ε-closure).
+- **Diagram image export (PNG / SVG).** The Export dialog now exports the **state diagram** itself as a crisp vector **SVG** or a high-resolution **PNG**, theme-aware (light/dark), in addition to the existing data exports. Powered by a new dependency-free machine→SVG renderer.
+- **Clickable ε (epsilon) inserter.** A small **ε / λ** button now appears wherever you type symbols — the transition editor, the δ-table (for ε-NFAs), and the Regex / CFG conversion inputs — so you can enter epsilon without an epsilon key on your keyboard.
+- **Classic desktop menu bar.** A familiar top **File / Edit / View / Simulate / Convert / Help** menu bar now sits above a refreshed toolbar, so every action (new/open/save, copy/cut/paste, run/step/reset, conversions, batch testing, export, help) is reachable from a predictable place — not just from scattered toolbar icons.
+- **Keyboard parity for state roles & visible selection.** Press **I** to mark the selected state as the start state and **F** to toggle it as an accept state; drag with **Shift** held to rubber-band-select several elements at once (Ctrl/Cmd-click still adds to a selection).
+
+### Changed
+- The **Export** dialog gained a **Diagram** section (SVG / PNG) alongside the transition table, trace, tree, and machine-definition exports.
+- **Help** now documents the conversion utilities, readable converted labels, the ε inserter, and diagram image export.
+- **Refreshed “classic desktop” look.** The toolbar and menus adopt a native-application chrome (subtle bevels, compact icons, a menu bar) for a more familiar, less cluttered workspace; the simulation transport (play / step / step-back / reset / speed) and the canvas tool palette were restyled to match.
+- **Accessibility & UX pass.** Modal dialogs (Help, Export, Convert, Batch) now trap keyboard focus, restore focus when they close, close on **Esc**, and announce themselves to screen readers. The right side panel remembers which tab you were on (defaulting to the **δ** transition table instead of an empty History tab) and can be collapsed to reclaim space. A **blocked run now explains why** — it surfaces the first validation problem and opens the Validate tab (with a count badge) instead of doing nothing. A halted run **highlights the witness path** on the diagram, and **“stuck” is now clearly distinguished from “reject”** in tooltips and styling. Epsilon typed as `eps` / `λ` / `lambda` (or left blank) normalizes to `ε`. The δ-table and nondeterministic history now render set-valued state collections as `{q0, q1}`.
+
+### Performance & robustness
+- **Nondeterministic runs can no longer exhaust memory.** An NPDA distinguishes computation branches by their *stack*, so a grammar/machine with ε-moves that push different symbols could double the live branch set every step and run the app out of memory in seconds. The engine now caps the live frontier width: when a single step would blow past the limit it stops expanding and decides on what it has (accepting if a valid accepting branch exists, otherwise halting as `stuck`) — the verdict stays correct, the memory stays bounded.
+- **Malformed machine files fail gracefully.** Opening a corrupt, truncated, or hand-edited `.autolab.json` (or a file whose `name` / fields have the wrong type) now reports a clean error instead of crashing; the loader only ever reads known fields (prototype-pollution safe).
+- **A bad step limit can’t brick a run.** A zero, negative, or non-numeric step limit for a TM / PDA now falls back to the default instead of halting the machine on its first step.
+- **Property-based fuzzing.** A new randomized test suite throws thousands of arbitrary machines of every type at the engines (must never crash and must always halt), cross-checks every conversion against its source machine for language equivalence, and verifies Regex → NFA against a reference regular-expression engine.
+
+### Fixed
+- **Transitions now follow a state while you drag it.** Previously the connected edges stayed pinned to a state's old position until the drag ended; they now track the node continuously as it moves.
+
+### Notes
+- Fully **backward compatible**: conversions never mutate the source machine — results open in a separate tab and use the existing `.autolab.json` shape, so nothing about saved files or existing machine behavior changes. Converted states carry an optional, additive `description` (their provenance); older files without it load unchanged.
+
 ## v3.0.0
 
 ### Added

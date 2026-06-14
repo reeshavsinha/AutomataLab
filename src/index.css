@@ -45,9 +45,14 @@
   --status-reject:  #b42318;
   --status-running: #9a6700;
 
-  /* Soft fills for accept/reject highlighting (result badges, final states). */
+  /* Soft fills for accept/reject/stuck highlighting (result badges, final states). */
   --status-accept-soft: #e6f4ea;
   --status-reject-soft: #fdecea;
+  --status-running-soft: #fff4d6;
+
+  /* Trace overlay — the computation path lit up once a run halts (UX audit THY-1). */
+  --trace: #2563eb;
+  --trace-ring: rgba(37, 99, 235, 0.20);
 
   --font-sans:  'Inter', system-ui, sans-serif;
   --font-mono:  'JetBrains Mono', 'Fira Code', monospace;
@@ -65,6 +70,25 @@
   --transition-fast:   0ms;
   --transition-normal: 0ms;
   --transition-slow:   0ms;
+
+  /* ── Classic desktop chrome (menu bar + icon toolbar) ──────────
+     A scoped grey "application chrome" palette that gives the top of
+     the app a conventional native-desktop look (menu bar + toolbar).
+     The canvas, side panel, and dialogs keep the main palette above. */
+  --chrome-bg:          #eef1f4;
+  --chrome-bg-2:        #e2e6ea;
+  --chrome-border:      #bcc3cb;
+  --chrome-text:        #232a33;
+  --chrome-text-muted:  #5b6470;
+  --chrome-hover-bg:    #dce8f7;
+  --chrome-hover-border:#a7c6ec;
+  --chrome-active-bg:   #c4daf4;
+  --chrome-active-border:#79ace4;
+  --chrome-sep:         #c4cad1;
+  --chrome-sep-hi:      #fbfcfd;
+  --chrome-field-bg:    #ffffff;
+  --menu-pop-bg:        #ffffff;
+  --menu-pop-border:    #aab3bd;
 }
 
 /* ── Dark theme ─────────────────────────────────────────────────
@@ -99,10 +123,30 @@
 
   --status-accept-soft: rgba(63, 185, 80, 0.18);
   --status-reject-soft: rgba(248, 81, 73, 0.18);
+  --status-running-soft: rgba(210, 153, 34, 0.20);
+
+  --trace: #60a5fa;
+  --trace-ring: rgba(96, 165, 250, 0.26);
 
   --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
   --shadow-md:  0 4px 12px rgba(0,0,0,0.5);
   --shadow-lg:  0 8px 24px rgba(0,0,0,0.6);
+
+  /* Classic chrome — dark equivalents. */
+  --chrome-bg:          #2c2f34;
+  --chrome-bg-2:        #26282d;
+  --chrome-border:      #17191c;
+  --chrome-text:        #e6e8eb;
+  --chrome-text-muted:  #9aa1ab;
+  --chrome-hover-bg:    #3a3f47;
+  --chrome-hover-border:#4d5662;
+  --chrome-active-bg:   #464d58;
+  --chrome-active-border:#5b93d6;
+  --chrome-sep:         #1b1d21;
+  --chrome-sep-hi:      #3a3d43;
+  --chrome-field-bg:    #1c1e22;
+  --menu-pop-bg:        #26292e;
+  --menu-pop-border:    #14161a;
 }
 
 /* ── Base Reset ─────────────────────────────────────────────── */
@@ -332,6 +376,20 @@ body {
   box-shadow: 0 0 0 3px var(--status-reject-soft);
 }
 
+/* Stuck (step/loop guard) — its own amber final treatment, distinct from an
+   explicit reject (UX audit FBK-1). */
+.state-node.stuck-final {
+  border-color: var(--status-running) !important;
+  background: var(--status-running-soft);
+  box-shadow: 0 0 0 3px var(--status-running-soft);
+}
+
+/* Trace path — states the halted computation visited (UX audit THY-1). The
+   active/final state keeps its stronger accept/reject/stuck ring on top. */
+.state-node.on-path {
+  box-shadow: 0 0 0 3px var(--trace-ring);
+}
+
 /* ── Animations ─────────────────────────────────────────────────
    Defined independently of the (disabled) --transition-* tokens. */
 @keyframes toast-in {
@@ -355,3 +413,176 @@ body {
 
 .result-flash.accept { box-shadow: inset 0 0 0 4px var(--status-accept); }
 .result-flash.reject { box-shadow: inset 0 0 0 4px var(--status-reject); }
+
+/* ── Classic desktop chrome: menu bar + icon toolbar (scoped) ─────
+   A conventional native-app look for the top of the window. Hover /
+   pressed states live here (rather than inline) because there are many
+   buttons and CSS :hover/:active is cleaner than per-button JS. */
+.menubar {
+  display: flex;
+  align-items: stretch;
+  height: 25px;
+  background: var(--chrome-bg);
+  border-bottom: 1px solid var(--chrome-border);
+  padding: 0 3px;
+  user-select: none;
+  flex-shrink: 0;
+}
+.menubar-item {
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  font-size: 12.5px;
+  color: var(--chrome-text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  margin: 2px 0;
+  cursor: default;
+  white-space: nowrap;
+}
+.menubar-item:hover,
+.menubar-item.open {
+  background: var(--chrome-hover-bg);
+  border-color: var(--chrome-hover-border);
+}
+.menubar-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 6px;
+  font-weight: 800;
+  font-size: 12.5px;
+  letter-spacing: -0.2px;
+  color: var(--chrome-text);
+  text-decoration: none;
+}
+
+/* Drop-down menu popup */
+.menupop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 210px;
+  background: var(--menu-pop-bg);
+  border: 1px solid var(--menu-pop-border);
+  box-shadow: var(--shadow-md);
+  padding: 4px 0;
+  z-index: 1200;
+}
+.menupop-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 5px 14px 5px 26px;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: default;
+  white-space: nowrap;
+  position: relative;
+  font-family: var(--font-sans);
+}
+.menupop-item:hover:not(:disabled),
+.menupop-item.sub-open {
+  background: var(--chrome-hover-bg);
+}
+.menupop-item:disabled { color: var(--text-muted); }
+.menupop-item .mi-acc { margin-left: auto; padding-left: 28px; color: var(--text-muted); font-size: 11px; font-family: var(--font-mono); }
+.menupop-item .mi-check { position: absolute; left: 9px; font-size: 11px; }
+.menupop-item .mi-caret { margin-left: auto; padding-left: 18px; font-size: 10px; color: var(--text-muted); }
+.menupop-sep { height: 1px; margin: 4px 6px; background: var(--chrome-sep); }
+.menupop-head {
+  padding: 5px 14px 3px;
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* Icon toolbar */
+.toolbar-classic {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  height: 33px;
+  background: linear-gradient(var(--chrome-bg), var(--chrome-bg-2));
+  border-bottom: 1px solid var(--chrome-border);
+  padding: 0 6px;
+  flex-shrink: 0;
+}
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 27px;
+  height: 26px;
+  padding: 0 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--chrome-text);
+  cursor: pointer;
+  outline: none;
+}
+.tb-btn:hover:not(:disabled) {
+  background: var(--chrome-hover-bg);
+  border-color: var(--chrome-hover-border);
+}
+.tb-btn:active:not(:disabled),
+.tb-btn.on {
+  background: var(--chrome-active-bg);
+  border-color: var(--chrome-active-border);
+}
+.tb-btn:disabled { opacity: 0.4; cursor: default; }
+.tb-btn svg { display: block; }
+.tb-sep {
+  width: 1px;
+  height: 19px;
+  margin: 0 5px;
+  background: var(--chrome-sep);
+  border-right: 1px solid var(--chrome-sep-hi);
+  flex-shrink: 0;
+}
+.tb-label {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--chrome-text-muted);
+  font-family: var(--font-mono);
+  padding: 0 3px 0 5px;
+  white-space: nowrap;
+}
+.tb-field {
+  background: var(--chrome-field-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  outline: none;
+  height: 24px;
+}
+.tb-field:focus { border-color: var(--chrome-active-border); }
+.tb-select {
+  appearance: none;
+  background: var(--chrome-field-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 3px;
+  padding: 3px 22px 3px 7px;
+  font-size: 12px;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  color: var(--text-primary);
+  outline: none;
+  height: 24px;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888888' d='M0 0l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  background-size: 9px 6px;
+}
+.tb-select:focus { border-color: var(--chrome-active-border); }

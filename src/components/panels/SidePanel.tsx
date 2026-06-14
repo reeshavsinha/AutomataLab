@@ -1,12 +1,15 @@
 // ============================================================
-// SidePanel — Right sidebar. Plain B&W. Tabs: History, Validate, Info.
+// SidePanel — Right sidebar. Plain B&W. Tabs (machine-type aware):
+// δ (transition table), History, Validate, Stack/Tape/Tree, Info.
+// Collapsible to a thin reopen strip; the active tab persists across sessions.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { isPDAType, isTMType, supportsComputationTree } from '@/engines/core/utils'
+import { validateMachine } from '@/utils/validator'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
 import StackPanel from './StackPanel'
@@ -54,11 +57,25 @@ function InfoPanel() {
 }
 
 export default function SidePanel() {
-  const { activePanel, setActivePanel } = useUIStore()
-  const machineType = useMachineStore((s) => s.machine.type)
+  const activePanel = useUIStore((s) => s.activePanel)
+  const setActivePanel = useUIStore((s) => s.setActivePanel)
+  const panelCollapsed = useUIStore((s) => s.panelCollapsed)
+  const togglePanel = useUIStore((s) => s.togglePanel)
+  const machine = useMachineStore((s) => s.machine)
+  const machineType = machine.type
   const isPDA = isPDAType(machineType)
   const isTM = isTMType(machineType)
   const hasTree = supportsComputationTree(machineType)
+
+  // Live validation counts → a badge on the Validate tab so problems are
+  // visible without opening the panel (UX audit FLO-1).
+  const issues = useMemo(() => {
+    const errs = validateMachine(machine)
+    return {
+      errors: errs.filter((e) => e.severity === 'error').length,
+      warnings: errs.filter((e) => e.severity === 'warning').length,
+    }
+  }, [machine])
 
   // Width is user-resizable (persisted). Until the user drags, stack-machine
   // and tree views default wider since their content is denser.
@@ -98,25 +115,68 @@ export default function SidePanel() {
   }, [width])
 
   const tabs: { id: Tab; label: string; title?: string }[] = [
-    { id: 'delta',      label: 'δ', title: 'Transition table (δ) — every move, grouped by state' },
-    { id: 'history',    label: 'History' },
-    { id: 'validation', label: 'Validate' },
-    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack' }] : []),
-    ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape' }] : []),
-    ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree' }] : []),
-    { id: 'info',       label: 'Info' },
+    { id: 'delta',      label: 'δ',        title: 'Transition table (δ) — every move, grouped by state' },
+    { id: 'history',    label: 'History',  title: 'Run history — each step of the last simulation' },
+    { id: 'validation', label: 'Validate', title: 'Validation — errors and warnings (click to locate)' },
+    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack', title: 'PDA stack + instantaneous description' }] : []),
+    ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape', title: 'Turing tape, head, and instantaneous description' }] : []),
+    ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', title: 'Computation tree / trellis of branches' }] : []),
+    { id: 'info',       label: 'Info',     title: 'Machine summary and simulation status' },
   ]
 
-  // If a context-specific tab is active but no longer applies, fall back to History.
+  // If a context-specific tab no longer applies (e.g. NFA→DFA drops Tree), fall
+  // back to δ — the always-present machine definition — rather than History.
   useEffect(() => {
     if (activePanel === 'stack' && !isPDA) {
-      setActivePanel('history')
+      setActivePanel('delta')
     } else if (activePanel === 'tree' && !hasTree) {
-      setActivePanel('history')
+      setActivePanel('delta')
     } else if (activePanel === 'tape' && !isTM) {
-      setActivePanel('history')
+      setActivePanel('delta')
     }
   }, [activePanel, isPDA, isTM, hasTree, setActivePanel])
+
+  // Collapsed → a thin reopen strip so the canvas can use the full width
+  // (UX audit NAV-1).
+  if (panelCollapsed) {
+    return (
+      <aside
+        style={{
+          width: '26px',
+          flexShrink: 0,
+          background: 'var(--bg-secondary)',
+          borderLeft: '1px solid var(--border-default)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '8px',
+          paddingTop: '8px',
+        }}
+      >
+        <button
+          onClick={togglePanel}
+          title="Show panel"
+          aria-label="Show side panel"
+          style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}
+        >
+          ‹
+        </button>
+        <span
+          style={{
+            writingMode: 'vertical-rl',
+            transform: 'rotate(180deg)',
+            fontSize: '10px',
+            letterSpacing: '0.12em',
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)',
+            textTransform: 'uppercase',
+          }}
+        >
+          Panels
+        </span>
+      </aside>
+    )
+  }
 
   return (
     <aside style={{
@@ -150,29 +210,74 @@ export default function SidePanel() {
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
       }}>
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activePanel === tab.id}
-            title={tab.title}
-            onClick={() => setActivePanel(tab.id)}
-            style={{
-              flex: 1,
-              padding: '8px 4px',
-              border: 'none',
-              background: 'transparent',
-              borderBottom: `2px solid ${activePanel === tab.id ? 'var(--text-primary)' : 'transparent'}`,
-              color: activePanel === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontSize: '12px',
-              cursor: 'pointer',
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '0.03em',
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const selected = activePanel === tab.id
+          const showBadge = tab.id === 'validation' && (issues.errors > 0 || issues.warnings > 0)
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={selected}
+              title={tab.title}
+              onClick={() => setActivePanel(tab.id)}
+              style={{
+                flex: 1,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                padding: '8px 4px',
+                border: 'none',
+                background: 'transparent',
+                borderBottom: `2px solid ${selected ? 'var(--text-primary)' : 'transparent'}`,
+                color: selected ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontSize: '12px',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                letterSpacing: '0.03em',
+              }}
+            >
+              {tab.label}
+              {showBadge && (
+                <span
+                  aria-label={`${issues.errors} error(s), ${issues.warnings} warning(s)`}
+                  style={{
+                    minWidth: '15px',
+                    height: '15px',
+                    padding: '0 3px',
+                    borderRadius: '8px',
+                    background: issues.errors > 0 ? 'var(--status-reject)' : 'var(--status-running)',
+                    color: '#fff',
+                    fontSize: '9px',
+                    fontWeight: 700,
+                    lineHeight: '15px',
+                    textAlign: 'center',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {issues.errors > 0 ? issues.errors : issues.warnings}
+                </span>
+              )}
+            </button>
+          )
+        })}
+        <button
+          onClick={togglePanel}
+          title="Collapse panel"
+          aria-label="Collapse side panel"
+          style={{
+            flexShrink: 0,
+            width: '24px',
+            border: 'none',
+            borderLeft: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: '12px',
+          }}
+        >
+          ›
+        </button>
       </div>
 
       <div role="tabpanel" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

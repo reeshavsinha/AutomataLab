@@ -15,6 +15,8 @@ export interface StateNodeData {
   isStart: boolean
   isAccept: boolean
   isReject?: boolean
+  /** Provenance shown on hover (e.g. the subset a converted DFA state stands for). */
+  description?: string
   isTransitionTarget?: boolean   // highlight when in "start transition" mode
   [key: string]: unknown
 }
@@ -22,7 +24,7 @@ export interface StateNodeData {
 const StateNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as StateNodeData
   const { updateState } = useMachineStore()
-  const { activeStateIds, status } = useSimulationStore()
+  const { activeStateIds, status, pathStateIds } = useSimulationStore()
   const { renamingStateId, stopRenaming } = useUIStore()
 
   const [isEditing, setIsEditing] = useState(false)
@@ -30,7 +32,10 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isActive = activeStateIds.includes(id)
-  const isSimDone = status === 'accepted' || status === 'rejected'
+  // A run has halted (any terminal status) — used to paint the trace path and
+  // the per-status final-state treatment (UX audit THY-1 / FBK-1).
+  const halted = status === 'accepted' || status === 'rejected' || status === 'stuck'
+  const isOnPath = halted && pathStateIds.includes(id)
   // Editing is allowed unless a run is actively in progress; a finished run is
   // editable too (any edit auto-resets the sim — see useSimulation).
   const canEditStructure = status !== 'running'
@@ -93,8 +98,10 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     nodeData.isAccept ? 'accept' : '',
     nodeData.isReject ? 'reject' : '',
     isActive ? 'active' : '',
-    isSimDone && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
-    isSimDone && isActive && status === 'rejected' ? 'rejected-final' : '',
+    isOnPath ? 'on-path' : '',
+    halted && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
+    halted && isActive && status === 'rejected' ? 'rejected-final' : '',
+    halted && isActive && status === 'stuck' ? 'stuck-final' : '',
     nodeData.isTransitionTarget ? 'transition-target-mode' : '',
   ]
     .filter(Boolean)
@@ -113,7 +120,7 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
       <div
         className={classes}
         onDoubleClick={startEdit}
-        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}${nodeData.isReject ? ' (reject)' : ''}`}
+        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}${nodeData.isReject ? ' (reject)' : ''}${nodeData.description ? `\n${nodeData.description}` : ''}`}
       >
         {isEditing ? (
           <input

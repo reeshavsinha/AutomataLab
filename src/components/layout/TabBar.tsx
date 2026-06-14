@@ -78,9 +78,9 @@ export default function TabBar() {
     <div style={{
       display: 'flex',
       alignItems: 'flex-end',
-      background: 'var(--bg-secondary)',
-      borderBottom: '1px solid var(--border-default)',
-      height: '36px',
+      background: 'var(--chrome-bg)',
+      borderBottom: '1px solid var(--chrome-border)',
+      height: '34px',
       padding: '0 8px',
       gap: '4px',
       overflowX: 'auto',

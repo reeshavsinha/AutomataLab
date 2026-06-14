@@ -36,6 +36,18 @@ import { buildConfig, getStartState, isEpsilon } from '../core/utils'
 const DEFAULT_MAX_STEPS = 10_000
 /** Drop any branch whose stack grows past this (guards ε-push loops). */
 const MAX_STACK_DEPTH = 10_000
+/**
+ * Hard ceiling on the live frontier width. Unlike a finite automaton (whose
+ * frontier is a powerset bounded by the state count), an NPDA distinguishes
+ * branches by their STACK, so two ε-moves that push different symbols defeat the
+ * per-step dedup and the frontier doubles every step — an exponential blow-up
+ * that exhausts memory within ~20 steps, long before the step ceiling. When the
+ * frontier gets pathologically wide we stop expanding and decide on what we have
+ * (accept if an accepting branch already exists, otherwise `stuck`). The cap is
+ * orders of magnitude above any realistic nondeterministic frontier, but small
+ * enough that one BFS layer (and its signature) stays cheap to compute.
+ */
+const MAX_FRONTIER = 5_000
 
 export class NPDAEngine implements Automaton, TreeProvider {
   private definition: MachineDefinition
@@ -54,7 +66,8 @@ export class NPDAEngine implements Automaton, TreeProvider {
 
   constructor(definition: MachineDefinition, maxSteps: number = DEFAULT_MAX_STEPS) {
     this.definition = definition
-    this.maxSteps = maxSteps
+    // Guard against a non-positive / non-finite cap bricking the engine.
+    this.maxSteps = Number.isFinite(maxSteps) && maxSteps > 0 ? Math.floor(maxSteps) : DEFAULT_MAX_STEPS
   }
 
   initialize(input: string): void {
@@ -109,7 +122,8 @@ export class NPDAEngine implements Automaton, TreeProvider {
     const childReads: string[] = []
     const usedTransitionIds: string[] = []
     const seen = new Set<string>()
-    for (const config of prevFrontier) {
+    let overflow = false
+    outer: for (const config of prevFrontier) {
       for (const t of this._applicable(config)) {
         const { child, readSym } = this._apply(config, t)
         if (child.stack.length > MAX_STACK_DEPTH) continue
@@ -123,7 +137,27 @@ export class NPDAEngine implements Automaton, TreeProvider {
         if (this.treeNodes.length < MAX_TREE_NODES) this.treeNodes.push(child)
         childReads.push(readSym)
         usedTransitionIds.push(t.id)
+        // Frontier-width guard (see MAX_FRONTIER): bail the instant the live set
+        // gets pathologically wide so a branching ε-push loop can't exhaust memory.
+        if (children.length >= MAX_FRONTIER) {
+          overflow = true
+          break outer
+        }
       }
+    }
+
+    // Frontier blew up: an accepting branch among what we built is still a real
+    // accepting computation (sound), so honour it; otherwise give up as `stuck`.
+    if (overflow) {
+      const acc = this._pickAccepting(children)
+      if (acc) {
+        this.status = 'accepted'
+        this.frontier = children
+        this.prevSig = this._sig(children)
+        return this._result('accepted', prevFrontier, children, acc, '', '', usedTransitionIds)
+      }
+      this.status = 'stuck'
+      return this._terminalResult('stuck')
     }
 
     // Every branch is a dead end — no move applies anywhere.

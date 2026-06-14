@@ -9,6 +9,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
 import { parseBatchCases, runBatch, batchSummary, type BatchResult } from '@/utils/batch'
 import { downloadText, fileStem } from '@/utils/exporters'
+import Dialog from '@/components/common/Dialog'
 
 const PLACEHOLDER = `aabb
 abab
@@ -58,32 +59,21 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.7)',
+    <Dialog
+      onClose={onClose}
+      label={`Batch test — ${machine.name}`}
+      cardStyle={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-lg)',
+        width: '90vw',
+        maxWidth: '620px',
+        maxHeight: '84vh',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
-      onClick={onClose}
     >
-      <div
-        style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-strong)',
-          borderRadius: 'var(--radius-lg)',
-          width: '90vw',
-          maxWidth: '620px',
-          maxHeight: '84vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
         {/* Header */}
         <div
           style={{
@@ -246,8 +236,7 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 

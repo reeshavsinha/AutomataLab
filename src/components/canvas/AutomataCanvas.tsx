@@ -22,6 +22,7 @@ import {
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
+import { useCommandStore } from '@/store/commandStore'
 import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType } from '@/engines/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
@@ -75,6 +76,7 @@ function buildNodes(
         isStart: s.isStart,
         isAccept: s.isAccept,
         isReject: s.isReject ?? false,
+        description: s.description,
         isTransitionTarget: transitionMode !== null && transitionMode.fromStateId !== s.id && !s.isText,
       },
       draggable: true,
@@ -193,6 +195,7 @@ function areNodesEqual(nodesA: Node[], nodesB: Node[]): boolean {
     if (dA.isStart !== dB.isStart) { return false; }
     if (dA.isAccept !== dB.isAccept) { return false; }
     if ((dA.isReject ?? false) !== (dB.isReject ?? false)) { return false; }
+    if ((dA.description ?? '') !== (dB.description ?? '')) { return false; }
     if ((dA.isTransitionTarget ?? false) !== (dB.isTransitionTarget ?? false)) { return false; }
   }
   return true
@@ -748,12 +751,50 @@ function AutomataCanvasInner() {
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         handleDeleteSelected()
+      } else if (!isCtrl && (key === 'f' || key === 'i')) {
+        // Keyboard parity for state roles (UX audit ACC-2): F toggles the
+        // accept/final mark on the selection; I sets the (single) selected
+        // state as the start state. Right-click still works too.
+        if (status === 'running') return
+        const sel = useUIStore.getState().selectedStateIds
+        const states = useMachineStore.getState().machine.states
+        const targets = sel.filter((sid) => !states.find((s) => s.id === sid)?.isText)
+        if (targets.length === 0) return
+        e.preventDefault()
+        if (key === 'f') {
+          targets.forEach((sid) => toggleAcceptState(sid))
+        } else if (targets.length === 1) {
+          setStartState(targets[0])
+        }
       }
     }
 
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [handleCopy, handleCut, handlePaste, handleSelectAll, handleDeleteSelected, handleAddStateAtCenter, undo, redo, clearSelection, status])
+  }, [handleCopy, handleCut, handlePaste, handleSelectAll, handleDeleteSelected, handleAddStateAtCenter, undo, redo, clearSelection, status, setStartState, toggleAcceptState])
+
+  // ── Publish edit actions to the command bus ──────────────────
+  // The classic MenuBar / Toolbar live outside the canvas but need to drive
+  // copy/cut/paste/delete/zoom; register the handlers so they can call through.
+  const setCanvasApi = useCommandStore((s) => s.setCanvasApi)
+  const hasSelection = selectedStateIds.length > 0 || selectedTransitionIds.length > 0
+  const hasClipboard = !!clipboard
+  useEffect(() => {
+    setCanvasApi({
+      copy: handleCopy,
+      cut: handleCut,
+      paste: handlePaste,
+      deleteSelection: handleDeleteSelected,
+      selectAll: handleSelectAll,
+      addState: handleAddStateAtCenter,
+      zoomIn: () => rfInstance?.zoomIn?.(),
+      zoomOut: () => rfInstance?.zoomOut?.(),
+      fit: () => fitToContent(),
+      hasSelection,
+      hasClipboard,
+    })
+    return () => setCanvasApi(null)
+  }, [setCanvasApi, handleCopy, handleCut, handlePaste, handleDeleteSelected, handleSelectAll, handleAddStateAtCenter, rfInstance, fitToContent, hasSelection, hasClipboard])
 
   // ── Connect via drag ─────────────────────────────────────────
   const onConnect = useCallback(
@@ -1049,7 +1090,11 @@ function AutomataCanvasInner() {
         panOnDrag={!selectionModeActive}
         onSelectionEnd={onSelectionEnd}
         
-        multiSelectionKeyCode="Control"
+        // Shift = standard diagram-tool selection (hold-drag a marquee or
+        // Shift-click to extend a multi-selection), alongside the explicit
+        // Select tool — so selection isn't a hidden gesture (UX audit ACC-2).
+        selectionKeyCode="Shift"
+        multiSelectionKeyCode={['Shift', 'Control', 'Meta']}
         nodesDraggable={true}
         nodesConnectable={status !== 'running'}
         elementsSelectable={true}
@@ -1139,6 +1184,12 @@ function AutomataCanvasInner() {
             </div>
             Right-click the canvas or press <strong style={{ color: 'var(--text-secondary)' }}>N</strong> to add a state.<br />
             Hover a state, then drag the <strong style={{ color: 'var(--text-secondary)' }}>connection dot</strong> on its edge to another state.
+            {machine.type === 'ENFA' && (
+              <>
+                <br />
+                On an ε-NFA, leave a transition label empty (or type <strong style={{ color: 'var(--text-secondary)' }}>eps</strong>) for an <strong style={{ color: 'var(--text-secondary)' }}>ε</strong>-move.
+              </>
+            )}
           </div>
           <button
             onClick={handleAddStateAtCenter}

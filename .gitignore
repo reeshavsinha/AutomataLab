@@ -35,9 +35,13 @@ decisions.md
 handoff.md
 git-identity.md
 v3_plan.md
+TODO.md
 
 # Local sample machines (not part of the shipped app)
 examples/
 
 # Custom scripts
 rewrite.sh
+
+# Local UI screenshot/preview workspace (headless-Chrome shots + helper scripts)
+.preview/

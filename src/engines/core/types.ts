@@ -15,6 +15,13 @@ export interface AutomataState {
   y: number
   isStart: boolean
   isAccept: boolean
+  /**
+   * Optional provenance / explanation for the state, shown on hover and in the
+   * conversion preview's "full labels" mode. Conversions use it to keep the
+   * visible label short (e.g. `q3`) while still recording what the state means
+   * (e.g. `{q6,q7,q14}` for a subset-construction state, or an ε-closure).
+   */
+  description?: string
   /** TM/LBA only — halt-and-reject state. */
   isReject?: boolean
   /** Text annotation node type */

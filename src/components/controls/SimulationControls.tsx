@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
+import { useCommandStore } from '@/store/commandStore'
 import { isTMType } from '@/engines/core/utils'
 import { toast } from '@/store/toastStore'
 
@@ -21,15 +22,17 @@ const STATUS_LABELS: Record<string, string> = {
   error:    'Error',
 }
 
-// Halt semantics differ — "stuck" (no applicable move / step limit) is not the
-// same outcome as an explicit "reject", so each gets its own tooltip (UX #10).
+// Halt semantics differ and are easy to confuse, so each status gets a precise
+// tooltip (UX audit FBK-1). "Rejected" covers both a trap (no applicable move)
+// and input consumed in a non-accepting state; "Stuck" is reserved for hitting
+// the step/loop guard — a possible non-halting computation, not a reject.
 const STATUS_TITLES: Record<string, string> = {
   idle:     'Not started.',
   running:  'Running…',
-  accepted: 'Accepted: halted in an accept state with the input consumed.',
-  rejected: 'Rejected: input consumed but not in an accept state.',
-  stuck:    'Stuck: halted with no applicable transition (or the step limit was hit) — not the same as an explicit reject.',
-  error:    'Error: the run could not proceed.',
+  accepted: 'Accepted: halted in an accepting configuration with the input consumed.',
+  rejected: 'Rejected: the run halted without accepting — either no transition applied (a trap / dead configuration) or the input was consumed in a non-accepting state.',
+  stuck:    'Stuck: the run hit the step limit before it could accept or reject (often a non-halting computation), so it was halted as a guard — not an explicit reject.',
+  error:    'Error: the machine is invalid, so the run could not start. See the Validate tab.',
 }
 
 function ControlButton({
@@ -125,9 +128,12 @@ export default function SimulationControls() {
   // the step limit. Surface it as a toast so the cause isn't mistaken for a
   // reject, and point the user at the adjustable limit.
   useEffect(() => {
-    if (status === 'stuck' && isTMType(machineType)) {
+    if (status !== 'stuck') return
+    if (isTMType(machineType)) {
       const limit = stepLimit ?? DEFAULT_STEP_LIMIT
-      toast.warning(`Step limit reached (${limit.toLocaleString()} steps). The run was halted as "stuck" — raise the LIMIT in the toolbar if it needs more steps.`)
+      toast.warning(`Step limit reached (${limit.toLocaleString()} steps). The run was halted as "stuck" (a possible non-halting computation) — raise the LIMIT in the toolbar if it needs more steps.`)
+    } else {
+      toast.warning('The run hit its step/loop guard and was halted as "stuck" (a possible non-halting computation) — this is not an explicit reject.')
     }
   }, [status, machineType, stepLimit])
 
@@ -172,6 +178,14 @@ export default function SimulationControls() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount])
 
+  // Publish the transport controls to the command bus so the classic top
+  // toolbar / Simulate menu can drive the same (single) engine instance.
+  const setSimApi = useCommandStore((s) => s.setSimApi)
+  useEffect(() => {
+    setSimApi({ play: handlePlay, step: handleStep, stepBack: handleStepBack, reset: handleReset, isPlaying })
+    return () => setSimApi(null)
+  }, [setSimApi, handlePlay, handleStep, handleStepBack, handleReset, isPlaying])
+
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
   // Colour-coded result badge so the outcome is unmistakable. "Stuck" gets its
@@ -193,9 +207,9 @@ export default function SimulationControls() {
       display: 'flex',
       alignItems: 'center',
       gap: '10px',
-      padding: '8px 16px',
-      background: 'var(--bg-secondary)',
-      borderTop: '1px solid var(--border-default)',
+      padding: '6px 12px',
+      background: 'var(--chrome-bg)',
+      borderTop: '1px solid var(--chrome-border)',
       flexShrink: 0,
     }}>
       {/* Play / Pause */}

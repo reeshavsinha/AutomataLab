@@ -6,9 +6,10 @@
 // modal (TransitionEditor) remains as a shortcut. (UX audit #5.)
 // ============================================================
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
+import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 import {
   isPDAType,
   isTMType,
@@ -82,6 +83,7 @@ export default function DeltaTablePanel() {
 
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
+  const isENFA = machine.type === 'ENFA'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
   const multiTape = isTM && tapeCount > 1
   const blank = machine.blankSymbol || BLANK
@@ -213,6 +215,7 @@ export default function DeltaTablePanel() {
                     states={realStates}
                     isPDA={isPDA}
                     isTM={isTM}
+                    isENFA={isENFA}
                     blank={blank}
                     onLocate={() => locateTransition(t.id)}
                     onChange={(patch) => updateTransition(t.id, patch)}
@@ -235,6 +238,7 @@ export default function DeltaTablePanel() {
                   states={realStates}
                   isPDA={isPDA}
                   isTM={isTM}
+                  isENFA={isENFA}
                   blank={blank}
                   onAdd={(to, patch) => {
                     const { symbols, ...rest } = patch
@@ -258,6 +262,7 @@ function DeltaRow({
   states,
   isPDA,
   isTM,
+  isENFA,
   blank,
   onLocate,
   onChange,
@@ -267,6 +272,7 @@ function DeltaRow({
   states: AutomataState[]
   isPDA: boolean
   isTM: boolean
+  isENFA: boolean
   blank: string
   onLocate: () => void
   onChange: (patch: Partial<Transition>) => void
@@ -279,6 +285,8 @@ function DeltaRow({
   const ops = tmTapeOps(transition, 1)
   const [tmRead, setTmRead] = useState(ops.reads[0])
   const [tmWrite, setTmWrite] = useState(ops.writes[0])
+  const symbolRef = useRef<HTMLInputElement>(null)
+  const [epsOpen, setEpsOpen] = useState(false)
 
   const isFA = !isPDA && !isTM
   const incomplete = isFA && splitSymbols(symbols).length === 0
@@ -380,17 +388,29 @@ function DeltaRow({
             />
           </>
         ) : (
-          <input
-            value={symbols}
-            onChange={(e) => setSymbols(e.target.value)}
-            onBlur={() => {
-              const next = splitSymbols(symbols)
-              if (next.length > 0) onChange({ symbols: next })
-            }}
-            placeholder="a, b, ε"
-            title="Symbols (comma-separated); ε for epsilon"
-            style={{ ...cellInput, width: 'auto', flex: 1, textAlign: 'left' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, position: 'relative' }}>
+            <input
+              ref={symbolRef}
+              value={symbols}
+              onChange={(e) => setSymbols(e.target.value)}
+              onBlur={() => {
+                const next = splitSymbols(symbols)
+                if (next.length > 0) onChange({ symbols: next })
+              }}
+              placeholder="a, b, ε"
+              title="Symbols (comma-separated); ε for epsilon"
+              style={{ ...cellInput, width: 'auto', flex: 1, textAlign: 'left' }}
+            />
+            {isENFA && (
+              <EpsilonInserter
+                targetRef={symbolRef}
+                open={epsOpen}
+                setOpen={setEpsOpen}
+                onInsert={setSymbols}
+                size="sm"
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -464,6 +484,7 @@ function AddRow({
   states,
   isPDA,
   isTM,
+  isENFA,
   blank,
   onAdd,
 }: {
@@ -471,6 +492,7 @@ function AddRow({
   states: AutomataState[]
   isPDA: boolean
   isTM: boolean
+  isENFA: boolean
   blank: string
   onAdd: (to: string, patch: Partial<Transition>) => void
 }) {
@@ -482,6 +504,8 @@ function AddRow({
   const [push, setPush] = useState('')
   const [write, setWrite] = useState('')
   const [dir, setDir] = useState<'L' | 'R' | 'S'>('R')
+  const symbolRef = useRef<HTMLInputElement>(null)
+  const [epsOpen, setEpsOpen] = useState(false)
 
   const reset = () => {
     setSymbols('')
@@ -561,14 +585,26 @@ function AddRow({
             <input value={push} onChange={(e) => setPush(e.target.value)} placeholder="ε" title="Push" style={cellInput} />
           </>
         ) : (
-          <input
-            value={symbols}
-            onChange={(e) => setSymbols(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            placeholder="a, b, ε"
-            title="Symbols (comma-separated)"
-            style={{ ...cellInput, width: 'auto', flex: 1, textAlign: 'left' }}
-          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, position: 'relative' }}>
+            <input
+              ref={symbolRef}
+              value={symbols}
+              onChange={(e) => setSymbols(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submit()}
+              placeholder="a, b, ε"
+              title="Symbols (comma-separated)"
+              style={{ ...cellInput, width: 'auto', flex: 1, textAlign: 'left' }}
+            />
+            {isENFA && (
+              <EpsilonInserter
+                targetRef={symbolRef}
+                open={epsOpen}
+                setOpen={setEpsOpen}
+                onInsert={setSymbols}
+                size="sm"
+              />
+            )}
+          </div>
         )}
       </div>
 

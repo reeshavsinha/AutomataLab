@@ -1,8 +1,9 @@
 // ============================================================
-// EpsilonInserter — shared ε / λ insert dropdown (ε-NFA only).
-// Inserts the chosen symbol at the caret of the target <input> and
-// returns the new value via onInsert. Used by both the inline edge
-// label editor and the transition-editor modal.
+// EpsilonInserter — shared ε / λ insert dropdown.
+// Inserts the chosen symbol at the caret of the target <input>/<textarea> and
+// returns the new value via onInsert. Used by the inline edge label editor, the
+// transition-editor modal, the δ-table, and the Regex/CFG conversion inputs —
+// so ε/λ can always be entered without a keyboard key.
 // ============================================================
 
 import { useEffect } from 'react'
@@ -19,7 +20,7 @@ export default function EpsilonInserter({
   onInsert,
   size = 'md',
 }: {
-  targetRef: React.RefObject<HTMLInputElement | null>
+  targetRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   open: boolean
   setOpen: (v: boolean) => void
   /** Receives the full new input value with the symbol inserted at the caret. */

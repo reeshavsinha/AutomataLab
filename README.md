@@ -23,7 +23,7 @@
 
 Ready to build some state machines? Download the latest stable release for your operating system:
 
-👉 **[Download AutomataLab v3.0.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
+👉 **[Download AutomataLab v4.0.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
 *Auto-updates are fully supported for all platforms from v1.0.2 onward.*
 
@@ -36,9 +36,10 @@ Ready to build some state machines? Download the latest stable release for your 
 - **▶️ Live Simulation**: Run step-by-step or continuous simulations with custom speed controls. Watch the automaton process strings with full visual branching for non-deterministic paths.
 - **📼 Tape, Stack & Computation Tree**: A Turing-machine tape panel with a live head, instantaneous description, LBA boundary markers, a live preview of your input as you type, a marker for the head's last move, and one row per tape for **multi-tape** machines; a stack panel with push/pop animations for PDAs; and a status-coloured computation-tree viewer for every branch of a nondeterministic run (NFA, ε-NFA, NPDA).
 - **🛑 Reject States & Loop Guard**: Mark explicit reject states for TM/LBA, and rely on a configurable step limit that halts runaway computations as `stuck`.
-- **🧮 Transition Table (δ) Editor**: Edit every transition in a grouped, inline table view as an alternative to the canvas — with click-to-locate jumps back to the matching state or edge.
-- **📤 Export & Batch Testing**: Export the transition table, execution trace, and computation tree as CSV / LaTeX / JSON, and run many input strings at once with `accept:` / `reject:` expectations in a pass/fail batch runner.
-- **🖥️ Desktop Native**: Enjoy a multi-tab interface, native file saving/loading (`.autolab.json`), and over-the-air auto-updates.
+- **🧮 Transition Table (δ) Editor**: Edit every transition in a grouped, inline table view as an alternative to the canvas — with click-to-locate jumps back to the matching state or edge, and a clickable **ε** button for entering epsilon transitions without an epsilon key.
+- **🔄 Conversions & Constructions**: One-click **NFA → DFA** and **ε-NFA → DFA** (subset construction), **ε-NFA → NFA** (ε-elimination), **DFA minimization**, **Regex → NFA** (Thompson's), and **CFG → PDA** — each played back **step by step** on a live preview with a Source ⇄ Result toggle, then opened in a new tab. Converted machines use clean, short state names (`q0, q1, …`) with the original subset or merged class revealed on hover or via a full-labels toggle.
+- **📤 Export & Batch Testing**: Export the transition table, execution trace, and computation tree as CSV / LaTeX / JSON, export the **state diagram** as **PNG / SVG** (theme-aware), and run many input strings at once with `accept:` / `reject:` expectations in a pass/fail batch runner.
+- **🖥️ Desktop Native**: A familiar classic-desktop workspace — a top **File / Edit / View / Simulate / Convert / Help** menu bar above a compact toolbar — with a multi-tab interface, native file saving/loading (`.autolab.json`), keyboard-accessible dialogs (focus-trapped, Esc-to-close), and over-the-air auto-updates.
 - **⚡ Real-Time Validation**: Instant UI feedback on missing start states, unreachable nodes, nondeterminism, and invalid configurations — plus optional declared stack/tape alphabets (Γ), a one-click **Complete DFA** fix, and click-to-locate from any warning to the offending element.
 
 ## ⌨️ Keyboard Shortcuts
@@ -50,9 +51,11 @@ Ready to build some state machines? Download the latest stable release for your 
 | `Left Arrow` | Step Back Simulation |
 | `R` | Reset Simulation |
 | `N` | Add a state at the viewport centre |
+| `I` / `F` | Set selected state as **Start** / toggle **Accept** |
 | `Ctrl + Z` / `Ctrl + Y` | Undo / Redo |
-| `Ctrl + Click` | Select multiple elements |
+| `Ctrl + Click` / `Shift + Drag` | Add to selection / rubber-band select an area |
 | `Ctrl + C` / `V` / `X` | Copy / Paste / Cut |
+| `Ctrl/Cmd + N` / `O` / `S` / `Shift + S` | New / Open / Save / Save As |
 | `Delete` | Remove selected elements |
 | `Double Click` | Edit label / Enter drag mode |
 
@@ -63,8 +66,8 @@ Ready to build some state machines? Download the latest stable release for your 
 The ultimate goal of AutomataLab is to evolve into a comprehensive visual learning environment for all levels of computational theory.
 
 - **Phase 1:** Advanced Models — ✅ Pushdown Automata (DPDA & NPDA) shipped in v2.0.0; ✅ Turing Machines & Linear-Bounded Automata (tape visualization, reject states, loop guard, multi-tape) shipped in v3.0.0, alongside a transition-table editor, data/trace/tree export, and a batch test runner.
-- **Phase 2:** Analytical Tools — NFA → DFA conversion, DFA minimization, and Regex integration (next up).
-- **Phase 3:** Image exports (PNG/SVG of the diagram) and web-browser parity.
+- **Phase 2:** Analytical Tools — ✅ NFA → DFA conversion, DFA minimization, Regex → NFA, and CFG → PDA — all with step-by-step playback — shipped in v4.0.0.
+- **Phase 3:** ✅ Image exports (PNG/SVG of the diagram) shipped in v4.0.0; web-browser parity next.
 
 For more detailed information, please check out our **[Project Wiki](https://github.com/reeshavsinha/AutomataLab/wiki)**.
 

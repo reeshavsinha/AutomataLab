@@ -5,12 +5,14 @@
 // ============================================================
 
 import { useRef, useCallback, useEffect, useMemo } from 'react'
-import type { Automaton, HistoryEntry, StepResult } from '@/engines/core/types'
+import type { Automaton, HistoryEntry, StepResult, ValidationError } from '@/engines/core/types'
 import { supportsTree } from '@/engines/core/computationTree'
 import { createEngine } from '@/engines/core/engineFactory'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
+import { useUIStore } from '@/store/uiStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
+import { toast } from '@/store/toastStore'
 
 export function useSimulation() {
   const machine = useMachineStore((s) => s.machine)
@@ -77,18 +79,29 @@ export function useSimulation() {
     return true
   }, [applyEngineResult, stopInterval])
 
+  // ── Surface a blocked run (UX audit FLO-1) ────────────────
+  // A run that can't start used to flip the status badge to "Error" silently.
+  // Now we also toast the error count and open the Validate tab so the cause —
+  // and the click-to-locate fixes — are right in front of the user.
+  const surfaceBlocking = useCallback((errors: ValidationError[]) => {
+    const n = errors.filter((e) => e.severity === 'error').length
+    setStatus('error')
+    toast.error(`Can't run — ${n} validation ${n === 1 ? 'error' : 'errors'}. See the Validate tab.`)
+    useUIStore.getState().setActivePanel('validation')
+  }, [setStatus])
+
   // ── Initialize (called on Play or Step from idle) ─────────
   const initEngine = useCallback(() => {
     const errors = validateMachine(machine)
     if (hasBlockingErrors(errors)) {
-      setStatus('error')
+      surfaceBlocking(errors)
       return false
     }
     const engine = createEngine(machine)
     engine.initialize(inputString)
     engineRef.current = engine
     return true
-  }, [machine, inputString, setStatus])
+  }, [machine, inputString, surfaceBlocking])
 
   // ── Step forward once ─────────────────────────────────────
   const step = useCallback(() => {
@@ -158,7 +171,7 @@ export function useSimulation() {
 
     const errors = validateMachine(machine)
     if (hasBlockingErrors(errors)) {
-      setStatus('error')
+      surfaceBlocking(errors)
       return
     }
     const engine = createEngine(machine)
@@ -199,7 +212,7 @@ export function useSimulation() {
       treeNodes: tree ? engine.getTreeNodes() : [],
       liveBranchIds: tree ? engine.getLiveBranchIds() : [],
     })
-  }, [machine, inputString, stopInterval, resetSimulation, setStatus])
+  }, [machine, inputString, stopInterval, resetSimulation, surfaceBlocking])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {

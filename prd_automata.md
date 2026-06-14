@@ -164,7 +164,7 @@ For **nondeterministic** machines (NFA, ε-NFA, NPDA):
 |---|---|
 | ε-NFA → NFA | Epsilon elimination |
 | NFA → DFA | Subset construction |
-| DFA → Minimized DFA | State minimization (Hopcroft's algorithm) |
+| DFA → Minimized DFA | State minimization (partition refinement) |
 | Regex → NFA | Thompson's construction |
 | CFG → PDA | Grammar-to-pushdown conversion |
 
@@ -435,7 +435,7 @@ Before execution, validate:
 |---|---|
 | NFA → DFA conversion (animated) | ✅ |
 | ε-NFA → NFA conversion | ✅ |
-| DFA minimization (Hopcroft's) | ✅ |
+| DFA minimization (partition refinement) | ✅ |
 | Regex → NFA (Thompson's) | ✅ |
 | CFG → PDA | ✅ |
 | Batch input testing | ✅ |
@@ -624,7 +624,7 @@ interface StepResult {
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **Nondeterminism performance** — NFA/NPDA with large branching factor causes UI freeze | High | High | Cap computation tree depth; use Web Workers for simulation; implement lazy branch expansion |
+| **Nondeterminism performance** — NFA/NPDA with large branching factor causes UI freeze or memory blow-up | High | High | **Shipped:** per-step frontier-width cap (`MAX_FRONTIER`, NPDA — decides accept/`stuck` on overflow) + computation-tree node cap (`MAX_TREE_NODES`) + hard step ceiling, so runaway nondeterminism halts as `stuck`; windowed engine I/O keeps per-step cost constant; history & tree rendering are capped/virtualised. (Web Workers / lazy branch expansion remain future options.) |
 | **Scope creep** — Attempting all 7 machine types before MVP is stable | High | High | Strict phased release plan; DFA/NFA must be rock-solid before Phase 2 |
 | **React Flow limitations** — Custom edge labels, animations, or rendering may hit library limits | Medium | Medium | Prototype custom renderers early; evaluate alternatives (D3.js fallback) |
 | **Bundle size** — Application becomes too large for easy distribution | Low | Low | Largely mitigated by Tauri (uses the system WebView, no bundled Chromium); tree-shake deps and lazy-load machine engines |

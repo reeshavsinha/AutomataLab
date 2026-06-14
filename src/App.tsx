@@ -1,5 +1,5 @@
 // ============================================================
-// App.tsx — Root component. No theme toggle — always dark.
+// App.tsx — Root component. Renders the application shell.
 // ============================================================
 
 import AppLayout from '@/components/layout/AppLayout'

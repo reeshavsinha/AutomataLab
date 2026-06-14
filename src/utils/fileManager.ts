@@ -22,6 +22,7 @@ function sanitizeState(raw: any): AutomataState {
   }
   if (raw?.isReject) state.isReject = true
   if (raw?.isText) state.isText = true
+  if (typeof raw?.description === 'string' && raw.description !== '') state.description = raw.description
   if (Number.isFinite(raw?.width)) state.width = Number(raw.width)
   if (Number.isFinite(raw?.height)) state.height = Number(raw.height)
   return state
@@ -59,8 +60,18 @@ function sanitizeTransition(raw: any): Transition {
   return t
 }
 
-function parseMachineJson(jsonString: string): MachineDefinition {
-  const raw = JSON.parse(jsonString)
+export function parseMachineJson(jsonString: string): MachineDefinition {
+  let raw: any
+  try {
+    raw = JSON.parse(jsonString)
+  } catch {
+    throw new Error('Invalid machine file: not valid JSON')
+  }
+  // The payload must be a JSON object — guard against null / arrays / primitives
+  // so the field access below can't throw a raw TypeError ("…of null").
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    throw new Error('Invalid machine file: expected a machine object')
+  }
   // Minimal validation
   if (!raw.states || !raw.transitions || !raw.type) {
     throw new Error('Invalid machine file: missing required fields')
@@ -74,9 +85,11 @@ function parseMachineJson(jsonString: string): MachineDefinition {
   // explicitly rebuilding every state and transition from known fields only.
   const def: MachineDefinition = {
     id: generateId('machine'),
-    name: raw.name ?? 'Imported Machine',
+    // Force string-typed metadata: a numeric/boolean `name` would otherwise flow
+    // through and crash later (e.g. `fileStem` calls String.prototype.replace).
+    name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : 'Imported Machine',
     type: raw.type,
-    language: raw.language ?? '',
+    language: typeof raw.language === 'string' ? raw.language : '',
     states: Array.isArray(raw.states) ? raw.states.map(sanitizeState) : [],
     transitions: Array.isArray(raw.transitions) ? raw.transitions.map(sanitizeTransition) : [],
     alphabet: Array.isArray(raw.alphabet) ? raw.alphabet.map(String) : [],

@@ -23,6 +23,13 @@ export default function HistoryLog() {
   const getLabel = (id: string) =>
     machine.states.find((s) => s.id === id)?.label ?? id
 
+  // Render a nondeterministic step honestly: a set of active states is shown as
+  // {q0, q1} rather than flattened to a comma list (UX audit THY-3).
+  const fmtStates = (ids: string[]) => {
+    const labels = ids.map(getLabel)
+    return labels.length > 1 ? `{${labels.join(', ')}}` : labels.join(', ')
+  }
+
   if (history.length === 0) {
     return (
       <div style={{
@@ -63,8 +70,8 @@ export default function HistoryLog() {
       )}
       {visible.map((entry, i) => {
         const isLast = i === visible.length - 1
-        const from = entry.fromStateIds.map(getLabel).join(', ')
-        const to = entry.toStateIds.map(getLabel).join(', ')
+        const from = fmtStates(entry.fromStateIds)
+        const to = fmtStates(entry.toStateIds)
         const isAccepted = entry.status === 'accepted'
         const isRejected = entry.status === 'rejected' || entry.status === 'stuck'
 

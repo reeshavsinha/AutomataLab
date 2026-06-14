@@ -36,7 +36,8 @@ export class DPDAEngine implements Automaton {
 
   constructor(definition: MachineDefinition, maxSteps: number = DEFAULT_MAX_STEPS) {
     this.definition = definition
-    this.maxSteps = maxSteps
+    // Guard against a non-positive / non-finite cap bricking the engine.
+    this.maxSteps = Number.isFinite(maxSteps) && maxSteps > 0 ? Math.floor(maxSteps) : DEFAULT_MAX_STEPS
   }
 
   initialize(input: string): void {

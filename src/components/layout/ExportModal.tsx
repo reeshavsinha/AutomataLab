@@ -7,6 +7,7 @@
 
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
+import { useUIStore } from '@/store/uiStore'
 import { supportsComputationTree } from '@/engines/core/utils'
 import { exportMachineJSON } from '@/utils/fileManager'
 import {
@@ -18,15 +19,19 @@ import {
   downloadText,
   fileStem,
 } from '@/utils/exporters'
+import { exportDiagramSVG, exportDiagramPNG } from '@/utils/diagramExport'
 import { toast } from '@/store/toastStore'
+import Dialog from '@/components/common/Dialog'
 
 export default function ExportModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
   const { history, treeNodes, inputString } = useSimulationStore()
+  const theme = useUIStore((s) => s.theme)
 
   const stem = fileStem(machine)
   const hasTrace = history.length > 0
   const hasTree = supportsComputationTree(machine.type) && treeNodes.length > 0
+  const hasDiagram = machine.states.some((s) => !s.isText)
 
   const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex') => {
     try {
@@ -38,33 +43,32 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const saveDiagram = async (fn: () => Promise<string | null>, kind: string) => {
+    try {
+      const out = await fn()
+      if (out) toast.success(`Exported ${kind}`)
+    } catch (err) {
+      console.error('Diagram export failed:', err)
+      toast.error('Diagram export failed.')
+    }
+  }
+
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.7)',
+    <Dialog
+      onClose={onClose}
+      label="Export data"
+      cardStyle={{
+        background: 'var(--bg-card)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 'var(--radius-lg)',
+        width: '90vw',
+        maxWidth: '460px',
+        maxHeight: '84vh',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
+        flexDirection: 'column',
+        overflow: 'hidden',
       }}
-      onClick={onClose}
     >
-      <div
-        style={{
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-strong)',
-          borderRadius: 'var(--radius-lg)',
-          width: '90vw',
-          maxWidth: '460px',
-          maxHeight: '84vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
         <div
           style={{
             padding: '14px 16px',
@@ -93,6 +97,14 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         </div>
 
         <div style={{ padding: '8px 0', overflow: 'auto' }}>
+          <Section
+            title="Diagram"
+            hint={hasDiagram ? 'The state diagram as a vector or image.' : 'Add a state first.'}
+          >
+            <ExportButton label="SVG" disabled={!hasDiagram} onClick={() => saveDiagram(() => exportDiagramSVG(machine, theme === 'dark'), 'diagram (SVG)')} />
+            <ExportButton label="PNG" disabled={!hasDiagram} onClick={() => saveDiagram(() => exportDiagramPNG(machine, theme === 'dark'), 'diagram (PNG)')} />
+          </Section>
+
           <Section title="Transition table (δ)" hint="Every move, grouped by source state.">
             <ExportButton label="CSV" onClick={() => save(deltaTableToCSV(machine), `${stem}-delta.csv`, 'csv')} />
             <ExportButton label="LaTeX" onClick={() => save(deltaTableToLatex(machine), `${stem}-delta.tex`, 'tex')} />
@@ -127,8 +139,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
             <ExportButton label="JSON" onClick={() => save(exportMachineJSON(machine), `${stem}.autolab.json`, 'json')} />
           </Section>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }
 

@@ -8,12 +8,14 @@ import {
   BaseEdge,
   EdgeLabelRenderer,
   useReactFlow,
+  useInternalNode,
   type EdgeProps,
 } from '@xyflow/react'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import EpsilonInserter from './EpsilonInserter'
+import { EPSILON, isEpsilon } from '@/engines/core/utils'
 
 export interface TransitionEdgeData {
   symbols: string[]
@@ -73,7 +75,7 @@ const TransitionEdge = memo(
   }: EdgeProps) => {
     const edgeData = data as TransitionEdgeData
     const { machine, updateTransition, deleteTransition } = useMachineStore()
-    const { activeTransitionIds } = useSimulationStore()
+    const { activeTransitionIds, pathTransitionIds, status: simStatus } = useSimulationStore()
     const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
     const isPDA = !!edgeData?.isPDA
@@ -102,18 +104,19 @@ const TransitionEdge = memo(
     const isActive = memberIds.some((mid) => activeTransitionIds.includes(mid))
     const NODE_RADIUS = 26
 
-    // Edge geometry is computed from node CENTRES (derived from the stored
-    // top-left positions), not React Flow's handle-derived source/target points.
-    // The drag-to-connect source handle now sits on the node's right rim
-    // (UX audit #1), so its coordinates would skew every outgoing curve. State
-    // nodes are a fixed 52px circle ⇒ centre = position + NODE_RADIUS. (For the
-    // current centred handles these values are identical, so curves are unchanged.)
-    const srcState = machine.states.find((s) => s.id === source)
-    const tgtState = machine.states.find((s) => s.id === target)
-    const sCenterX = srcState ? srcState.x + NODE_RADIUS : sourceX
-    const sCenterY = srcState ? srcState.y + NODE_RADIUS : sourceY
-    const tCenterX = tgtState ? tgtState.x + NODE_RADIUS : targetX
-    const tCenterY = tgtState ? tgtState.y + NODE_RADIUS : targetY
+    // Edge geometry is computed from node CENTRES, read LIVE from React Flow's
+    // internal node store so the curve follows a state while it is being dragged
+    // (the machine store only persists the new position on drag-stop, which would
+    // otherwise leave the edge anchored to the old spot mid-drag). We use the node
+    // centre (top-left + radius), not React Flow's rim handle points, so the
+    // right-rim drag-to-connect handle doesn't skew outgoing curves. State nodes
+    // are a fixed 52px circle ⇒ centre = positionAbsolute + NODE_RADIUS.
+    const srcNode = useInternalNode(source)
+    const tgtNode = useInternalNode(target)
+    const sCenterX = srcNode ? srcNode.internals.positionAbsolute.x + NODE_RADIUS : sourceX
+    const sCenterY = srcNode ? srcNode.internals.positionAbsolute.y + NODE_RADIUS : sourceY
+    const tCenterX = tgtNode ? tgtNode.internals.positionAbsolute.x + NODE_RADIUS : targetX
+    const tCenterY = tgtNode ? tgtNode.internals.positionAbsolute.y + NODE_RADIUS : targetY
 
     useEffect(() => {
       // PDA and TM/LBA labels are edited through the modal, never inline.
@@ -254,18 +257,33 @@ const TransitionEdge = memo(
 
     const commitEdit = useCallback(() => {
       const trimmed = labelDraft.trim()
-      if (trimmed) {
-        const symbols = trimmed
-          .split(/[,，\s]+/)
-          .map((s) => s.trim())
-          .filter(Boolean)
-        updateTransition(id, { symbols })
-        // The inline editor represents the WHOLE visual edge (which can bundle
-        // several FA transitions on the same pair). Collapse the siblings into
-        // this one so the rendered label and the stored transitions stay in sync.
+      // Collapse the visual edge's sibling transitions into this one so the
+      // rendered label and the stored transitions stay in sync.
+      const collapseSiblings = () => {
         for (const mid of memberIds) {
           if (mid !== id) deleteTransition(mid)
         }
+      }
+      if (trimmed) {
+        const symbols = Array.from(
+          new Set(
+            trimmed
+              .split(/[,，\s]+/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+              // Normalise any epsilon spelling (eps / λ / lambda / blank) to the
+              // canonical ε so the stored + displayed symbol is unambiguous and
+              // ε is discoverable without the inserter (UX audit DISC-1).
+              .map((s) => (isEpsilon(s) ? EPSILON : s)),
+          ),
+        )
+        updateTransition(id, { symbols })
+        collapseSiblings()
+      } else if (isENFA) {
+        // On an ε-NFA, an emptied label means an ε-move — make that explicit
+        // instead of silently reverting (UX audit DISC-1).
+        updateTransition(id, { symbols: [EPSILON] })
+        collapseSiblings()
       } else {
         setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
       }
@@ -273,7 +291,7 @@ const TransitionEdge = memo(
       if (isEditingTransition === id) {
         setEditingTransition(null)
       }
-    }, [id, memberIds, labelDraft, updateTransition, deleteTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
+    }, [id, memberIds, labelDraft, isENFA, updateTransition, deleteTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
 
     const cancelEdit = useCallback(() => {
       setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
@@ -336,13 +354,20 @@ const TransitionEdge = memo(
       window.addEventListener('pointercancel', onPointerUp)
     }, [isEditing, edgeData.controlPointOffset, screenToFlowPosition, id, updateTransition])
 
+    // Trace overlay: once a run halts, edges the computation traversed are tinted
+    // so the path is visible without re-reading the History log (UX audit THY-1).
+    const simHalted = simStatus === 'accepted' || simStatus === 'rejected' || simStatus === 'stuck'
+    const isOnPath = simHalted && !isActive && memberIds.some((mid) => pathTransitionIds.includes(mid))
+
     const edgeColor = isActive
       ? 'var(--state-active)'
+      : isOnPath
+      ? 'var(--trace)'
       : selected
       ? 'var(--border-strong)'
       : 'var(--text-primary)'
 
-    const strokeWidth = isActive ? 2 : selected ? 1.5 : 1
+    const strokeWidth = isActive ? 2 : isOnPath ? 1.75 : selected ? 1.5 : 1
 
     // ─── Label content (UX #2) ───────────────────────────────────────────
     // Merged FA edges and stacked PDA/TM rules collapse to a compact chip with
@@ -433,6 +458,8 @@ const TransitionEdge = memo(
                   onBlur={commitEdit}
                   onKeyDown={handleKeyDown}
                   onPointerDown={(e) => e.stopPropagation()}
+                  placeholder={isENFA ? 'a,b · empty = ε' : 'a,b'}
+                  title={isENFA ? 'Comma- or space-separated symbols. Leave empty (or type eps) for an ε-move.' : 'Comma- or space-separated symbols.'}
                   autoFocus
                   style={{
                     background: 'var(--bg-card)',

@@ -16,6 +16,9 @@ import type { Configuration, HistoryEntry, SimulationStatus, TapeSnapshot } from
  */
 const MAX_HISTORY = 1000
 
+/** Deduped union of id lists — used to accumulate the trace path. */
+const unionIds = (...lists: string[][]): string[] => Array.from(new Set(lists.flat()))
+
 interface SimulationStore {
   // State
   inputString: string
@@ -40,6 +43,13 @@ interface SimulationStore {
   treeNodes: Configuration[]
   // Ids of the currently-live frontier branches (empty once the run ends).
   liveBranchIds: string[]
+
+  // Trace overlay: the union of states/transitions the run has traversed. The
+  // canvas highlights these once a run halts so the computation path is visible
+  // — the exact path for deterministic machines, the explored sub-graph for
+  // nondeterministic ones (UX audit THY-1).
+  pathStateIds: string[]
+  pathTransitionIds: string[]
 
   // Actions
   setInputString: (input: string) => void
@@ -99,6 +109,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   activeTapes: [],
   treeNodes: [],
   liveBranchIds: [],
+  pathStateIds: [],
+  pathTransitionIds: [],
 
   setInputString: (inputString) => set({ inputString }),
 
@@ -124,6 +136,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       activeTapes: result.activeTapes,
       treeNodes: result.treeNodes,
       liveBranchIds: result.liveBranchIds,
+      pathStateIds: unionIds(s.pathStateIds, result.historyEntry.fromStateIds, result.historyEntry.toStateIds),
+      pathTransitionIds: unionIds(s.pathTransitionIds, result.historyEntry.transitionIds),
     })),
 
   applyReplay: (full) =>
@@ -141,6 +155,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       activeTapes: full.activeTapes,
       treeNodes: full.treeNodes,
       liveBranchIds: full.liveBranchIds,
+      pathStateIds: unionIds(...full.history.map((h) => [...h.fromStateIds, ...h.toStateIds])),
+      pathTransitionIds: unionIds(...full.history.map((h) => h.transitionIds)),
     }),
 
   resetSimulation: () =>
@@ -158,6 +174,8 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       activeTapes: [],
       treeNodes: [],
       liveBranchIds: [],
+      pathStateIds: [],
+      pathTransitionIds: [],
     }),
 
   setStatus: (status) => set({ status }),

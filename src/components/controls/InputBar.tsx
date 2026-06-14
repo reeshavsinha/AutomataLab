@@ -2,18 +2,17 @@
 // InputBar — Input string entry with tape visualization. Plain B&W.
 // ============================================================
 
-import { useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
+import { useUIStore } from '@/store/uiStore'
 import { isTMType } from '@/engines/core/utils'
-import BatchRunnerModal from './BatchRunnerModal'
 
 export default function InputBar() {
   const { inputString, setInputString, consumedInput, remainingInput, currentSymbol, status } =
     useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
+  const openModal = useUIStore((s) => s.openModal)
   const isTM = isTMType(machineType)
-  const [showBatch, setShowBatch] = useState(false)
 
   const isIdle = status === 'idle'
 
@@ -40,9 +39,9 @@ export default function InputBar() {
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      padding: '8px 16px',
-      background: 'var(--bg-secondary)',
-      borderBottom: '1px solid var(--border-default)',
+      padding: '6px 12px',
+      background: 'var(--chrome-bg)',
+      borderBottom: '1px solid var(--chrome-border)',
       flexShrink: 0,
     }}>
       <span style={{
@@ -77,8 +76,20 @@ export default function InputBar() {
         onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
       />
 
+      {/* Membership of the empty string ε is a routine query — make it explicit
+          that an empty field means ε (UX audit THY-4). Not shown for TM/LBA,
+          where an empty field means a blank tape. */}
+      {!isTM && isIdle && inputString === '' && (
+        <span
+          title="An empty input tests the empty string ε"
+          style={{ flexShrink: 0, fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+        >
+          empty = ε
+        </span>
+      )}
+
       <button
-        onClick={() => setShowBatch(true)}
+        onClick={() => openModal('batch')}
         title="Test many strings at once (batch / test-suite runner)"
         aria-label="Open batch tester"
         style={{
@@ -95,8 +106,6 @@ export default function InputBar() {
       >
         Batch…
       </button>
-
-      {showBatch && <BatchRunnerModal onClose={() => setShowBatch(false)} />}
 
       {/* Inline FA tape progress. TM head moves both ways, so the dedicated
           TapePanel is canonical there and this compact view is hidden. */}

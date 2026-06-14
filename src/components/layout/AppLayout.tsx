@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react'
 import { useUIStore } from '@/store/uiStore'
+import MenuBar from '@/components/layout/MenuBar'
 import Toolbar from '@/components/toolbar/Toolbar'
 import InputBar from '@/components/controls/InputBar'
 import SimulationControls from '@/components/controls/SimulationControls'
@@ -12,9 +13,15 @@ import SidePanel from '@/components/panels/SidePanel'
 import TabBar from '@/components/layout/TabBar'
 import ToastContainer from '@/components/layout/ToastContainer'
 import UnsavedChangesGuard from '@/components/layout/UnsavedChangesGuard'
+import HelpModal from '@/components/layout/HelpModal'
+import ExportModal from '@/components/layout/ExportModal'
+import ConversionsModal from '@/components/conversions/ConversionsModal'
+import BatchRunnerModal from '@/components/controls/BatchRunnerModal'
 
 export default function AppLayout() {
   const theme = useUIStore((s) => s.theme)
+  const activeModal = useUIStore((s) => s.activeModal)
+  const closeModal = useUIStore((s) => s.closeModal)
 
   // Reflect the active theme onto <html> so the CSS token overrides apply.
   useEffect(() => {
@@ -30,7 +37,8 @@ export default function AppLayout() {
       overflow: 'hidden',
       background: 'var(--bg-primary)',
     }}>
-      {/* Top bar */}
+      {/* Classic menu bar + icon toolbar */}
+      <MenuBar />
       <Toolbar />
 
       {/* Tab Bar — top placement, just below the toolbar (conventional). */}
@@ -58,6 +66,12 @@ export default function AppLayout() {
 
       {/* Guards against quitting with unsaved work */}
       <UnsavedChangesGuard />
+
+      {/* Top-level modal dialogs (opened from the menu bar / toolbar) */}
+      {activeModal === 'help' && <HelpModal onClose={closeModal} />}
+      {activeModal === 'export' && <ExportModal onClose={closeModal} />}
+      {activeModal === 'convert' && <ConversionsModal onClose={closeModal} />}
+      {activeModal === 'batch' && <BatchRunnerModal onClose={closeModal} />}
     </div>
   )
 }

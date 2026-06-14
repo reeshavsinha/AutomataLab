@@ -38,3 +38,7 @@
 
 ### 2.3 Maintainability
 - **NFR-2.3.1:** The simulation engine logic shall be completely decoupled from the React/UI rendering layer.
+
+### 2.4 Robustness
+- **NFR-2.4.1:** Every simulation engine shall terminate on all inputs. Non-halting or explosively-branching computations shall be bounded by a step ceiling and a frontier-width cap, and reported as `stuck`, rather than hanging the UI or exhausting memory.
+- **NFR-2.4.2:** Importing a malformed, corrupt, or untrusted machine file shall fail with a clear error and never crash the application; the loader shall read only known fields (no prototype pollution).
