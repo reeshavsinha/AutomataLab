@@ -17,7 +17,7 @@ import type {
   StepResult,
   Transition,
 } from '../core/types'
-import { buildConfig, getStartState, isEpsilon } from '../core/utils'
+import { buildConfig, consumedWindow, getStartState, isEpsilon, remainingWindow } from '../core/utils'
 
 /** Safety cap: guards against non-terminating ε-input/ε-pop push loops. */
 const DEFAULT_MAX_STEPS = 10_000
@@ -114,8 +114,8 @@ export class DPDAEngine implements Automaton {
     }
     this.status = newStatus
 
-    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
-    const remaining = this.inputChars.slice(this.inputIndex).join('')
+    const consumed = consumedWindow(this.inputChars, this.inputIndex)
+    const remaining = remainingWindow(this.inputChars, this.inputIndex)
 
     const entry: HistoryEntry = {
       step: this.history.length,
@@ -219,8 +219,8 @@ export class DPDAEngine implements Automaton {
   /** Build a terminal/no-move StepResult that reports the current configuration unchanged. */
   private _makeResult(status: SimulationStatus): StepResult {
     const activeStateIds = this.currentStateId ? [this.currentStateId] : []
-    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
-    const remaining = this.inputChars.slice(this.inputIndex).join('')
+    const consumed = consumedWindow(this.inputChars, this.inputIndex)
+    const remaining = remainingWindow(this.inputChars, this.inputIndex)
     const entry: HistoryEntry = {
       step: this.history.length,
       fromStateIds: activeStateIds,

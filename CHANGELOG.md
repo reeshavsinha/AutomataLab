@@ -2,6 +2,48 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v3.0.0
+
+### Added
+- **Turing Machines (TM).** A new deterministic single-tape machine type completes the Chomsky hierarchy: transitions use the `read → write, direction` (L/R/S) format, the tape is two-way infinite, and acceptance is by halting in an accept state.
+- **Linear-Bounded Automata (LBA).** A bounded Turing machine whose head is confined to the input region; a move past either end halts and rejects, with `⊢`/`⊣` boundary markers shown on the tape.
+- **Tape panel** with a live head (▲), current-state label, instantaneous description (`α q β`), auto-scroll, and LBA boundary markers — available from the new **Tape** tab for TM/LBA machines.
+- **Reject states (TM/LBA).** Mark a state as an explicit halt-and-reject state via right-click; reject states render with a red double-ring and are mutually exclusive with accept states.
+- **Configurable blank symbol and step limit** in the toolbar for TM/LBA, with an infinite-loop guard that halts runaway computations as `stuck` and surfaces a toast pointing at the adjustable limit.
+- **Multi-tape Turing machines.** Set the toolbar **TAPES** count (`> 1`) to give a TM several tapes in parallel: each transition reads/writes one symbol per tape (`a → b, R | _ → c, L`) and fires only when every tape matches. The input seeds tape 1 and the Tape panel shows one row per tape.
+- **Global transition (δ) table.** A new **δ** side-panel tab lists every transition grouped by source state and lets you edit them as a table — add, delete, retarget, and relabel inline (FA / PDA / single-tape TM) — with a click-to-locate jump to the matching state or edge on the canvas.
+- **Data export.** Export the **transition table** (CSV / LaTeX), the **execution trace** (CSV / JSON), the **computation tree** (JSON), and the **machine definition** (JSON) from a new Export dialog in the overflow menu.
+- **Batch / test-suite runner.** A **Batch…** button runs many input strings at once with optional `accept:` / `reject:` expectations, showing a pass/fail table you can export as CSV.
+- **Declared stack/tape alphabets (Γ).** Optional **STACK (Γ)** (PDA) and **TAPE (Γ)** (TM/LBA) toolbar fields drive non-blocking validation warnings — e.g. a pushed/written symbol outside Γ, or the blank symbol appearing in the input alphabet Σ.
+- **Canvas tool palette + visible connection dot.** An explicit left-rail palette (select / add state / add transition / add text) makes editing modes discoverable, and states now show a **connection dot** on hover for drawing transitions.
+- **“Complete DFA” quick-fix.** One click adds a trap state and the missing transitions to turn a partial DFA into a total one.
+
+### Changed
+- The **transition editor, edge labels, and canvas** adapt to TM/LBA (a `read → write, dir` row with an L/R/S selector, edited through the modal like PDAs; multi-tape shows one cluster per tape).
+- The **Input bar** seeds the initial tape for TM/LBA and hides its finite-automaton tape preview (the Tape panel is canonical).
+- **The Tape panel previews your input live while idle** — it mirrors the input box as you type, with the head resting on the start state's first cell, instead of showing an empty placeholder.
+- **A faded grey arrow under the tape marks the head's last move** (←/→), drawn under the cell the head came from, as a history cue for which way it just moved.
+- **Copy/paste** now preserves TM tape moves (`write`/`direction`, multi-tape arrays) and reject states alongside the existing PDA stack operations.
+- **Help** and **`fsm_format.md`** now document the TM/LBA JSON format, tape/blank/boundary semantics, multi-tape arrays, and include complete `0ⁿ1ⁿ` (TM), `aⁿbⁿcⁿ` (LBA), and 2-tape `aⁿbⁿ` examples.
+- **Honest computation _trellis_.** For NFA/ε-NFA the computation view is now labelled a **trellis** — paths reaching the same state at the same step are merged — and shows a `⇉ₙ` chip for how many parents merged, instead of implying a true unmerged tree. NPDA keeps a real branching tree.
+- **More legible transition labels.** Labels sit just off the curve with a thin leader line, and a merged edge shows a compact `×n` count that expands on hover/selection.
+- **Accessibility pass.** Visible keyboard focus rings, higher-contrast muted text, larger base fonts, and ARIA roles/labels for the side-panel tabs, canvas tool palette, context menus, and simulation controls.
+- **A partial DFA is now a warning, not an error.** A missing transition rejects (as theory dictates) rather than blocking the run; the validator points you at the new **Complete DFA** fix.
+- **Toolbar tidied.** Theme, help, update-check, and export moved into a **⋯** overflow menu; the speed control is now a compact read-out; the minimap auto-hides for small machines.
+
+### Performance & robustness
+- **Large inputs no longer freeze the UI.** Finite-automaton engines (DFA/NFA/ε-NFA/DPDA) previously rebuilt the *entire* consumed/remaining input string on every step (and, for NFAs, for every active branch) — O(n²) over a run, with each step getting slower as the head advanced. The engines now surface a bounded window of the input around the head; per-step cost is constant. (Inputs short enough to fit the window are byte-identical.)
+- **Turing-machine tape is a bounded moving window.** A head that travels far (or a huge seeded tape) no longer materialises — or renders — a cell array as wide as the whole tape on every step; the Tape panel shows a fixed span around the head and follows it.
+- **Bounded buffers.** The execution-history log keeps a capped recent window (older steps are summarised as “N earlier steps hidden”), and the computation-tree node buffer is capped on very wide/long nondeterministic runs (the run keeps going; only the visualised tree stops growing).
+- **Multiple tabs are smoother.** Switching tabs now resets the live simulation, so a run can no longer keep stepping a previous tab’s machine in the background, and a previous tab’s (possibly large) tape/tree/history no longer renders against the new one. Canvas node/edge syncing is O(n) instead of O(n²), and per-edge auto-routing is skipped on very large graphs to keep them responsive.
+- **Step Back is no longer O(n²).** Retracing a step replays the engine silently and commits the result in a single store update instead of one update (and one tree rebuild) per replayed step.
+
+### Fixed
+- **A finished run no longer locks the editor.** After a machine ran to a verdict, the Delete key, the “+ Add a state” button, the input field, and the hover connection dot could all appear dead (only right-click → Delete worked). Editing is now blocked only while a run is *actively in progress*; editing a *finished* run clears the stale result and returns to idle automatically.
+
+### Notes
+- Fully **backward compatible**: existing `.autolab.json` files load unchanged; the new `blankSymbol`/`stepLimit`/`tapeCount` fields, the `reads`/`writes`/`directions` arrays, and the `isReject` flag are additive and optional. No existing DFA/NFA/ε-NFA/DPDA/NPDA behavior changes.
+
 ## v2.1.1
 
 ### Added

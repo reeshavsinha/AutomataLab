@@ -4,7 +4,7 @@
 // NO React imports in this file or any engine file.
 // ============================================================
 
-export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA'
+export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA' | 'TM' | 'LBA'
 
 // ─── Machine definition types ────────────────────────────────
 
@@ -15,7 +15,7 @@ export interface AutomataState {
   y: number
   isStart: boolean
   isAccept: boolean
-  /** TM only — reserved for Phase 3 */
+  /** TM/LBA only — halt-and-reject state. */
   isReject?: boolean
   /** Text annotation node type */
   isText?: boolean
@@ -38,10 +38,16 @@ export interface Transition {
   pop?: string
   /** PDA only — string pushed onto the stack; its FIRST char ends up on top. ε (no push) if empty/omitted. */
   push?: string
-  /** TM only — reserved for Phase 3 */
+  /** TM/LBA only — symbol written under the head. Blank if empty/omitted. */
   write?: string
-  /** TM only — reserved for Phase 3 */
+  /** TM/LBA only — head move direction after writing. */
   direction?: 'L' | 'R' | 'S'
+  /** Multi-tape TM only — per-tape symbols read (index = tape). Tape 0 falls back to `read`. */
+  reads?: string[]
+  /** Multi-tape TM only — per-tape symbols written. Tape 0 falls back to `write`. */
+  writes?: string[]
+  /** Multi-tape TM only — per-tape head directions. Tape 0 falls back to `direction`. */
+  directions?: ('L' | 'R' | 'S')[]
 }
 
 export interface MachineDefinition {
@@ -52,12 +58,52 @@ export interface MachineDefinition {
   language: string
   states: AutomataState[]
   transitions: Transition[]
+  /** Input alphabet Σ. */
   alphabet: string[]
+  /**
+   * PDA only — declared stack alphabet Γ. Optional and declarative: when set, the
+   * validator warns if a pop/push uses a symbol outside it. The engine itself does
+   * not constrain stack symbols (UX audit #7).
+   */
+  stackAlphabet?: string[]
+  /**
+   * TM/LBA only — declared tape alphabet Γ (should include the blank and all of Σ).
+   * Optional and declarative: when set, the validator warns if a read/write uses a
+   * symbol outside it. The engine does not constrain tape symbols (UX audit #7).
+   */
+  tapeAlphabet?: string[]
+  /** TM/LBA only — the blank tape symbol. Defaults to '_'. */
+  blankSymbol?: string
+  /** TM/LBA only — max steps before halting as `stuck` (infinite-loop guard). Defaults to 10,000. */
+  stepLimit?: number
+  /** TM only — number of tapes (≥ 1). Defaults to 1 (single-tape). */
+  tapeCount?: number
 }
 
 // ─── Simulation types ────────────────────────────────────────
 
 export type SimulationStatus = 'idle' | 'running' | 'accepted' | 'rejected' | 'stuck' | 'error'
+
+/**
+ * A windowed snapshot of one Turing-machine tape for rendering. The engine
+ * never materialises an unbounded array — it emits a finite window around the
+ * head. `left` is the absolute tape index of `cells[0]` so the panel can render
+ * LBA boundary markers and keep positions stable as the head moves.
+ */
+export interface TapeSnapshot {
+  /** Contiguous window of the tape (blanks filled in). */
+  cells: string[]
+  /** Index into `cells` of the head cell. */
+  head: number
+  /** Absolute tape index of `cells[0]`. */
+  left: number
+  /** LBA only — absolute index of the leftmost usable cell (the `⊢` boundary sits just before it). Omitted for an unbounded TM. */
+  leftBound?: number
+  /** LBA only — absolute index of the rightmost usable cell (the `⊣` boundary sits just after it). Omitted for an unbounded TM. */
+  rightBound?: number
+  /** Direction the head moved on the transition that produced this snapshot (history cue). Omitted before the first move. */
+  lastMove?: 'L' | 'R' | 'S'
+}
 
 /**
  * A single branch of a (possibly nondeterministic) computation.
@@ -84,6 +130,15 @@ export interface Configuration {
   consumedInput: string
   /** Input not yet consumed by this branch (convenience for the ID display). */
   remainingInput: string
+  /** TM/LBA tapes for this branch (length 1 single-tape, N multi-tape). Undefined for FA/PDA. */
+  tapes?: TapeSnapshot[]
+  /**
+   * Number of *additional* parent branches that reached this same configuration
+   * this step and were merged into it (per-level dedup, first-parent-wins). 0/undefined
+   * means a single parent. Lets the viewer be honest that an FA "tree" is really a
+   * merged trellis/DAG (UX audit #3). Always 0 for the true per-branch NPDA tree.
+   */
+  mergedParents?: number
 }
 
 export interface HistoryEntry {
@@ -107,6 +162,8 @@ export interface StepResult {
   configurations: Configuration[]
   /** Stack of the primary active configuration (convenience for the stack panel). Empty for finite automata. */
   stack: string[]
+  /** TM/LBA tapes of the active configuration (convenience for the tape panel). Undefined for FA/PDA. */
+  tapes?: TapeSnapshot[]
 }
 
 // ─── Automaton interface — all engines implement this ────────

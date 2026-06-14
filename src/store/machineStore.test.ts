@@ -133,3 +133,33 @@ describe('per-tab file paths', () => {
     expect(useMachineStore.getState().tabPaths[a.id]).toBeUndefined()
   })
 })
+
+describe('TM/LBA settings', () => {
+  it('setTapeCount stores counts ≥ 2 and clears back to undefined at 1', () => {
+    useMachineStore.getState().setTapeCount(3)
+    expect(useMachineStore.getState().machine.tapeCount).toBe(3)
+
+    useMachineStore.getState().setTapeCount(1)
+    expect(useMachineStore.getState().machine.tapeCount).toBeUndefined()
+  })
+
+  it('setTapeCount floors fractional input and ignores invalid values', () => {
+    useMachineStore.getState().setTapeCount(2.9)
+    expect(useMachineStore.getState().machine.tapeCount).toBe(2)
+
+    useMachineStore.getState().setTapeCount(Number.NaN)
+    expect(useMachineStore.getState().machine.tapeCount).toBeUndefined()
+  })
+
+  it('toggleRejectState is mutually exclusive with accept', () => {
+    const s = useMachineStore.getState()
+    const st = s.addState(0, 0)
+    s.toggleAcceptState(st.id)
+    expect(useMachineStore.getState().machine.states.find((x) => x.id === st.id)?.isAccept).toBe(true)
+
+    s.toggleRejectState(st.id)
+    const after = useMachineStore.getState().machine.states.find((x) => x.id === st.id)
+    expect(after?.isReject).toBe(true)
+    expect(after?.isAccept).toBe(false)
+  })
+})

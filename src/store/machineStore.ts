@@ -56,12 +56,25 @@ interface MachineStore {
   deleteState: (id: string) => void
   setStartState: (id: string) => void
   toggleAcceptState: (id: string) => void
+  toggleRejectState: (id: string) => void
 
   // Actions — Transitions
   addTransition: (from: string, to: string, symbols: string[]) => Transition
   updateTransition: (id: string, patch: Partial<Transition>) => void
   deleteTransition: (id: string) => void
   setAlphabet: (alphabet: string[]) => void
+  /** PDA only — set the declared stack alphabet Γ (empty clears it). */
+  setStackAlphabet: (alphabet: string[]) => void
+  /** TM/LBA only — set the declared tape alphabet Γ (empty clears it). */
+  setTapeAlphabet: (alphabet: string[]) => void
+  /** DFA only: add an explicit trap/dead state and route every missing
+      (state, symbol) move to it, making the DFA total (UX audit #10). */
+  completeDFA: () => void
+
+  // Actions — TM/LBA settings
+  setBlankSymbol: (symbol: string) => void
+  setStepLimit: (limit: number | undefined) => void
+  setTapeCount: (count: number) => void
 
   // Actions — File
   loadMachine: (def: MachineDefinition, markClean?: boolean, path?: string | null) => void
@@ -305,7 +318,16 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     toggleAcceptState: (id) =>
       set((s) => sync(s, {
         states: s.machine.states.map((st) =>
-          st.id === id ? { ...st, isAccept: !st.isAccept } : st
+          // Accept and reject (TM/LBA) are mutually exclusive: turning accept on clears reject.
+          st.id === id ? { ...st, isAccept: !st.isAccept, isReject: !st.isAccept ? false : st.isReject } : st
+        )
+      })),
+
+    toggleRejectState: (id) =>
+      set((s) => sync(s, {
+        states: s.machine.states.map((st) =>
+          // Turning reject on clears accept (a state can't be both).
+          st.id === id ? { ...st, isReject: !st.isReject, isAccept: !st.isReject ? false : st.isAccept } : st
         )
       })),
 
@@ -334,6 +356,77 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     setAlphabet: (alphabet) =>
       set((s) => sync(s, { alphabet })),
+
+    // Declared alphabets are stored as `undefined` when empty so old/cleared
+    // machines simply omit the field (and the validator skips the Γ checks).
+    setStackAlphabet: (alphabet) =>
+      set((s) => sync(s, { stackAlphabet: alphabet.length > 0 ? alphabet : undefined }, 'stackAlphabet')),
+
+    setTapeAlphabet: (alphabet) =>
+      set((s) => sync(s, { tapeAlphabet: alphabet.length > 0 ? alphabet : undefined }, 'tapeAlphabet')),
+
+    completeDFA: () => set((s) => {
+      const m = s.machine
+      const alphabet = m.alphabet ?? []
+      if (m.type !== 'DFA' || alphabet.length === 0) return {}
+
+      const realStates = m.states.filter((st) => !st.isText)
+      const present = new Map<string, Set<string>>()
+      for (const st of realStates) present.set(st.id, new Set())
+      for (const t of m.transitions) {
+        const set = present.get(t.from)
+        if (set) for (const sym of t.symbols) set.add(sym)
+      }
+
+      // Missing (state, symbol) pairs, grouped by source state.
+      const missingByFrom = new Map<string, string[]>()
+      for (const st of realStates) {
+        const have = present.get(st.id)!
+        for (const sym of alphabet) {
+          if (!have.has(sym)) {
+            if (!missingByFrom.has(st.id)) missingByFrom.set(st.id, [])
+            missingByFrom.get(st.id)!.push(sym)
+          }
+        }
+      }
+      if (missingByFrom.size === 0) return {}
+
+      const xs = realStates.map((st) => st.x)
+      const ys = realStates.map((st) => st.y)
+      const trap: AutomataState = {
+        id: generateId('state'),
+        label: 'trap',
+        x: (xs.length ? Math.max(...xs) : 0) + 140,
+        y: (ys.length ? Math.max(...ys) : 0) + 100,
+        isStart: false,
+        isAccept: false,
+      }
+
+      const newTransitions: Transition[] = [...m.transitions]
+      for (const [from, syms] of missingByFrom) {
+        newTransitions.push({ id: generateId('trans'), from, to: trap.id, symbols: syms })
+      }
+      // The trap is itself a complete dead state: self-loops on every symbol.
+      newTransitions.push({ id: generateId('trans'), from: trap.id, to: trap.id, symbols: [...alphabet] })
+
+      return sync(s, { states: [...m.states, trap], transitions: newTransitions })
+    }),
+
+    // TM/LBA blank symbol (single char). Empty input falls back to the default '_'.
+    setBlankSymbol: (symbol) =>
+      set((s) => sync(s, { blankSymbol: symbol.trim() ? symbol.trim()[0] : undefined }, 'blankSymbol')),
+
+    // TM/LBA infinite-loop guard. `undefined` restores the engine default (10,000).
+    setStepLimit: (limit) =>
+      set((s) => sync(s, {
+        stepLimit: limit != null && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+      }, 'stepLimit')),
+
+    // Multi-tape TM tape count. A count of 1 clears the field (single-tape default).
+    setTapeCount: (count) =>
+      set((s) => sync(s, {
+        tapeCount: Number.isFinite(count) && count > 1 ? Math.floor(count) : undefined,
+      }, 'tapeCount')),
 
     loadMachine: (def, markClean = true, path) => set((s) => {
       // Overwrite current tab

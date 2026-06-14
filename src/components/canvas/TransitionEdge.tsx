@@ -24,10 +24,23 @@ export interface TransitionEdgeData {
   pdaLabels?: string[]
   /** PDA flag — switches label rendering and routes editing to the modal. */
   isPDA?: boolean
+  /** TM/LBA: pre-formatted `read → write, dir` labels, one per member transition. */
+  tmLabels?: string[]
+  /** TM/LBA flag — switches label rendering and routes editing to the modal. */
+  isTM?: boolean
   /** All transition ids represented by this visual edge (for active highlighting). */
   memberTransitionIds?: string[]
   [key: string]: unknown
 }
+
+/**
+ * Above this many states we skip the per-edge "bow around intervening nodes"
+ * auto-routing. That routing scans every state for every edge — O(states·edges)
+ * on each canvas render (and it re-renders on every pan/drag/sim step) — so it
+ * stalls very large graphs. Past the threshold edges keep the cheap reverse-bow
+ * and may overlap a node; the user can still drag any edge to curve it.
+ */
+const AUTO_ROUTE_MAX_STATES = 80
 
 // Math helper for circle intersection
 function getIntersection(
@@ -64,6 +77,9 @@ const TransitionEdge = memo(
     const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
     const isPDA = !!edgeData?.isPDA
+    const isTM = !!edgeData?.isTM
+    // PDA and TM/LBA labels are multi-line and edited through the modal.
+    const isModalEdited = isPDA || isTM
     const { screenToFlowPosition } = useReactFlow()
 
         const [isEditing, setIsEditing] = useState(false)
@@ -86,27 +102,43 @@ const TransitionEdge = memo(
     const isActive = memberIds.some((mid) => activeTransitionIds.includes(mid))
     const NODE_RADIUS = 26
 
+    // Edge geometry is computed from node CENTRES (derived from the stored
+    // top-left positions), not React Flow's handle-derived source/target points.
+    // The drag-to-connect source handle now sits on the node's right rim
+    // (UX audit #1), so its coordinates would skew every outgoing curve. State
+    // nodes are a fixed 52px circle ⇒ centre = position + NODE_RADIUS. (For the
+    // current centred handles these values are identical, so curves are unchanged.)
+    const srcState = machine.states.find((s) => s.id === source)
+    const tgtState = machine.states.find((s) => s.id === target)
+    const sCenterX = srcState ? srcState.x + NODE_RADIUS : sourceX
+    const sCenterY = srcState ? srcState.y + NODE_RADIUS : sourceY
+    const tCenterX = tgtState ? tgtState.x + NODE_RADIUS : targetX
+    const tCenterY = tgtState ? tgtState.y + NODE_RADIUS : targetY
+
     useEffect(() => {
-      // PDA labels are edited through the modal, never inline.
-      if (isEditingTransition === id && !isPDA) {
+      // PDA and TM/LBA labels are edited through the modal, never inline.
+      if (isEditingTransition === id && !isModalEdited) {
         setIsEditing(true)
         setTimeout(() => inputRef.current?.select(), 0)
       }
-    }, [isEditingTransition, id, isPDA])
+    }, [isEditingTransition, id, isModalEdited])
 
     useEffect(() => {
       setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
     }, [edgeData?.symbols])
 
-    // Compute edge path and label position
+    // Compute edge path and label position. `labelAnchor*` is the point ON the
+    // curve; `label*` is the off-curve position the chip is drawn at (UX #2).
     let edgePath = ''
     let labelX = 0
     let labelY = 0
+    let labelAnchorX = 0
+    let labelAnchorY = 0
 
     if (isSelfLoop) {
       // Self loop geometry
-      const cx = sourceX
-      const cy = sourceY - NODE_RADIUS
+      const cx = sCenterX
+      const cy = sCenterY - NODE_RADIUS
 
       const defaultOffsetX = 0
       const defaultOffsetY = -60
@@ -120,8 +152,8 @@ const TransitionEdge = memo(
       const cp2y = cy - 40 + offset.y
 
       // Compute dynamic intersections with the node circle
-      const start = getIntersection(sourceX, sourceY, cp1x, cp1y, NODE_RADIUS)
-      const end = getIntersection(targetX, targetY, cp2x, cp2y, NODE_RADIUS)
+      const start = getIntersection(sCenterX, sCenterY, cp1x, cp1y, NODE_RADIUS)
+      const end = getIntersection(tCenterX, tCenterY, cp2x, cp2y, NODE_RADIUS)
 
       const sx = start.x
       const sy = start.y
@@ -130,18 +162,21 @@ const TransitionEdge = memo(
 
       edgePath = `M ${sx} ${sy} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${tx} ${ty}`
 
-      // Position label at t=0.5 of cubic bezier
+      // Position label at t=0.5 of cubic bezier. The loop apex already sits
+      // clear of the node, so no perpendicular offset/leader is needed here.
       labelX = 0.125 * sx + 0.375 * cp1x + 0.375 * cp2x + 0.125 * tx
       labelY = 0.125 * sy + 0.375 * cp1y + 0.375 * cp2y + 0.125 * ty
+      labelAnchorX = labelX
+      labelAnchorY = labelY
 
     } else {
       // Connect between two different nodes
-      const dx_centers = targetX - sourceX
-      const dy_centers = targetY - sourceY
+      const dx_centers = tCenterX - sCenterX
+      const dy_centers = tCenterY - sCenterY
       const dist_centers = Math.sqrt(dx_centers * dx_centers + dy_centers * dy_centers)
 
-      const mx = (sourceX + targetX) / 2
-      const my = (sourceY + targetY) / 2
+      const mx = (sCenterX + tCenterX) / 2
+      const my = (sCenterY + tCenterY) / 2
 
       // Default curve: bow apart from a reverse edge, and bow around any state
       // node the straight path would otherwise run over (and dump its label on).
@@ -156,21 +191,18 @@ const TransitionEdge = memo(
           defaultOffsetY = perpY * 35
         }
 
-        // Only auto-route when the user hasn't manually curved this edge.
-        if (!edgeData.controlPointOffset) {
+        // Only auto-route when the user hasn't manually curved this edge — and
+        // only for reasonably sized graphs (the scan below is O(states) per edge).
+        if (!edgeData.controlPointOffset && machine.states.length <= AUTO_ROUTE_MAX_STATES) {
           const ux = dx_centers / dist_centers
           const uy = dy_centers / dist_centers
-          // Calibrate stored top-left → center using the known source mapping.
-          const srcState = machine.states.find((s) => s.id === source)
-          const offX = srcState ? sourceX - srcState.x : NODE_RADIUS
-          const offY = srcState ? sourceY - srcState.y : NODE_RADIUS
           const clearance = NODE_RADIUS + 22
 
           let bow = edgeData.hasReverse ? 35 : 0
           for (const st of machine.states) {
             if (st.isText || st.id === source || st.id === target) continue
-            const relX = st.x + offX - sourceX
-            const relY = st.y + offY - sourceY
+            const relX = st.x + NODE_RADIUS - sCenterX
+            const relY = st.y + NODE_RADIUS - sCenterY
             const t = (relX * ux + relY * uy) / dist_centers
             if (t < 0.12 || t > 0.88) continue // not between the endpoints
             const perpDist = relX * perpX + relY * perpY
@@ -195,8 +227,8 @@ const TransitionEdge = memo(
       const cx = mx + offset.x
       const cy = my + offset.y
 
-      const start = getIntersection(sourceX, sourceY, cx, cy, NODE_RADIUS)
-      const end = getIntersection(targetX, targetY, cx, cy, NODE_RADIUS)
+      const start = getIntersection(sCenterX, sCenterY, cx, cy, NODE_RADIUS)
+      const end = getIntersection(tCenterX, tCenterY, cx, cy, NODE_RADIUS)
 
       const sx = start.x
       const sy = start.y
@@ -205,9 +237,19 @@ const TransitionEdge = memo(
 
       edgePath = `M ${sx} ${sy} Q ${cx} ${cy} ${tx} ${ty}`
 
-      // Position label at t=0.5 of quadratic bezier
-      labelX = 0.25 * sx + 0.5 * cx + 0.25 * tx
-      labelY = 0.25 * sy + 0.5 * cy + 0.25 * ty
+      // Anchor on the curve at t=0.5 of the quadratic bezier …
+      labelAnchorX = 0.25 * sx + 0.5 * cx + 0.25 * tx
+      labelAnchorY = 0.25 * sy + 0.5 * cy + 0.25 * ty
+      // … then push the chip off the line, perpendicular to the chord on the
+      // bowed side, so it never lands on the curve or the states it joins (#2).
+      const chordLen = dist_centers || 1
+      const perpLX = -dy_centers / chordLen
+      const perpLY = dx_centers / chordLen
+      const bowDot = perpLX * offset.x + perpLY * offset.y
+      const labelSide = bowDot >= 0 ? 1 : -1
+      const LABEL_OFFSET = 16
+      labelX = labelAnchorX + perpLX * labelSide * LABEL_OFFSET
+      labelY = labelAnchorY + perpLY * labelSide * LABEL_OFFSET
     }
 
     const commitEdit = useCallback(() => {
@@ -302,6 +344,36 @@ const TransitionEdge = memo(
 
     const strokeWidth = isActive ? 2 : selected ? 1.5 : 1
 
+    // ─── Label content (UX #2) ───────────────────────────────────────────
+    // Merged FA edges and stacked PDA/TM rules collapse to a compact chip with
+    // a "+N" count; the full text appears on hover/select/active (and always in
+    // the tooltip), so dense graphs stay readable without losing information.
+    const showFull = hovered || selected || isActive || isEditing
+    let fullLabel: string
+    let collapsedLabel: string
+    if (isTM) {
+      const ls = edgeData?.tmLabels ?? []
+      fullLabel = ls.join('\n') || '?'
+      collapsedLabel = ls.length > 1 ? `${ls[0]}  +${ls.length - 1}` : (ls[0] ?? '?')
+    } else if (isPDA) {
+      const ls = edgeData?.pdaLabels ?? []
+      fullLabel = ls.join('\n') || '?'
+      collapsedLabel = ls.length > 1 ? `${ls[0]}  +${ls.length - 1}` : (ls[0] ?? '?')
+    } else {
+      const syms = edgeData?.symbols ?? []
+      fullLabel = syms.join(', ') || '?'
+      const MAX_INLINE = 4
+      collapsedLabel = syms.length > MAX_INLINE
+        ? `${syms.slice(0, MAX_INLINE).join(', ')} +${syms.length - MAX_INLINE}`
+        : fullLabel
+    }
+    const labelText = showFull ? fullLabel : collapsedLabel
+    const labelTitle = isTM
+      ? `${fullLabel}\n\nDouble-click to edit TM transitions.`
+      : isPDA
+      ? `${fullLabel}\n\nDouble-click to edit PDA transitions.`
+      : `${fullLabel}\n\nDouble-click to edit · drag to curve.`
+
     return (
       <>
         {/* Visible stroke */}
@@ -325,6 +397,20 @@ const TransitionEdge = memo(
           style={{ cursor: 'grab', pointerEvents: 'all' }}
           onPointerDown={handlePointerDown}
         />
+
+        {/* Short leader from the curve to the off-curve label (UX #2). */}
+        {!isSelfLoop && (
+          <line
+            x1={labelAnchorX}
+            y1={labelAnchorY}
+            x2={labelX}
+            y2={labelY}
+            stroke={edgeColor}
+            strokeWidth={1}
+            strokeOpacity={0.45}
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
 
         <EdgeLabelRenderer>
           <div
@@ -376,7 +462,7 @@ const TransitionEdge = memo(
               <div
                 onDoubleClick={(e) => {
                   e.stopPropagation()
-                  if (isPDA) {
+                  if (isModalEdited) {
                     openTransitionEditor(source)
                   } else {
                     setIsEditing(true)
@@ -388,25 +474,28 @@ const TransitionEdge = memo(
                   handlePointerDown(e)
                 }}
                 style={{
+                  // Slightly translucent so the curve beneath stays visible (#2).
                   background: 'var(--bg-primary)',
+                  opacity: 0.96,
                   border: `1px solid ${edgeColor}`,
                   borderRadius: '4px',
                   padding: '2px 7px',
-                  fontSize: '12px',
+                  fontSize: '13px',
                   fontFamily: 'var(--font-mono)',
                   color: isActive ? 'var(--state-active)' : 'var(--text-secondary)',
                   cursor: 'grab',
                   userSelect: 'none',
-                  whiteSpace: isPDA ? 'pre-line' : 'nowrap',
+                  whiteSpace: showFull && (isModalEdited || labelText.includes('\n')) ? 'pre-line' : 'nowrap',
+                  maxWidth: showFull ? '220px' : 'none',
+                  overflowWrap: 'anywhere',
                   textAlign: 'center',
                   lineHeight: 1.35,
                   fontWeight: isActive ? 600 : 400,
+                  boxShadow: 'var(--shadow-sm)',
                 }}
-                title={isPDA ? 'Double-click to edit PDA transitions.' : 'Double-click to edit. Drag to curve edge.'}
+                title={labelTitle}
               >
-                {isPDA
-                  ? (edgeData?.pdaLabels?.length ? edgeData.pdaLabels.join('\n') : '?')
-                  : (edgeData?.symbols?.join(', ') || '?')}
+                {labelText}
               </div>
             )}
           </div>

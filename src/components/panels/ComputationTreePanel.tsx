@@ -58,6 +58,12 @@ export default function ComputationTreePanel() {
   const machine = useMachineStore((s) => s.machine)
   const selectState = useUIStore((s) => s.selectState)
 
+  // Finite automata explore a powerset, so the viewer merges branches that reach
+  // the same state at the same step (first-parent-wins): it's a trellis/DAG, not
+  // a true tree. NPDA keeps real per-branch lineage. Be honest about which (UX #3).
+  const isTrellis = machine.type === 'NFA' || machine.type === 'ENFA'
+  const artifactName = isTrellis ? 'trellis' : 'tree'
+
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
@@ -134,7 +140,7 @@ export default function ComputationTreePanel() {
         }}
       >
         <div>No branches yet.</div>
-        <div style={{ fontSize: '11px' }}>Press ▶ or ⏭ to explore the computation tree.</div>
+        <div style={{ fontSize: '11px' }}>Press ▶ or ⏭ to explore the computation {artifactName}.</div>
       </div>
     )
   }
@@ -193,7 +199,32 @@ export default function ComputationTreePanel() {
             {STATUS_LABEL[s]}
           </span>
         ))}
+        {isTrellis && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: 'var(--text-secondary)' }}>⇉ₙ</span>
+            merged
+          </span>
+        )}
       </div>
+
+      {/* Honesty note: an FA "tree" is really a merged trellis (UX audit #3). */}
+      {isTrellis && (
+        <div
+          style={{
+            padding: '6px 12px',
+            borderBottom: '1px solid var(--border-subtle)',
+            flexShrink: 0,
+            fontSize: '10px',
+            lineHeight: 1.45,
+            color: 'var(--text-muted)',
+          }}
+        >
+          Trellis view: branches reaching the same state at the same step are{' '}
+          <span style={{ color: 'var(--text-secondary)' }}>merged</span> (first one keeps the
+          edge). A <span style={{ color: 'var(--text-secondary)' }}>⇉ₙ</span> chip marks a
+          configuration reached by <em>n</em> parents — so this is a DAG, not a true tree.
+        </div>
+      )}
 
       {/* Tree */}
       <div style={{ flex: 1, overflow: 'auto', padding: '4px 0' }}>
@@ -242,6 +273,23 @@ export default function ComputationTreePanel() {
 
               <span style={{ color: 'var(--text-primary)' }}>{labelFor(node.config.stateId)}</span>
 
+              {/* Merge chip — this configuration was reached by >1 parent (trellis). */}
+              {(node.config.mergedParents ?? 0) > 0 && (
+                <span
+                  title={`Reached by ${1 + (node.config.mergedParents ?? 0)} parent branches this step — merged into one node (first-parent-wins).`}
+                  style={{
+                    flexShrink: 0,
+                    color: 'var(--text-secondary)',
+                    fontSize: '10px',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: '3px',
+                    padding: '0 3px',
+                  }}
+                >
+                  ⇉{1 + (node.config.mergedParents ?? 0)}
+                </span>
+              )}
+
               {/* Stack (PDA branches) — top of stack shown first */}
               {node.config.stack.length > 0 && (
                 <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>
@@ -269,7 +317,8 @@ export default function ComputationTreePanel() {
               fontStyle: 'italic',
             }}
           >
-            Tree truncated at {MAX_ROWS} branches — collapse subtrees to explore further.
+            {isTrellis ? 'Trellis' : 'Tree'} truncated at {MAX_ROWS} branches — collapse subtrees
+            to explore further.
           </div>
         )}
       </div>
@@ -307,6 +356,12 @@ export default function ComputationTreePanel() {
               : ''}
             )
           </div>
+          {(selected.config.mergedParents ?? 0) > 0 && (
+            <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
+              Reached by {1 + (selected.config.mergedParents ?? 0)} parent branches this step
+              (merged — first-parent-wins).
+            </div>
+          )}
         </div>
       )}
     </div>

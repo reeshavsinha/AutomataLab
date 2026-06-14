@@ -5,9 +5,9 @@
 // Plain black & white, no animations.
 // ============================================================
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import { isPDAType } from '@/engines/core/utils'
+import { isPDAType, isTMType, tmTapeOps, BLANK } from '@/engines/core/utils'
 import type { Transition } from '@/engines/core/types'
 import EpsilonInserter from './EpsilonInserter'
 
@@ -25,17 +25,51 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
   const otherStates = machine.states.filter((s) => s.id !== stateId)
   const isENFA = machine.type === 'ENFA'
   const isPDA = isPDAType(machine.type)
+  const isTM = isTMType(machine.type)
+  const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
+  // Empty PDA fields mean ε; empty TM fields mean the blank symbol. Show that as
+  // the placeholder rather than the field name, so "empty" is self-explanatory (#6).
+  const blank = machine.blankSymbol || BLANK
 
   const [newTo, setNewTo] = useState(otherStates[0]?.id ?? '')
   const [newSymbols, setNewSymbols] = useState('')
   const [newRead, setNewRead] = useState('')
   const [newPop, setNewPop] = useState('')
   const [newPush, setNewPush] = useState('')
+  // Per-tape add-form fields (length === tapeCount; single-tape uses index 0).
+  const [tmReads, setTmReads] = useState<string[]>(() => Array(tapeCount).fill(''))
+  const [tmWrites, setTmWrites] = useState<string[]>(() => Array(tapeCount).fill(''))
+  const [tmDirs, setTmDirs] = useState<('L' | 'R' | 'S')[]>(() => Array(tapeCount).fill('R'))
   const [newSymbolsDropdownOpen, setNewSymbolsDropdownOpen] = useState(false)
   const newSymbolsInputRef = useRef<HTMLInputElement>(null)
 
+  // Resize the add-form arrays when the tape count changes (keep prior entries).
+  useEffect(() => {
+    const fit = <T,>(arr: T[], fill: T): T[] =>
+      arr.length === tapeCount ? arr : Array.from({ length: tapeCount }, (_, i) => arr[i] ?? fill)
+    setTmReads((p) => fit(p, ''))
+    setTmWrites((p) => fit(p, ''))
+    setTmDirs((p) => fit(p, 'R' as const))
+  }, [tapeCount])
+
   const handleAddTransition = useCallback(() => {
     if (!newTo) return
+    if (isTM) {
+      const tr = addTransition(stateId, newTo, [])
+      if (tapeCount === 1) {
+        updateTransition(tr.id, { read: tmReads[0].trim(), write: tmWrites[0].trim(), direction: tmDirs[0] })
+      } else {
+        updateTransition(tr.id, {
+          reads: tmReads.map((r) => r.trim()),
+          writes: tmWrites.map((w) => w.trim()),
+          directions: [...tmDirs],
+        })
+      }
+      setTmReads(Array(tapeCount).fill(''))
+      setTmWrites(Array(tapeCount).fill(''))
+      setTmDirs(Array(tapeCount).fill('R'))
+      return
+    }
     if (isPDA) {
       const tr = addTransition(stateId, newTo, [])
       updateTransition(tr.id, {
@@ -56,7 +90,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
       .filter(Boolean)
     addTransition(stateId, newTo, symbols)
     setNewSymbols('')
-  }, [stateId, newTo, newSymbols, newRead, newPop, newPush, isPDA, addTransition, updateTransition])
+  }, [stateId, newTo, newSymbols, newRead, newPop, newPush, tmReads, tmWrites, tmDirs, tapeCount, isPDA, isTM, addTransition, updateTransition])
 
   const handleUpdateSymbols = useCallback(
     (transId: string, raw: string) => {
@@ -73,7 +107,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
 
   if (!state) return null
 
-  const canAdd = isPDA ? !!newTo : !!newSymbols.trim() && !!newTo
+  const canAdd = (isPDA || isTM) ? !!newTo : !!newSymbols.trim() && !!newTo
 
   return (
     <div
@@ -117,7 +151,11 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
               Outgoing Transitions — {state.label}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-              {isPDA
+              {isTM
+                ? tapeCount > 1
+                  ? `Format per tape (T1–T${tapeCount}): read → write, dir. Blank read/write = the blank symbol.`
+                  : 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
+                : isPDA
                 ? 'Format: read, pop → push. Leave a field blank for ε.'
                 : 'Edit symbols for each transition leaving this state'}
             </div>
@@ -153,7 +191,18 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
             outgoingTransitions.map((t) => {
               const toState = machine.states.find((s) => s.id === t.to)
               const toLabel = toState?.label ?? t.to
-              return isPDA ? (
+              return isTM ? (
+                <TMTransitionRow
+                  key={t.id}
+                  fromLabel={state.label}
+                  toLabel={toLabel}
+                  transition={t}
+                  tapeCount={tapeCount}
+                  blank={blank}
+                  onChange={(patch) => updateTransition(t.id, patch)}
+                  onDelete={() => deleteTransition(t.id)}
+                />
+              ) : isPDA ? (
                 <PDATransitionRow
                   key={t.id}
                   fromLabel={state.label}
@@ -218,14 +267,52 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
                 ))}
               </select>
 
-              {isPDA ? (
+              {isTM ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
+                  {tmReads.map((_, i) => (
+                    <div key={i} style={tapeGroupStyle}>
+                      {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
+                      <input
+                        type="text"
+                        value={tmReads[i]}
+                        onChange={(e) => setTmReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
+                        placeholder={blank}
+                        title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
+                        style={pdaInputStyle}
+                      />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
+                      <input
+                        type="text"
+                        value={tmWrites[i]}
+                        onChange={(e) => setTmWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+                        onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
+                        placeholder={blank}
+                        title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
+                        style={pdaInputStyle}
+                      />
+                      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
+                      <select
+                        value={tmDirs[i]}
+                        onChange={(e) => setTmDirs((p) => p.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
+                        title={`Tape ${i + 1} head move direction`}
+                        style={selectStyle}
+                      >
+                        <option value="L">L</option>
+                        <option value="R">R</option>
+                        <option value="S">S</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              ) : isPDA ? (
                 <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1, minWidth: '220px' }}>
                   <input
                     type="text"
                     value={newRead}
                     onChange={(e) => setNewRead(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="read"
+                    placeholder="ε"
                     title="Input symbol read (blank = ε)"
                     style={pdaInputStyle}
                   />
@@ -235,7 +322,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
                     value={newPop}
                     onChange={(e) => setNewPop(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="pop"
+                    placeholder="ε"
                     title="Stack symbol popped (blank = ε)"
                     style={pdaInputStyle}
                   />
@@ -245,7 +332,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
                     value={newPush}
                     onChange={(e) => setNewPush(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="push"
+                    placeholder="ε"
                     title="String pushed; first char ends on top (blank = ε)"
                     style={pdaInputStyle}
                   />
@@ -293,7 +380,11 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
               </button>
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {isPDA
+              {isTM
+                ? tapeCount > 1
+                  ? 'Each move reads/writes one symbol per tape and moves each head L/R/S. It fires only when every tape’s read matches.'
+                  : 'Read the symbol under the head, write a symbol, then move the head L/R/S. Blank read/write = the blank symbol.'
+                : isPDA
                 ? 'Leave read/pop/push blank for ε. Push first character ends up on top of the stack.'
                 : 'Separate multiple symbols with commas. Use ε for epsilon transitions (ε-NFA only).'}
             </div>
@@ -366,6 +457,26 @@ const deleteButtonStyle: React.CSSProperties = {
   flexShrink: 0,
 }
 
+/** One tape's (read → write, dir) cluster; for multi-tape it carries a T{n} badge. */
+const tapeGroupStyle: React.CSSProperties = {
+  display: 'flex',
+  gap: '4px',
+  alignItems: 'center',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '3px 5px',
+}
+
+const tapeBadgeStyle: React.CSSProperties = {
+  fontSize: '10px',
+  fontFamily: 'var(--font-mono)',
+  fontWeight: 700,
+  color: 'var(--text-muted)',
+  letterSpacing: '0.04em',
+  marginRight: '1px',
+}
+
 // ─── PDA transition row ────────────────────────────────────────
 
 function PDATransitionRow({
@@ -408,7 +519,7 @@ function PDATransitionRow({
         value={read}
         onChange={(e) => setRead(e.target.value)}
         onBlur={() => onChange({ read: read.trim() })}
-        placeholder="read"
+        placeholder="ε"
         title="Input symbol read (blank = ε)"
         style={pdaInputStyle}
       />
@@ -418,7 +529,7 @@ function PDATransitionRow({
         value={pop}
         onChange={(e) => setPop(e.target.value)}
         onBlur={() => onChange({ pop: pop.trim() })}
-        placeholder="pop"
+        placeholder="ε"
         title="Stack symbol popped (blank = ε)"
         style={pdaInputStyle}
       />
@@ -428,12 +539,121 @@ function PDATransitionRow({
         value={push}
         onChange={(e) => setPush(e.target.value)}
         onBlur={() => onChange({ push: push.trim() })}
-        placeholder="push"
+        placeholder="ε"
         title="String pushed; first char ends on top (blank = ε)"
         style={pdaInputStyle}
       />
 
       <div style={{ flex: 1 }} />
+
+      <button
+        onClick={onDelete}
+        title="Delete transition"
+        style={deleteButtonStyle}
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
+          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
+          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+// ─── TM / LBA transition row (single- or multi-tape) ───────────
+
+function TMTransitionRow({
+  fromLabel,
+  toLabel,
+  transition,
+  tapeCount,
+  blank,
+  onChange,
+  onDelete,
+}: {
+  fromLabel: string
+  toLabel: string
+  transition: Transition
+  tapeCount: number
+  blank: string
+  onChange: (patch: Partial<Transition>) => void
+  onDelete: () => void
+}) {
+  const ops = tmTapeOps(transition, tapeCount)
+  const [reads, setReads] = useState<string[]>(ops.reads)
+  const [writes, setWrites] = useState<string[]>(ops.writes)
+  const dirs = ops.directions
+
+  // Persist as scalar fields for a single tape (and clear any stale arrays);
+  // as per-tape arrays for multi-tape.
+  const persist = (r: string[], w: string[], d: ('L' | 'R' | 'S')[]) => {
+    if (tapeCount === 1) {
+      onChange({ read: r[0].trim(), write: w[0].trim(), direction: d[0], reads: undefined, writes: undefined, directions: undefined })
+    } else {
+      onChange({ reads: r.map((x) => x.trim()), writes: w.map((x) => x.trim()), directions: d })
+    }
+  }
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 16px',
+      borderBottom: '1px solid var(--border-subtle)',
+    }}>
+      <span style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: '13px',
+        color: 'var(--text-secondary)',
+        minWidth: '90px',
+        flexShrink: 0,
+      }}>
+        {fromLabel} → {toLabel}
+      </span>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: 1 }}>
+        {reads.map((_, i) => (
+          <div key={i} style={tapeGroupStyle}>
+            {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
+            <input
+              type="text"
+              value={reads[i]}
+              onChange={(e) => setReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+              onBlur={() => persist(reads, writes, dirs)}
+              placeholder={blank}
+              title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
+              style={pdaInputStyle}
+            />
+            <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
+            <input
+              type="text"
+              value={writes[i]}
+              onChange={(e) => setWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
+              onBlur={() => persist(reads, writes, dirs)}
+              placeholder={blank}
+              title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
+              style={pdaInputStyle}
+            />
+            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
+            <select
+              value={dirs[i]}
+              onChange={(e) => persist(reads, writes, dirs.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
+              title={`Tape ${i + 1} head move direction`}
+              style={selectStyle}
+            >
+              <option value="L">L</option>
+              <option value="R">R</option>
+              <option value="S">S</option>
+            </select>
+          </div>
+        ))}
+      </div>
 
       <button
         onClick={onDelete}

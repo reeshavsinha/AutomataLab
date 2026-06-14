@@ -14,9 +14,11 @@ import type {
 } from '../core/types'
 import {
   buildConfig,
+  consumedWindow,
   getStartState,
   getTransitionsOn,
   hasAcceptState,
+  remainingWindow,
 } from '../core/utils'
 
 export class DFAEngine implements Automaton {
@@ -59,14 +61,14 @@ export class DFAEngine implements Automaton {
       return this._makeResult(
         this.status,
         [this.currentStateId],
-        this.inputChars.slice(0, this.inputIndex).join(''),
+        consumedWindow(this.inputChars, this.inputIndex),
         ''
       )
     }
 
     const symbol = this.inputChars[this.inputIndex]
-    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
-    const remaining = this.inputChars.slice(this.inputIndex + 1).join('')
+    const consumed = consumedWindow(this.inputChars, this.inputIndex)
+    const remaining = remainingWindow(this.inputChars, this.inputIndex + 1)
 
     const transitions = getTransitionsOn(
       this.definition.transitions,

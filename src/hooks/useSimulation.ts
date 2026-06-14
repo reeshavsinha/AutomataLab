@@ -4,27 +4,13 @@
 // The engine instance is held in a ref so it doesn't trigger re-renders.
 // ============================================================
 
-import { useRef, useCallback, useEffect } from 'react'
-import { DFAEngine } from '@/engines/dfa/DFAEngine'
-import { NFAEngine } from '@/engines/nfa/NFAEngine'
-import { ENFAEngine } from '@/engines/enfa/ENFAEngine'
-import { DPDAEngine } from '@/engines/dpda/DPDAEngine'
-import { NPDAEngine } from '@/engines/npda/NPDAEngine'
-import type { Automaton, StepResult } from '@/engines/core/types'
+import { useRef, useCallback, useEffect, useMemo } from 'react'
+import type { Automaton, HistoryEntry, StepResult } from '@/engines/core/types'
 import { supportsTree } from '@/engines/core/computationTree'
+import { createEngine } from '@/engines/core/engineFactory'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
-
-function createEngine(type: string, definition: ConstructorParameters<typeof DFAEngine>[0]): Automaton {
-  switch (type) {
-    case 'NFA':  return new NFAEngine(definition)
-    case 'ENFA': return new ENFAEngine(definition)
-    case 'DPDA': return new DPDAEngine(definition)
-    case 'NPDA': return new NPDAEngine(definition)
-    default:     return new DFAEngine(definition)
-  }
-}
 
 export function useSimulation() {
   const machine = useMachineStore((s) => s.machine)
@@ -67,6 +53,7 @@ export function useSimulation() {
         historyEntry: result.historyEntry,
         configurations: result.configurations,
         activeStack: result.stack,
+        activeTapes: result.tapes ?? [],
         treeNodes: supportsTree(engine) ? engine.getTreeNodes() : [],
         liveBranchIds: supportsTree(engine) ? engine.getLiveBranchIds() : [],
       })
@@ -97,7 +84,7 @@ export function useSimulation() {
       setStatus('error')
       return false
     }
-    const engine = createEngine(machine.type, machine)
+    const engine = createEngine(machine)
     engine.initialize(inputString)
     engineRef.current = engine
     return true
@@ -174,16 +161,45 @@ export function useSimulation() {
       setStatus('error')
       return
     }
-    const engine = createEngine(machine.type, machine)
+    const engine = createEngine(machine)
     engine.initialize(inputString)
     engineRef.current = engine
-    resetSimulation() // clear history; replay rebuilds it up to `target`
+
+    // Replay silently, collecting history, then push the whole resulting state in
+    // ONE store update. Applying each step individually would fire `target` store
+    // updates (and `target` computation-tree rebuilds) — O(n²) work that freezes
+    // the UI when stepping back from a high step count.
+    const entries: HistoryEntry[] = []
+    let last: StepResult | null = null
     for (let i = 0; i < target; i++) {
       const result = engine.step()
-      applyEngineResult(engine, result)
+      entries.push(result.historyEntry)
+      last = result
       if (result.status !== 'running') break // safety (shouldn't trip before target)
     }
-  }, [machine, inputString, stopInterval, resetSimulation, setStatus, applyEngineResult])
+
+    if (!last) {
+      resetSimulation()
+      return
+    }
+
+    const tree = supportsTree(engine)
+    useSimulationStore.getState().applyReplay({
+      activeStateIds: last.activeStateIds,
+      activeTransitionIds: last.transitionIds,
+      consumedInput: last.consumedInput,
+      remainingInput: last.remainingInput,
+      currentSymbol: last.symbol,
+      status: last.status,
+      history: entries,
+      stepCount: entries.length,
+      configurations: last.configurations,
+      activeStack: last.stack,
+      activeTapes: last.tapes ?? [],
+      treeNodes: tree ? engine.getTreeNodes() : [],
+      liveBranchIds: tree ? engine.getLiveBranchIds() : [],
+    })
+  }, [machine, inputString, stopInterval, resetSimulation, setStatus])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -200,6 +216,56 @@ export function useSimulation() {
       }, getDelay())
     }
   }, [speed, executeStep, getDelay, stopInterval])
+
+  // ── Reset when the active machine changes identity ─────────
+  // Switching tabs / opening a file / new-or-reset swaps in a different machine
+  // (a new `id`). Without this, any interval still running would keep stepping
+  // the *previous* tab's engine, and that tab's (possibly huge) tape/tree/history
+  // would keep rendering against the new machine. Edits keep the same id, so this
+  // never fires mid-editing.
+  const machineIdRef = useRef(machine.id)
+  useEffect(() => {
+    if (machineIdRef.current !== machine.id) {
+      machineIdRef.current = machine.id
+      reset()
+    }
+  }, [machine.id, reset])
+
+  // ── Reset a stale run when the machine is *structurally* edited ─────────
+  // A finished run leaves `status` at a terminal value (accepted/rejected/
+  // stuck/error), which the canvas, toolbar, and input bar all use to lock
+  // editing. Without an automatic way back to `idle`, the user gets "stuck":
+  // after a run, the Delete key / Add-state button / input field appear dead
+  // and the displayed result is stale w.r.t. any edit. So whenever the
+  // machine's *computational* structure changes (states, transitions, type,
+  // blank, tape count — NOT node x/y positions or cosmetic text notes, which
+  // shouldn't invalidate a result), drop the simulation back to idle. This
+  // also stops a still-running interval and discards the old engine, so even
+  // an edit made via an unguarded path (e.g. the right-click menu) is safe.
+  const structuralSig = useMemo(() => {
+    const states = machine.states
+      .filter((s) => !s.isText)
+      .map((s) => `${s.id},${s.label},${s.isStart ? 1 : 0}${s.isAccept ? 1 : 0}${s.isReject ? 1 : 0}`)
+      .join(';')
+    const trans = machine.transitions
+      .map(
+        (t) =>
+          `${t.id},${t.from}>${t.to},${(t.symbols ?? []).join('|')},` +
+          `${t.read ?? ''}/${t.pop ?? ''}/${t.push ?? ''},${t.write ?? ''}/${t.direction ?? ''},` +
+          `${(t.reads ?? []).join('|')}/${(t.writes ?? []).join('|')}/${(t.directions ?? []).join('|')}`
+      )
+      .join(';')
+    return `${machine.type}|${machine.blankSymbol ?? ''}|${machine.tapeCount ?? 1}|${states}|${trans}`
+  }, [machine])
+
+  const structuralSigRef = useRef(structuralSig)
+  useEffect(() => {
+    if (structuralSigRef.current === structuralSig) return
+    structuralSigRef.current = structuralSig
+    if (useSimulationStore.getState().status !== 'idle') {
+      reset()
+    }
+  }, [structuralSig, reset])
 
   return {
     step,

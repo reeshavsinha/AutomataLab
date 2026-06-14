@@ -6,7 +6,7 @@
 import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
-export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree'
+export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
 
 const THEME_KEY = 'automatalab-theme'
 
@@ -33,6 +33,8 @@ export interface ClipboardData {
     isAccept: boolean
     isStart: boolean
     isText?: boolean
+    /** TM/LBA — preserved so copy/paste keeps reject states. */
+    isReject?: boolean
     oldId: string
   }[]
   transitions: {
@@ -43,6 +45,13 @@ export interface ClipboardData {
     read?: string
     pop?: string
     push?: string
+    /** TM/LBA fields — preserved so copy/paste keeps the tape move. */
+    write?: string
+    direction?: 'L' | 'R' | 'S'
+    /** Multi-tape TM fields — per-tape read/write/direction. */
+    reads?: string[]
+    writes?: string[]
+    directions?: ('L' | 'R' | 'S')[]
   }[]
 }
 
@@ -59,10 +68,15 @@ interface UIStore {
   clipboard: ClipboardData | null
   /** Bumped to ask the canvas to fit/frame all nodes (e.g. after auto-layout). */
   fitViewNonce: number
+  /** Set to ask the canvas to pan to + highlight a specific element (e.g. when a
+      validation row or δ-table row is clicked). The `nonce` makes repeat clicks
+      on the same element re-trigger the pan. */
+  focusRequest: { kind: 'state' | 'transition'; id: string; nonce: number } | null
 
   // Actions
   toggleTheme: () => void
   requestFitView: () => void
+  requestFocus: (kind: 'state' | 'transition', id: string) => void
   setTheme: (theme: Theme) => void
   setSelectedStateIds: (ids: string[]) => void
   setSelectedTransitionIds: (ids: string[]) => void
@@ -88,8 +102,12 @@ export const useUIStore = create<UIStore>((set) => ({
   renamingStateId: null,
   clipboard: null,
   fitViewNonce: 0,
+  focusRequest: null,
 
   requestFitView: () => set((s) => ({ fitViewNonce: s.fitViewNonce + 1 })),
+
+  requestFocus: (kind, id) =>
+    set((s) => ({ focusRequest: { kind, id, nonce: (s.focusRequest?.nonce ?? 0) + 1 } })),
 
   toggleTheme: () =>
     set((s) => {

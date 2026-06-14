@@ -31,7 +31,9 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
 
   const isActive = activeStateIds.includes(id)
   const isSimDone = status === 'accepted' || status === 'rejected'
-  const isIdle = status === 'idle'
+  // Editing is allowed unless a run is actively in progress; a finished run is
+  // editable too (any edit auto-resets the sim — see useSimulation).
+  const canEditStructure = status !== 'running'
 
   useEffect(() => {
     setLabelDraft(nodeData.label)
@@ -48,11 +50,11 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
   const startEdit = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      if (!isIdle) return
+      if (!canEditStructure) return
       setIsEditing(true)
       setTimeout(() => inputRef.current?.select(), 0)
     },
-    [isIdle]
+    [canEditStructure]
   )
 
   const commitEdit = useCallback(() => {
@@ -80,22 +82,28 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     [commitEdit, nodeData.label, renamingStateId, id, stopRenaming]
   )
 
-  // Build class names — no animation classes
+  // Build class names — no animation classes.
+  // Only states that are *actually accepting* glow green at accept-time — other
+  // live states (e.g. the start state in an NFA run) stay neutral-active so they
+  // don't look "accepted" (UX audit #8).
   const classes = [
     'state-node',
     selected ? 'selected' : '',
     nodeData.isStart ? 'start' : '',
     nodeData.isAccept ? 'accept' : '',
+    nodeData.isReject ? 'reject' : '',
     isActive ? 'active' : '',
-    isSimDone && isActive && status === 'accepted' ? 'accepted-final' : '',
+    isSimDone && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
     isSimDone && isActive && status === 'rejected' ? 'rejected-final' : '',
     nodeData.isTransitionTarget ? 'transition-target-mode' : '',
   ]
     .filter(Boolean)
     .join(' ')
 
+  const hasRole = nodeData.isStart || nodeData.isAccept || nodeData.isReject
+
   return (
-    <>
+    <div className="state-node-wrap" style={{ position: 'relative', width: 52, height: 52 }}>
       <Handle
         type="target"
         position={Position.Top}
@@ -105,7 +113,7 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
       <div
         className={classes}
         onDoubleClick={startEdit}
-        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}`}
+        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}${nodeData.isReject ? ' (reject)' : ''}`}
       >
         {isEditing ? (
           <input
@@ -124,7 +132,7 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
               border: 'none',
               outline: 'none',
               textAlign: 'center',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: 600,
               fontFamily: 'var(--font-mono)',
               color: 'var(--text-primary)',
@@ -135,14 +143,71 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
         )}
       </div>
 
+      {/* Persistent role badges — a redundant, projector-readable cue beyond the
+          (subtle) border/ring differences (UX audit #9). */}
+      {hasRole && (
+        <div
+          style={{
+            position: 'absolute',
+            top: -7,
+            right: -7,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+            pointerEvents: 'none',
+            zIndex: 4,
+          }}
+        >
+          {nodeData.isStart && <RoleBadge glyph="▶" title="Start state" />}
+          {nodeData.isAccept && <RoleBadge glyph="◎" title="Accept (final) state" />}
+          {nodeData.isReject && <RoleBadge glyph="⊘" title="Reject (halt) state" reject />}
+        </div>
+      )}
+
+      {/* Drag-to-connect source handle. Hidden 1×1 while a sim is actively
+          running (connections disabled); a visible nub on hover otherwise — incl.
+          on a finished run, which auto-resets when you draw (UX audit #1). Edge
+          geometry is derived from node centres in TransitionEdge, so the nub can
+          sit on the rim without distorting the curves. */}
       <Handle
         type="source"
-        position={Position.Bottom}
-        style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0, border: 'none', width: 1, height: 1 }}
+        position={Position.Right}
+        isConnectable={canEditStructure}
+        className={canEditStructure ? 'state-node-connect-handle' : undefined}
+        style={
+          canEditStructure
+            ? { top: '50%', left: '100%', right: 'auto', transform: 'translate(-50%, -50%)' }
+            : { top: '50%', left: '50%', transform: 'translate(-50%, -50%)', opacity: 0, border: 'none', width: 1, height: 1 }
+        }
       />
-    </>
+    </div>
   )
 })
+
+function RoleBadge({ glyph, title, reject }: { glyph: string; title: string; reject?: boolean }) {
+  return (
+    <span
+      title={title}
+      style={{
+        width: 15,
+        height: 15,
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 9,
+        lineHeight: 1,
+        fontFamily: 'var(--font-mono)',
+        background: 'var(--bg-card)',
+        color: reject ? 'var(--status-reject)' : 'var(--text-primary)',
+        border: `1px solid ${reject ? 'var(--status-reject)' : 'var(--text-primary)'}`,
+        boxShadow: 'var(--shadow-sm)',
+      }}
+    >
+      {glyph}
+    </span>
+  )
+}
 
 StateNode.displayName = 'StateNode'
 

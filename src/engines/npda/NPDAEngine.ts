@@ -29,7 +29,7 @@ import type {
   StepResult,
   Transition,
 } from '../core/types'
-import type { TreeProvider } from '../core/computationTree'
+import { MAX_TREE_NODES, type TreeProvider } from '../core/computationTree'
 import { buildConfig, getStartState, isEpsilon } from '../core/utils'
 
 /** Max BFS layers before bailing out (guards non-terminating ε-loops). */
@@ -117,7 +117,10 @@ export class NPDAEngine implements Automaton, TreeProvider {
         if (seen.has(key)) continue // collapse identical branches reached this step
         seen.add(key)
         children.push(child)
-        this.treeNodes.push(child) // record only branches that actually survive dedup
+        // Record only branches that survive dedup, and only until the tree-node
+        // cap is reached. `children` (the live frontier) is always kept intact,
+        // so capping the tree never changes accept/reject.
+        if (this.treeNodes.length < MAX_TREE_NODES) this.treeNodes.push(child)
         childReads.push(readSym)
         usedTransitionIds.push(t.id)
       }

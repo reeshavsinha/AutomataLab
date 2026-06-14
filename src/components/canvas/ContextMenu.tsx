@@ -16,8 +16,11 @@ interface StateMenuProps {
   stateLabel: string
   isAccept: boolean
   isStart: boolean
+  isReject: boolean
+  showReject: boolean              // TM/LBA only — show the reject-state toggle
   onClose: () => void
   onToggleAccept: () => void
+  onToggleReject: () => void
   onSetStart: () => void
   onStartTransition: () => void    // enter "draw transition from this state" mode
   onEditSymbols: () => void        // open symbol editor for this state's outgoing transitions
@@ -50,7 +53,7 @@ interface TextMenuProps {
 }
 
 export type ContextMenuConfig =
-  | { kind: 'state'; x: number; y: number; stateId: string; stateLabel: string; isAccept: boolean; isStart: boolean }
+  | { kind: 'state'; x: number; y: number; stateId: string; stateLabel: string; isAccept: boolean; isStart: boolean; isReject: boolean; showReject: boolean }
   | { kind: 'text'; x: number; y: number; stateId: string; stateLabel: string }
   | { kind: 'canvas'; x: number; y: number; canvasX: number; canvasY: number }
   | { kind: 'transition'; x: number; y: number; transitionId: string }
@@ -92,9 +95,31 @@ function MenuContainer({ x, y, onClose, children }: {
     setPos({ left, top })
   }, [x, y])
 
+  // Focus the first item on open so the menu is keyboard-operable (#4).
+  useEffect(() => {
+    const items = menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    items?.[0]?.focus()
+  }, [])
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const el = menuRef.current
+    if (!el) return
+    const items = Array.from(el.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+    if (items.length === 0) return
+    const idx = items.indexOf(document.activeElement as HTMLElement)
+    if (e.key === 'ArrowDown') { e.preventDefault(); items[(idx + 1) % items.length]?.focus() }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(idx - 1 + items.length) % items.length]?.focus() }
+    else if (e.key === 'Home') { e.preventDefault(); items[0]?.focus() }
+    else if (e.key === 'End') { e.preventDefault(); items[items.length - 1]?.focus() }
+    else if (e.key === 'Escape') { e.preventDefault(); onClose() }
+  }
+
   return (
     <div
       ref={menuRef}
+      role="menu"
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
       style={{
         position: 'fixed',
         top: pos.top,
@@ -159,7 +184,10 @@ function MenuItem({
 }) {
   return (
     <div
+      role="menuitem"
+      tabIndex={-1}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
       style={{
         padding: description ? '7px 12px' : '7px 12px',
         display: 'flex',
@@ -167,12 +195,19 @@ function MenuItem({
         gap: '10px',
         cursor: 'pointer',
         fontSize: '13px',
-        color: danger ? '#888' : 'var(--text-primary)',
+        color: danger ? 'var(--text-muted)' : 'var(--text-primary)',
+        outlineOffset: '-2px',
       }}
       onMouseEnter={(e) => {
         ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'
       }}
       onMouseLeave={(e) => {
+        ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+      }}
+      onFocus={(e) => {
+        ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)'
+      }}
+      onBlur={(e) => {
         ;(e.currentTarget as HTMLElement).style.background = 'transparent'
       }}
     >
@@ -202,7 +237,7 @@ function MenuItem({
 // ─── State context menu ────────────────────────────────────────
 
 function StateContextMenu(props: StateMenuProps) {
-  const { stateId, stateLabel, isAccept, isStart, onClose } = props
+  const { stateId, stateLabel, isAccept, isStart, isReject, showReject, onClose } = props
 
   return (
     <MenuContainer x={props.x} y={props.y} onClose={onClose}>
@@ -214,6 +249,15 @@ function StateContextMenu(props: StateMenuProps) {
         description="Double ring marks accept/final state"
         onClick={() => { props.onToggleAccept(); onClose() }}
       />
+
+      {showReject && (
+        <MenuItem
+          label={isReject ? 'Remove Reject State' : 'Set as Reject State'}
+          checked={isReject}
+          description="Halt-and-reject state (red double ring)"
+          onClick={() => { props.onToggleReject(); onClose() }}
+        />
+      )}
 
       <MenuItem
         label="Set as Start State"
@@ -325,6 +369,7 @@ interface ContextMenuProps {
   onDeleteState: (id: string) => void
   onSetStart: (id: string) => void
   onToggleAccept: (id: string) => void
+  onToggleReject: (id: string) => void
   onDeleteTransition: (id: string) => void
   onStartTransition: (fromStateId: string) => void
   onEditStateTransitions: (stateId: string) => void
@@ -357,8 +402,11 @@ export default function ContextMenu(props: ContextMenuProps) {
         stateLabel={config.stateLabel}
         isAccept={config.isAccept}
         isStart={config.isStart}
+        isReject={config.isReject}
+        showReject={config.showReject}
         onClose={onClose}
         onToggleAccept={() => props.onToggleAccept(config.stateId)}
+        onToggleReject={() => props.onToggleReject(config.stateId)}
         onSetStart={() => props.onSetStart(config.stateId)}
         onStartTransition={() => props.onStartTransition(config.stateId)}
         onEditSymbols={() => props.onEditStateTransitions(config.stateId)}

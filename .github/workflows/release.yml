@@ -7,7 +7,33 @@ on:
   workflow_dispatch:
 
 jobs:
+  notes:
+    runs-on: ubuntu-latest
+    outputs:
+      body: ${{ steps.notes.outputs.body }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        shell: bash
+        run: |
+          # Pull the top-most "## <version>" section out of CHANGELOG.md so each
+          # release gets detailed notes instead of a generic one-liner.
+          {
+            echo 'body<<RELEASE_EOF'
+            echo 'Download the installer for your platform from the **Assets** below. Desktop auto-updates are supported from v1.0.2 onward.'
+            echo ''
+            awk '/^## /{c++} c==1 && !/^## /{print} c==2{exit}' CHANGELOG.md
+            echo ''
+            echo '---'
+            echo 'Full changelog: https://github.com/reeshavsinha/AutomataLab/blob/main/CHANGELOG.md'
+            echo 'RELEASE_EOF'
+          } >> "$GITHUB_OUTPUT"
+
   release:
+    needs: notes
     permissions:
       contents: write
     strategy:
@@ -70,7 +96,7 @@ jobs:
         with:
           tagName: v${{ env.PACKAGE_VERSION }}
           releaseName: 'AutomataLab v${{ env.PACKAGE_VERSION }}'
-          releaseBody: 'See the assets below to download and install this version.'
+          releaseBody: ${{ needs.notes.outputs.body }}
           releaseDraft: false
           prerelease: ${{ steps.channel.outputs.prerelease }}
           updaterJsonPreferNsis: true

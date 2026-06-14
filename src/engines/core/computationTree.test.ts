@@ -144,6 +144,45 @@ describe('NFA computation-tree lineage', () => {
   })
 })
 
+// NFA where two branches re-converge on one state at the same step (a real
+// powerset merge): q0 -a-> q1, q0 -a-> q2, q1 -b-> q3, q2 -b-> q3.
+const mergeDef: MachineDefinition = {
+  id: 'merge', name: 'merge', type: 'NFA', language: '', alphabet: ['a', 'b'],
+  states: [
+    { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+    { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: false },
+    { id: 'q2', label: 'q2', x: 0, y: 0, isStart: false, isAccept: false },
+    { id: 'q3', label: 'q3', x: 0, y: 0, isStart: false, isAccept: true },
+  ],
+  transitions: [
+    { id: 't0', from: 'q0', to: 'q1', symbols: ['a'] },
+    { id: 't1', from: 'q0', to: 'q2', symbols: ['a'] },
+    { id: 't2', from: 'q1', to: 'q3', symbols: ['b'] },
+    { id: 't3', from: 'q2', to: 'q3', symbols: ['b'] },
+  ],
+}
+
+describe('NFA trellis merge accounting (UX audit #3)', () => {
+  it('records how many parents merged into a re-converged configuration', () => {
+    const engine = new NFAEngine(mergeDef)
+    engine.initialize('ab')
+    engine.step() // read 'a' → frontier {q1, q2}, no merge yet
+    engine.step() // read 'b' → q1 and q2 both reach q3 ⇒ one merge
+
+    const nodes = engine.getTreeNodes()
+    const q3Nodes = nodes.filter((n) => n.stateId === 'q3')
+    // First-parent-wins keeps a single q3 node...
+    expect(q3Nodes).toHaveLength(1)
+    // ...and flags that one extra parent merged into it.
+    expect(q3Nodes[0].mergedParents).toBe(1)
+
+    // The pre-merge frontier states stay single-parent.
+    for (const n of nodes.filter((x) => x.stateId === 'q1' || x.stateId === 'q2')) {
+      expect(n.mergedParents ?? 0).toBe(0)
+    }
+  })
+})
+
 // ε-NFA: q0 -ε-> q1, q0 -ε-> q2, q1 -a-> q3(acc), q2 -b-> q4(acc)
 const enfaDef: MachineDefinition = {
   id: 'enfa', name: 'enfa', type: 'ENFA', language: '', alphabet: ['a', 'b'],

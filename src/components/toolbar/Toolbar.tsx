@@ -12,9 +12,10 @@ import packageJson from '../../../package.json'
 import { isTauri } from '@tauri-apps/api/core'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
-import { isPDAType } from '@/engines/core/utils'
+import { isPDAType, isTMType } from '@/engines/core/utils'
 import type { MachineType } from '@/engines/core/types'
 import HelpModal from '@/components/layout/HelpModal'
+import ExportModal from '@/components/layout/ExportModal'
 import FileControls from '@/components/toolbar/FileControls'
 
 const TYPE_LABELS: Record<MachineType, string> = {
@@ -23,24 +24,66 @@ const TYPE_LABELS: Record<MachineType, string> = {
   ENFA: 'ε-NFA',
   DPDA: 'DPDA',
   NPDA: 'NPDA',
+  TM: 'TM',
+  LBA: 'LBA',
+}
+
+/** The transition-label "shape" for a machine type — drives the type-switch warning. */
+function transitionFormat(type: MachineType): 'fa' | 'pda' | 'tm' {
+  if (isPDAType(type)) return 'pda'
+  if (isTMType(type)) return 'tm'
+  return 'fa'
+}
+
+const tmSettingLabelStyle: React.CSSProperties = {
+  fontSize: '11px',
+  color: 'var(--text-muted)',
+  fontFamily: 'var(--font-mono)',
+  letterSpacing: '0.06em',
+}
+
+const tmSettingInputStyle: React.CSSProperties = {
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '4px 6px',
+  fontSize: '12px',
+  fontFamily: 'var(--font-mono)',
+  color: 'var(--text-primary)',
+  outline: 'none',
 }
 
 export default function Toolbar() {
   const {
     machine, setMachineName, setMachineType, setAlphabet,
+    setStackAlphabet, setTapeAlphabet,
+    setBlankSymbol, setStepLimit, setTapeCount,
     loadMachine, undo, redo, past, future,
   } = useMachineStore()
   const status = useSimulationStore((s) => s.status)
   const { theme, toggleTheme, clearSelection, requestFitView } = useUIStore()
 
-  const isIdle = status === 'idle'
-  const canUndo = past.length > 0 && isIdle
-  const canRedo = future.length > 0 && isIdle
+  // Edits (undo/redo included) are allowed unless a run is actively in progress;
+  // a finished run is editable too — any edit auto-resets it (see useSimulation).
+  const canEdit = status !== 'running'
+  const canUndo = past.length > 0 && canEdit
+  const canRedo = future.length > 0 && canEdit
+  const isPDA = isPDAType(machine.type)
+  const isTM = isTMType(machine.type)
+  // Multi-tape is a (single-tape-bounded) plain-TM feature; LBA stays single-tape.
+  const isPlainTM = machine.type === 'TM'
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [isFocused, setIsFocused] = useState(false)
   const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [isExportOpen, setIsExportOpen] = useState(false)
+  const [overflowOpen, setOverflowOpen] = useState(false)
+  const [blankInput, setBlankInput] = useState(machine.blankSymbol ?? '')
+  const [limitInput, setLimitInput] = useState(machine.stepLimit != null ? String(machine.stepLimit) : '')
+  const [tapesInput, setTapesInput] = useState(machine.tapeCount != null ? String(machine.tapeCount) : '')
+  const [gammaInput, setGammaInput] = useState((machine.stackAlphabet ?? machine.tapeAlphabet ?? []).join(', '))
+  const [gammaFocused, setGammaFocused] = useState(false)
 
   const handleAutoLayout = async () => {
     try {
@@ -60,9 +103,12 @@ export default function Toolbar() {
     setMachineType(newType)
     clearSelection()
 
-    const formatChanged = isPDAType(oldType) !== isPDAType(newType)
+    const formatChanged = transitionFormat(oldType) !== transitionFormat(newType)
     if (formatChanged && machine.transitions.length > 0) {
-      const fmt = isPDAType(newType) ? 'read, pop → push' : 'input symbols'
+      const fmt =
+        transitionFormat(newType) === 'pda' ? 'read, pop → push'
+        : transitionFormat(newType) === 'tm' ? 'read → write, dir'
+        : 'input symbols'
       toast.warning(
         `Switched to ${TYPE_LABELS[newType]}. Existing transitions now use a different format (${fmt}) — re-check their labels.`
       )
@@ -115,6 +161,27 @@ export default function Toolbar() {
       setAlphabetInput(machine.alphabet?.join(', ') || '')
     }
   }, [machine.alphabet, isFocused])
+
+  // Keep the TM/LBA settings in sync when the active machine changes (tab switch,
+  // file load, undo/redo). Driven off the machine, not local edits.
+  useEffect(() => {
+    setBlankInput(machine.blankSymbol ?? '')
+    setLimitInput(machine.stepLimit != null ? String(machine.stepLimit) : '')
+    setTapesInput(machine.tapeCount != null ? String(machine.tapeCount) : '')
+  }, [machine.id, machine.blankSymbol, machine.stepLimit, machine.tapeCount])
+
+  // Mirror the declared Γ (stack for PDA, tape for TM). Don't clobber mid-typing.
+  useEffect(() => {
+    if (!gammaFocused) {
+      setGammaInput((machine.stackAlphabet ?? machine.tapeAlphabet ?? []).join(', '))
+    }
+  }, [machine.id, machine.stackAlphabet, machine.tapeAlphabet, gammaFocused])
+
+  const commitGamma = () => {
+    const syms = gammaInput.split(',').map((s) => s.trim()).filter(Boolean)
+    if (isPDA) setStackAlphabet(syms)
+    else if (isTM) setTapeAlphabet(syms)
+  }
 
   const iconButtonStyle = (enabled: boolean): React.CSSProperties => ({
     display: 'flex',
@@ -218,6 +285,7 @@ export default function Toolbar() {
           onClick={handleUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
+          aria-label="Undo"
           style={iconButtonStyle(canUndo)}
         >
           ↶
@@ -226,6 +294,7 @@ export default function Toolbar() {
           onClick={handleRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Y)"
+          aria-label="Redo"
           style={iconButtonStyle(canRedo)}
         >
           ↷
@@ -317,9 +386,84 @@ export default function Toolbar() {
             <option value="ENFA">ε-NFA</option>
             <option value="DPDA">DPDA</option>
             <option value="NPDA">NPDA</option>
+            <option value="TM">TM</option>
+            <option value="LBA">LBA</option>
           </select>
         </div>
       </div>
+
+      {/* Declared alphabet Γ — stack alphabet for PDA, tape alphabet for TM/LBA.
+          Optional/declarative: the validator warns on out-of-Γ symbols (UX #7). */}
+      {(isPDA || isTM) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}>
+          <span
+            style={tmSettingLabelStyle}
+            title={isPDA
+              ? 'Stack alphabet Γ (optional). Symbols the PDA may push/pop.'
+              : 'Tape alphabet Γ (optional). Symbols the TM may read/write; should include the blank.'}
+          >
+            {isPDA ? 'STACK (Γ)' : 'TAPE (Γ)'}
+          </span>
+          <input
+            type="text"
+            value={gammaInput}
+            onChange={(e) => setGammaInput(e.target.value)}
+            onFocus={(e) => { setGammaFocused(true); e.target.style.borderColor = 'var(--border-strong)' }}
+            onBlur={(e) => { setGammaFocused(false); e.target.style.borderColor = 'var(--border-default)'; commitGamma() }}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            placeholder={isPDA ? 'e.g. Z, A, B' : 'e.g. 0, 1, X, _'}
+            title="Comma-separated symbols. Leave blank to skip the Γ check."
+            style={{ ...tmSettingInputStyle, width: '120px' }}
+          />
+        </div>
+      )}
+
+      {/* TM/LBA settings — blank symbol + infinite-loop step limit (NFR-8) */}
+      {isTM && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '12px' }}>
+          <span style={tmSettingLabelStyle} title="The symbol shown on every blank tape cell">BLANK</span>
+          <input
+            type="text"
+            value={blankInput}
+            maxLength={1}
+            onChange={(e) => setBlankInput(e.target.value)}
+            onBlur={() => setBlankSymbol(blankInput)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            placeholder="_"
+            title="Blank tape symbol (default '_')"
+            style={{ ...tmSettingInputStyle, width: '34px', textAlign: 'center' }}
+          />
+          <span style={tmSettingLabelStyle} title="Max steps before halting as 'stuck' (infinite-loop guard)">LIMIT</span>
+          <input
+            type="number"
+            min={1}
+            value={limitInput}
+            onChange={(e) => setLimitInput(e.target.value)}
+            onBlur={() => setStepLimit(limitInput.trim() === '' ? undefined : Number(limitInput))}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            placeholder="10000"
+            title="Step limit before the run halts as 'stuck' (default 10,000)"
+            style={{ ...tmSettingInputStyle, width: '64px' }}
+          />
+          {isPlainTM && (
+            <>
+              <span style={tmSettingLabelStyle} title="Number of tapes the machine reads/writes in parallel">TAPES</span>
+              <input
+                type="number"
+                min={1}
+                max={9}
+                value={tapesInput}
+                onChange={(e) => setTapesInput(e.target.value)}
+                onBlur={() => setTapeCount(tapesInput.trim() === '' ? 1 : Number(tapesInput))}
+                onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                placeholder="1"
+                title="Number of tapes (1 = single-tape). Each transition reads/writes one symbol per tape."
+                style={{ ...tmSettingInputStyle, width: '44px' }}
+              />
+            </>
+          )}
+        </div>
+      )}
 
       <div style={{ width: '1px', height: '20px', background: 'var(--border-default)', marginLeft: '12px', marginRight: '12px' }} />
 
@@ -344,49 +488,108 @@ export default function Toolbar() {
         AUTO LAYOUT
       </button>
 
-      {/* Theme toggle */}
-      <button
-        onClick={toggleTheme}
-        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        style={iconButtonStyle(true)}
-      >
-        {theme === 'dark' ? '☀' : '🌙'}
-      </button>
-
-      {/* Help */}
-      <button
-        onClick={() => setIsHelpOpen(true)}
-        title="Help & keyboard shortcuts"
-        style={iconButtonStyle(true)}
-      >
-        ?
-      </button>
-
-      {/* Update Check Button */}
-      <button
-        onClick={handleCheckUpdate}
-        disabled={isCheckingUpdate}
-        style={{
-          background: isCheckingUpdate ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          color: 'var(--text-primary)',
-          fontSize: '11px',
-          fontFamily: 'var(--font-mono)',
-          fontWeight: 600,
-          padding: '4px 12px',
-          outline: 'none',
-          cursor: isCheckingUpdate ? 'not-allowed' : 'pointer',
-          letterSpacing: '0.04em',
-        }}
-      >
-        {isCheckingUpdate ? 'CHECKING...' : 'UPDATES'}
-      </button>
+      {/* Overflow — low-frequency actions live here so the bar isn't crowded
+          with peers of the primary tools (UX audit S4). */}
+      <div style={{ position: 'relative' }}>
+        <button
+          onClick={() => setOverflowOpen((o) => !o)}
+          title="More — theme, help, updates"
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={overflowOpen}
+          style={iconButtonStyle(true)}
+        >
+          ⋯
+        </button>
+        {overflowOpen && (
+          <>
+            <div onClick={() => setOverflowOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1000 }} />
+            <div
+              role="menu"
+              style={{
+                position: 'absolute',
+                top: '34px',
+                right: 0,
+                zIndex: 1001,
+                background: 'var(--bg-card)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-lg)',
+                minWidth: '210px',
+                overflow: 'hidden',
+                padding: '4px 0',
+              }}
+            >
+              <OverflowItem
+                icon="⤓"
+                label="Export data (δ-table, trace, tree)…"
+                onClick={() => { setIsExportOpen(true); setOverflowOpen(false) }}
+              />
+              <OverflowItem
+                icon={theme === 'dark' ? '☀' : '🌙'}
+                label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                onClick={() => { toggleTheme(); setOverflowOpen(false) }}
+              />
+              <OverflowItem
+                icon="?"
+                label="Help & keyboard shortcuts"
+                onClick={() => { setIsHelpOpen(true); setOverflowOpen(false) }}
+              />
+              <OverflowItem
+                icon="⭳"
+                label={isCheckingUpdate ? 'Checking for updates…' : 'Check for updates'}
+                disabled={isCheckingUpdate}
+                onClick={() => { setOverflowOpen(false); handleCheckUpdate() }}
+              />
+            </div>
+          </>
+        )}
+      </div>
 
       {/* File operations — New / Open / Save */}
       <FileControls />
 
       {isHelpOpen && <HelpModal onClose={() => setIsHelpOpen(false)} />}
+      {isExportOpen && <ExportModal onClose={() => setIsExportOpen(false)} />}
     </div>
+  )
+}
+
+function OverflowItem({
+  icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: string
+  label: string
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      role="menuitem"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        width: '100%',
+        background: 'transparent',
+        border: 'none',
+        textAlign: 'left',
+        padding: '8px 12px',
+        fontSize: '13px',
+        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        fontFamily: 'var(--font-sans)',
+      }}
+      onMouseEnter={(e) => { if (!disabled) (e.currentTarget as HTMLElement).style.background = 'var(--bg-elevated)' }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+    >
+      <span style={{ width: '16px', textAlign: 'center', fontFamily: 'var(--font-mono)' }}>{icon}</span>
+      {label}
+    </button>
   )
 }

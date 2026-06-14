@@ -8,7 +8,7 @@ import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
-const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA']
+const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA']
 
 /** Copy only the known state fields, dropping anything unexpected from the file. */
 function sanitizeState(raw: any): AutomataState {
@@ -48,6 +48,14 @@ function sanitizeTransition(raw: any): Transition {
   if (raw?.direction === 'L' || raw?.direction === 'R' || raw?.direction === 'S') {
     t.direction = raw.direction
   }
+  // Multi-tape TM arrays (additive — single-tape files omit them).
+  if (Array.isArray(raw?.reads)) t.reads = raw.reads.map(String)
+  if (Array.isArray(raw?.writes)) t.writes = raw.writes.map(String)
+  if (Array.isArray(raw?.directions)) {
+    t.directions = raw.directions.map((d: unknown) =>
+      d === 'L' || d === 'R' || d === 'S' ? d : 'S'
+    )
+  }
   return t
 }
 
@@ -64,7 +72,7 @@ function parseMachineJson(jsonString: string): MachineDefinition {
 
   // Ensure a unique id on load, and prevent prototype pollution / injection by
   // explicitly rebuilding every state and transition from known fields only.
-  return {
+  const def: MachineDefinition = {
     id: generateId('machine'),
     name: raw.name ?? 'Imported Machine',
     type: raw.type,
@@ -73,6 +81,24 @@ function parseMachineJson(jsonString: string): MachineDefinition {
     transitions: Array.isArray(raw.transitions) ? raw.transitions.map(sanitizeTransition) : [],
     alphabet: Array.isArray(raw.alphabet) ? raw.alphabet.map(String) : [],
   }
+  // Optional declared alphabets Γ (additive — old files omit them).
+  if (Array.isArray(raw.stackAlphabet) && raw.stackAlphabet.length > 0) {
+    def.stackAlphabet = raw.stackAlphabet.map(String)
+  }
+  if (Array.isArray(raw.tapeAlphabet) && raw.tapeAlphabet.length > 0) {
+    def.tapeAlphabet = raw.tapeAlphabet.map(String)
+  }
+  // Optional TM/LBA fields (additive — old files simply omit them).
+  if (typeof raw.blankSymbol === 'string' && raw.blankSymbol.length > 0) {
+    def.blankSymbol = raw.blankSymbol
+  }
+  if (Number.isFinite(raw.stepLimit) && raw.stepLimit > 0) {
+    def.stepLimit = Number(raw.stepLimit)
+  }
+  if (Number.isFinite(raw.tapeCount) && raw.tapeCount > 1) {
+    def.tapeCount = Math.floor(Number(raw.tapeCount))
+  }
+  return def
 }
 
 /** Result of a load operation: the parsed machine plus its source path (Tauri only). */

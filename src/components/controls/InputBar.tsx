@@ -2,13 +2,30 @@
 // InputBar — Input string entry with tape visualization. Plain B&W.
 // ============================================================
 
+import { useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
+import { useMachineStore } from '@/store/machineStore'
+import { isTMType } from '@/engines/core/utils'
+import BatchRunnerModal from './BatchRunnerModal'
 
 export default function InputBar() {
   const { inputString, setInputString, consumedInput, remainingInput, currentSymbol, status } =
     useSimulationStore()
+  const machineType = useMachineStore((s) => s.machine.type)
+  const isTM = isTMType(machineType)
+  const [showBatch, setShowBatch] = useState(false)
 
   const isIdle = status === 'idle'
+
+  // Editing the test string after a finished run clears the stale result so the
+  // new string starts cleanly from idle. The input is disabled during an active
+  // run, so this only ever fires from a terminal status (accepted/rejected/…).
+  const handleInputChange = (value: string) => {
+    if (!isIdle && status !== 'running') {
+      useSimulationStore.getState().resetSimulation()
+    }
+    setInputString(value)
+  }
 
   // Engines fold the just-read symbol into `consumedInput` AND report it again as
   // `currentSymbol`. Render it once — as the highlighted most-recently-read cell —
@@ -41,9 +58,9 @@ export default function InputBar() {
       <input
         type="text"
         value={inputString}
-        onChange={(e) => setInputString(e.target.value)}
-        disabled={!isIdle}
-        placeholder="Enter input string (e.g. aabb)"
+        onChange={(e) => handleInputChange(e.target.value)}
+        disabled={status === 'running'}
+        placeholder={isTM ? 'Enter initial tape contents (e.g. 0011)' : 'Enter input string (e.g. aabb)'}
         style={{
           flex: 1,
           background: 'var(--bg-card)',
@@ -54,14 +71,36 @@ export default function InputBar() {
           fontFamily: 'var(--font-mono)',
           color: 'var(--text-primary)',
           outline: 'none',
-          opacity: isIdle ? 1 : 0.5,
+          opacity: status === 'running' ? 0.5 : 1,
         }}
         onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
         onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
       />
 
-      {/* Tape visualization during simulation */}
-      {!isIdle && (
+      <button
+        onClick={() => setShowBatch(true)}
+        title="Test many strings at once (batch / test-suite runner)"
+        aria-label="Open batch tester"
+        style={{
+          flexShrink: 0,
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-secondary)',
+          fontSize: '12px',
+          fontFamily: 'var(--font-mono)',
+          padding: '5px 10px',
+          cursor: 'pointer',
+        }}
+      >
+        Batch…
+      </button>
+
+      {showBatch && <BatchRunnerModal onClose={() => setShowBatch(false)} />}
+
+      {/* Inline FA tape progress. TM head moves both ways, so the dedicated
+          TapePanel is canonical there and this compact view is hidden. */}
+      {!isIdle && !isTM && (
         <div style={{
           display: 'flex',
           alignItems: 'center',

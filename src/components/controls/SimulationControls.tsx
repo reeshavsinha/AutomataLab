@@ -6,6 +6,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useSimulationStore } from '@/store/simulationStore'
+import { useMachineStore } from '@/store/machineStore'
+import { isTMType } from '@/engines/core/utils'
+import { toast } from '@/store/toastStore'
+
+const DEFAULT_STEP_LIMIT = 10_000
 
 const STATUS_LABELS: Record<string, string> = {
   idle:     'Idle',
@@ -14,6 +19,17 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: 'Rejected',
   stuck:    'Stuck',
   error:    'Error',
+}
+
+// Halt semantics differ — "stuck" (no applicable move / step limit) is not the
+// same outcome as an explicit "reject", so each gets its own tooltip (UX #10).
+const STATUS_TITLES: Record<string, string> = {
+  idle:     'Not started.',
+  running:  'Running…',
+  accepted: 'Accepted: halted in an accept state with the input consumed.',
+  rejected: 'Rejected: input consumed but not in an accept state.',
+  stuck:    'Stuck: halted with no applicable transition (or the step limit was hit) — not the same as an explicit reject.',
+  error:    'Error: the run could not proceed.',
 }
 
 function ControlButton({
@@ -34,6 +50,7 @@ function ControlButton({
       onClick={onClick}
       disabled={disabled}
       title={label}
+      aria-label={label}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -58,6 +75,8 @@ function ControlButton({
 export default function SimulationControls() {
   const { step, stepBack, play, pause, reset } = useSimulation()
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
+  const machineType = useMachineStore((s) => s.machine.type)
+  const stepLimit = useMachineStore((s) => s.machine.stepLimit)
   const [isPlaying, setIsPlaying] = useState(false)
 
   const isDone = status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
@@ -96,9 +115,21 @@ export default function SimulationControls() {
     reset()
   }, [pause, reset])
 
+  // Clear the local play flag when the run ends *or* is reset out from under us
+  // (e.g. switching tabs resets the simulation to idle via useSimulation).
   useEffect(() => {
-    if (isDone) setIsPlaying(false)
-  }, [isDone])
+    if (isDone || isIdle) setIsPlaying(false)
+  }, [isDone, isIdle])
+
+  // Infinite-loop guard feedback (NFR-8): when a TM/LBA halts as `stuck` it hit
+  // the step limit. Surface it as a toast so the cause isn't mistaken for a
+  // reject, and point the user at the adjustable limit.
+  useEffect(() => {
+    if (status === 'stuck' && isTMType(machineType)) {
+      const limit = stepLimit ?? DEFAULT_STEP_LIMIT
+      toast.warning(`Step limit reached (${limit.toLocaleString()} steps). The run was halted as "stuck" — raise the LIMIT in the toolbar if it needs more steps.`)
+    }
+  }, [status, machineType, stepLimit])
 
   // ── Keyboard Shortcuts ────────────────────────────────────
   useEffect(() => {
@@ -143,11 +174,14 @@ export default function SimulationControls() {
 
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
-  // Colour-coded result badge so accept/reject is unmistakable.
+  // Colour-coded result badge so the outcome is unmistakable. "Stuck" gets its
+  // own amber treatment so a no-move halt / step-limit isn't read as an explicit
+  // reject (UX audit #10).
   const badge = (() => {
     if (status === 'accepted') return { bg: 'var(--status-accept)', fg: '#ffffff', border: 'var(--status-accept)' }
-    if (status === 'rejected' || status === 'stuck' || status === 'error')
+    if (status === 'rejected' || status === 'error')
       return { bg: 'var(--status-reject)', fg: '#ffffff', border: 'var(--status-reject)' }
+    if (status === 'stuck') return { bg: 'transparent', fg: 'var(--status-running)', border: 'var(--status-running)' }
     if (status === 'running') return { bg: 'transparent', fg: 'var(--status-running)', border: 'var(--status-running)' }
     return { bg: 'transparent', fg: 'var(--text-primary)', border: 'var(--border-default)' }
   })()
@@ -199,7 +233,8 @@ export default function SimulationControls() {
 
       <div style={{ width: '1px', height: '20px', background: 'var(--border-default)' }} />
 
-      {/* Speed */}
+      {/* Speed — slider for fine control + presets for common values. The value
+          is shown read-only so the control isn't presented three ways (S4). */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
         <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
           SPEED
@@ -210,41 +245,17 @@ export default function SimulationControls() {
           max={8}
           step={0.25}
           value={speed}
-          onChange={(e) => setSpeed(parseFloat(e.target.value))}
+          aria-label={`Simulation speed: ${speed}×`}
+          onChange={(e) => setSpeed(clampSpeed(parseFloat(e.target.value)))}
           style={{
-            width: '80px',
+            width: '90px',
             accentColor: 'var(--text-primary)',
             cursor: 'pointer',
           }}
         />
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <input
-            type="number"
-            min={0.25}
-            max={8}
-            step={0.25}
-            value={speed}
-            onChange={(e) => {
-              const val = parseFloat(e.target.value)
-              if (!isNaN(val)) setSpeed(val)
-            }}
-            onBlur={() => setSpeed(clampSpeed(Number.isFinite(speed) && speed > 0 ? speed : 1))}
-            style={{
-              width: '40px',
-              background: 'transparent',
-              border: 'none',
-              color: 'var(--text-secondary)',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
-              outline: 'none',
-              textAlign: 'right',
-              padding: '0',
-            }}
-          />
-          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
-            ×
-          </span>
-        </div>
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', minWidth: '34px' }}>
+          {speed}×
+        </span>
 
         {/* Speed presets */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -253,6 +264,7 @@ export default function SimulationControls() {
               key={p}
               onClick={() => setSpeed(p)}
               title={`${p}× speed`}
+              aria-label={`Set speed ${p}×`}
               style={{
                 background: speed === p ? 'var(--bg-elevated)' : 'transparent',
                 border: `1px solid ${speed === p ? 'var(--text-primary)' : 'var(--border-default)'}`,
@@ -281,17 +293,22 @@ export default function SimulationControls() {
       )}
 
       {/* Status */}
-      <div style={{
-        padding: '3px 12px',
-        borderRadius: 'var(--radius-sm)',
-        border: `1px solid ${badge.border}`,
-        background: badge.bg,
-        color: badge.fg,
-        fontSize: '12px',
-        fontWeight: 700,
-        fontFamily: 'var(--font-mono)',
-        letterSpacing: '0.04em',
-      }}>
+      <div
+        role="status"
+        title={STATUS_TITLES[status] ?? ''}
+        style={{
+          padding: '3px 12px',
+          borderRadius: 'var(--radius-sm)',
+          border: `1px solid ${badge.border}`,
+          background: badge.bg,
+          color: badge.fg,
+          fontSize: '12px',
+          fontWeight: 700,
+          fontFamily: 'var(--font-mono)',
+          letterSpacing: '0.04em',
+          cursor: 'help',
+        }}
+      >
         {statusLabel}
       </div>
     </div>

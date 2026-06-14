@@ -18,6 +18,17 @@ export function isEpsilon(symbol: string | undefined): boolean {
   return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'λ' || symbol === 'lambda'
 }
 
+/** The default Turing-machine blank tape symbol. */
+export const BLANK = '_'
+
+/**
+ * Whether a read/write field denotes the blank symbol. An empty/omitted field
+ * is treated as blank (a TM always reads/writes exactly one tape symbol).
+ */
+export function isBlank(symbol: string | undefined, blank: string = BLANK): boolean {
+  return symbol === undefined || symbol === '' || symbol === blank
+}
+
 /**
  * Machine types backed by a stack. `'NPDA'` is listed ahead of its engine so
  * the PDA-aware UI/validator branches light up the moment the type is added.
@@ -41,6 +52,16 @@ export function supportsComputationTree(type: string): boolean {
 }
 
 /**
+ * Tape-backed machine types. `'LBA'` is a bounded TM. Single source of truth
+ * gating the tape UI / TM validator branches, mirroring `PDA_TYPES`/`isPDAType`.
+ */
+export const TM_TYPES = ['TM', 'LBA'] as const
+
+export function isTMType(type: string): boolean {
+  return (TM_TYPES as readonly string[]).includes(type)
+}
+
+/**
  * Format a PDA transition for display as `read, pop → push`, rendering any
  * epsilon (empty/undefined) component as ε. Pure: no UI imports.
  */
@@ -49,6 +70,65 @@ export function formatPdaLabel(read?: string, pop?: string, push?: string): stri
   const p = isEpsilon(pop) ? EPSILON : pop
   const u = isEpsilon(push) ? EPSILON : push
   return `${r}, ${p} → ${u}`
+}
+
+/**
+ * Format a TM/LBA transition for display as `read → write, dir`, rendering any
+ * blank (empty/undefined) read/write component as the blank glyph. Pure: no UI
+ * imports.
+ */
+export function formatTmLabel(read?: string, write?: string, direction?: string, blank: string = BLANK): string {
+  const r = isBlank(read, blank) ? blank : read
+  const w = isBlank(write, blank) ? blank : write
+  const d = direction === 'L' || direction === 'R' || direction === 'S' ? direction : 'S'
+  return `${r} → ${w}, ${d}`
+}
+
+export type TapeDir = 'L' | 'R' | 'S'
+
+/** Coerce an arbitrary value to a valid head direction, defaulting to 'S' (stay). */
+export function normalizeDir(d: string | undefined): TapeDir {
+  return d === 'L' || d === 'R' || d === 'S' ? d : 'S'
+}
+
+/**
+ * Resolve a (possibly multi-tape) TM transition into per-tape read/write/direction
+ * arrays of length `tapeCount`. Single-tape (count 1) uses the scalar
+ * `read`/`write`/`direction` fields; multi-tape uses the `reads`/`writes`/`directions`
+ * arrays, falling back to the scalar fields for tape 0 so a single-tape transition
+ * upgraded to multi-tape still has a sensible first column. Missing cells become ''
+ * (blank) / 'S'. Single source of truth for the engine, validator, and label code.
+ */
+export function tmTapeOps(
+  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions'>,
+  tapeCount: number
+): { reads: string[]; writes: string[]; directions: TapeDir[] } {
+  const n = Math.max(1, Math.floor(tapeCount) || 1)
+  if (n === 1) {
+    return { reads: [t.read ?? ''], writes: [t.write ?? ''], directions: [normalizeDir(t.direction)] }
+  }
+  const reads: string[] = []
+  const writes: string[] = []
+  const directions: TapeDir[] = []
+  for (let i = 0; i < n; i++) {
+    reads.push(t.reads?.[i] ?? (i === 0 ? t.read ?? '' : ''))
+    writes.push(t.writes?.[i] ?? (i === 0 ? t.write ?? '' : ''))
+    directions.push(normalizeDir(t.directions?.[i] ?? (i === 0 ? t.direction : undefined)))
+  }
+  return { reads, writes, directions }
+}
+
+/**
+ * Format a (possibly multi-tape) TM/LBA transition. Single-tape → `a → b, R`;
+ * multi-tape → per-tape segments joined with ` | ` (e.g. `a → b, R | _ → c, L`).
+ */
+export function formatTmTransition(
+  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions'>,
+  tapeCount: number,
+  blank: string = BLANK
+): string {
+  const { reads, writes, directions } = tmTapeOps(t, tapeCount)
+  return reads.map((r, i) => formatTmLabel(r, writes[i], directions[i], blank)).join(' | ')
 }
 
 /** Get all transitions leaving a given state */
@@ -142,6 +222,31 @@ export function generateId(prefix = 'id'): string {
 }
 
 /**
+ * Display-only cap (in characters) for the consumed/remaining input strings the
+ * engines surface to the panels. Materialising the FULL input as a string on
+ * every step — and, for nondeterministic engines, for every active branch — is
+ * O(n) work per step, i.e. O(n²) over a run, which freezes the UI on large
+ * inputs (the per-step cost grows as the head advances). Panels only ever render
+ * a neighbourhood of the head, so the engines emit a bounded window instead.
+ * Inputs shorter than this are unaffected (the strings are byte-identical).
+ */
+export const IO_WINDOW = 256
+
+/** Consumed-input string ending at `idx`, capped to the last `IO_WINDOW` chars. */
+export function consumedWindow(inputChars: string[], idx: number): string {
+  const clamped = idx < 0 ? 0 : idx > inputChars.length ? inputChars.length : idx
+  const start = clamped > IO_WINDOW ? clamped - IO_WINDOW : 0
+  return inputChars.slice(start, clamped).join('')
+}
+
+/** Remaining-input string from `idx`, capped to the next `IO_WINDOW` chars. */
+export function remainingWindow(inputChars: string[], idx: number): string {
+  const clamped = idx < 0 ? 0 : idx > inputChars.length ? inputChars.length : idx
+  const end = clamped + IO_WINDOW < inputChars.length ? clamped + IO_WINDOW : inputChars.length
+  return inputChars.slice(clamped, end).join('')
+}
+
+/**
  * Build a per-branch Configuration. `inputChars` + `inputIndex` are used to
  * derive the consumed/remaining input strings so panels don't need the raw
  * input. For finite automata the stack is empty and there is no branch lineage
@@ -165,7 +270,7 @@ export function buildConfig(params: {
     stack: params.stack ?? [],
     inputIndex,
     status,
-    consumedInput: inputChars.slice(0, inputIndex).join(''),
-    remainingInput: inputChars.slice(inputIndex).join(''),
+    consumedInput: consumedWindow(inputChars, inputIndex),
+    remainingInput: remainingWindow(inputChars, inputIndex),
   }
 }

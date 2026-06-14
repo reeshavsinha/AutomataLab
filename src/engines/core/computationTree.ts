@@ -21,6 +21,16 @@ import type { Automaton, Configuration } from './types'
  */
 export type TreeNodeStatus = 'accepted' | 'rejected' | 'running' | 'internal'
 
+/**
+ * Cap on the number of branch nodes an engine records for the computation tree.
+ * Wide/long nondeterministic runs can otherwise accumulate hundreds of thousands
+ * of nodes — unbounded memory plus an O(nodes) rebuild on every step. Once the
+ * cap is hit the engine stops recording tree nodes; the simulation itself keeps
+ * advancing on its full frontier (correctness is unaffected), only the visualised
+ * tree stops growing.
+ */
+export const MAX_TREE_NODES = 20_000
+
 export interface ComputationTreeNode {
   config: Configuration
   children: ComputationTreeNode[]

@@ -6,6 +6,9 @@ import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 
+/** Cap on rendered rows — keeps the DOM small during long runs. */
+const MAX_VISIBLE = 500
+
 export default function HistoryLog() {
   const { history } = useSimulationStore()
   const { machine } = useMachineStore()
@@ -41,10 +44,25 @@ export default function HistoryLog() {
     )
   }
 
+  const hiddenCount = history.length > MAX_VISIBLE ? history.length - MAX_VISIBLE : 0
+  const visible = hiddenCount > 0 ? history.slice(history.length - MAX_VISIBLE) : history
+
   return (
     <div style={{ overflowY: 'auto', flex: 1 }}>
-      {history.map((entry, i) => {
-        const isLast = i === history.length - 1
+      {hiddenCount > 0 && (
+        <div style={{
+          padding: '6px 12px',
+          fontSize: '10px',
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono)',
+          fontStyle: 'italic',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}>
+          {hiddenCount.toLocaleString()} earlier step{hiddenCount === 1 ? '' : 's'} hidden
+        </div>
+      )}
+      {visible.map((entry, i) => {
+        const isLast = i === visible.length - 1
         const from = entry.fromStateIds.map(getLabel).join(', ')
         const to = entry.toStateIds.map(getLabel).join(', ')
         const isAccepted = entry.status === 'accepted'

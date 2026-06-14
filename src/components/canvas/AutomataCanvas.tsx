@@ -22,7 +22,7 @@ import {
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
-import { formatPdaLabel, isPDAType } from '@/engines/core/utils'
+import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType } from '@/engines/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -34,6 +34,23 @@ const NODE_TYPES = {
   textNode: TextNode,
 }
 const EDGE_TYPES = { transitionEdge: TransitionEdge }
+
+type CanvasTool = 'select' | 'addState' | 'addText' | 'transition'
+
+// Left-rail tools. Glyphs are backed by tooltips/aria-labels so the meaning is
+// never carried by the icon alone (UX audit #6 / #4).
+const TOOLS: { id: CanvasTool; glyph: string; label: string }[] = [
+  { id: 'select',     glyph: '✥', label: 'Select & move — drag nodes (Esc)' },
+  { id: 'addState',   glyph: '◯', label: 'Add state — click an empty spot on the canvas' },
+  { id: 'transition', glyph: '↗', label: 'Add transition — click the source state, then the target' },
+  { id: 'addText',    glyph: 'T', label: 'Add text note — click an empty spot on the canvas' },
+]
+
+const TOOL_HINT: Record<Exclude<CanvasTool, 'select'>, string> = {
+  addState:   'Add state — click an empty spot · Esc to exit',
+  addText:    'Add text note — click an empty spot · Esc to exit',
+  transition: 'Add transition — click the source state · Esc to exit',
+}
 
 // ─── "Start Transition" mode ────────────────────────────────────
 // When the user right-clicks a state → "Add Transition from This State",
@@ -79,10 +96,14 @@ function buildEdges(
   transitionMode: TransitionDrawMode | null
 ): Edge[] {
   const isPDA = isPDAType(machine.type)
+  const isTM = isTMType(machine.type)
+  const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
+  const blank = machine.blankSymbol || BLANK
 
   // Group by from__to pair so multiple transitions share one visual edge
   const edgeMap = new Map<string, string[]>()      // FA: merged symbols
   const pdaLabelMap = new Map<string, string[]>()   // PDA: one label per transition
+  const tmLabelMap = new Map<string, string[]>()    // TM/LBA: one label per transition
   const memberMap = new Map<string, string[]>()     // all transition ids for the pair
   const edgeIdMap = new Map<string, string>()
   const edgeOffsetMap = new Map<string, { x: number; y: number } | undefined>()
@@ -97,12 +118,15 @@ function buildEdges(
     if (!edgeMap.has(key)) {
       edgeMap.set(key, [])
       pdaLabelMap.set(key, [])
+      tmLabelMap.set(key, [])
       memberMap.set(key, [])
       edgeIdMap.set(key, t.id)
       edgeOffsetMap.set(key, t.controlPointOffset)
     }
     memberMap.get(key)!.push(t.id)
-    if (isPDA) {
+    if (isTM) {
+      tmLabelMap.get(key)!.push(formatTmTransition(t, tapeCount, blank))
+    } else if (isPDA) {
       pdaLabelMap.get(key)!.push(formatPdaLabel(t.read, t.pop, t.push))
     } else {
       for (const sym of t.symbols) {
@@ -119,6 +143,7 @@ function buildEdges(
     const edgeId = edgeIdMap.get(key)!
     const memberTransitionIds = memberMap.get(key)!
     const pdaLabels = pdaLabelMap.get(key)!
+    const tmLabels = tmLabelMap.get(key)!
     const isActive = memberTransitionIds.some((mid) => activeTransitionIds.includes(mid))
     const hasReverse = edgeMap.has(`${to}__${from}`) && from !== to
 
@@ -134,6 +159,8 @@ function buildEdges(
         controlPointOffset: edgeOffsetMap.get(key),
         isPDA,
         pdaLabels,
+        isTM,
+        tmLabels,
         memberTransitionIds,
       },
       selected: selectedTransitionIds.includes(edgeId),
@@ -207,6 +234,15 @@ function areEdgesEqual(edgesA: Edge[], edgesB: Edge[]): boolean {
       if (pdaA[i] !== pdaB[i]) { return false; }
     }
 
+    if ((dA.isTM ?? false) !== (dB.isTM ?? false)) { return false; }
+
+    const tmA = dA.tmLabels || []
+    const tmB = dB.tmLabels || []
+    if (tmA.length !== tmB.length) { return false; }
+    for (let i = 0; i < tmA.length; i++) {
+      if (tmA[i] !== tmB[i]) { return false; }
+    }
+
     const memA = dA.memberTransitionIds || []
     const memB = dB.memberTransitionIds || []
     if (memA.length !== memB.length) { return false; }
@@ -226,7 +262,7 @@ function AutomataCanvasInner() {
   const machine = useMachineStore((s) => s.machine)
   const {
     addState, addTextState, deleteState, updateState, setStartState,
-    toggleAcceptState, addTransition, updateTransition, deleteTransition, undo, redo,
+    toggleAcceptState, toggleRejectState, addTransition, updateTransition, deleteTransition, undo, redo,
   } = useMachineStore()
   const { activeStateIds, activeTransitionIds, status } = useSimulationStore()
   
@@ -235,11 +271,17 @@ function AutomataCanvasInner() {
     setSelectedStateIds, setSelectedTransitionIds,
     clearSelection, startRenaming, setEditingTransition,
     openTransitionEditor, closeTransitionEditor, transitionEditorStateId,
-    clipboard, setClipboard, theme, fitViewNonce,
+    clipboard, setClipboard, theme, fitViewNonce, focusRequest,
   } = useUIStore()
 
   const isPDA = isPDAType(machine.type)
+  const isTM = isTMType(machine.type)
+  // PDA and TM/LBA transitions are created/edited through the modal, not inline.
+  const isModalEdited = isPDA || isTM
   const isDark = theme === 'dark'
+  // The minimap only earns its screen space once a graph is big enough to scroll
+  // off-screen; hide it for tiny diagrams (UX audit S4).
+  const showMinimap = machine.states.filter((s) => !s.isText).length > 5
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<any>(null)
@@ -247,8 +289,17 @@ function AutomataCanvasInner() {
   const [transitionMode, setTransitionMode] = useState<TransitionDrawMode | null>(null)
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | null>(null)
   const [selectionModeActive, setSelectionModeActive] = useState(false)
+  // Active canvas tool — makes the editing modes explicit and clickable instead
+  // of relying on hidden gestures/right-click (UX audit #6).
+  const [canvasTool, setCanvasTool] = useState<CanvasTool>('select')
   // One-shot canvas glow when a run finishes (green=accept, red=reject).
   const [flash, setFlash] = useState<{ kind: 'accept' | 'reject'; id: number } | null>(null)
+
+  // Structural tools stay usable on a finished run (editing auto-resets it);
+  // only an active run forces back to Select.
+  useEffect(() => {
+    if (status === 'running' && canvasTool !== 'select') setCanvasTool('select')
+  }, [status, canvasTool])
 
   useEffect(() => {
     if (status === 'accepted') setFlash({ kind: 'accept', id: Date.now() })
@@ -261,16 +312,16 @@ function AutomataCanvasInner() {
     return () => clearTimeout(t)
   }, [flash])
 
-  // After creating a transition, FA edits inline on the canvas; PDA opens the modal.
+  // After creating a transition, FA edits inline on the canvas; PDA/TM open the modal.
   const beginEditingNewTransition = useCallback(
     (transitionId: string, fromStateId: string) => {
-      if (isPDA) {
+      if (isModalEdited) {
         openTransitionEditor(fromStateId)
       } else {
         setEditingTransition(transitionId)
       }
     },
-    [isPDA, openTransitionEditor, setEditingTransition]
+    [isModalEdited, openTransitionEditor, setEditingTransition]
   )
 
   // ── Derived nodes/edges from machine store ──────────────────
@@ -291,9 +342,12 @@ function AutomataCanvasInner() {
   useEffect(() => {
     setRfNodes((prev) => {
       if (areNodesEqual(nodes, prev)) return prev
-      // Merge React Flow's current selected state and dimensions into the new nodes
+      // Merge React Flow's current selected state and dimensions into the new
+      // nodes. Index `prev` by id once (O(n)) rather than scanning it per node
+      // (O(n²)), which would stall the canvas on large machines.
+      const prevById = new Map(prev.map((pr) => [pr.id, pr]))
       return nodes.map((n) => {
-        const p = prev.find((pr) => pr.id === n.id)
+        const p = prevById.get(n.id)
         if (p) {
           return { ...n, selected: p.selected, measured: p.measured, width: p.width, height: p.height }
         }
@@ -305,8 +359,9 @@ function AutomataCanvasInner() {
   useEffect(() => {
     setRfEdges((prev) => {
       if (areEdgesEqual(edges, prev)) return prev
+      const prevById = new Map(prev.map((pr) => [pr.id, pr]))
       return edges.map((e) => {
-        const p = prev.find((pr) => pr.id === e.id)
+        const p = prevById.get(e.id)
         if (p) {
           return { ...e, selected: p.selected }
         }
@@ -372,13 +427,14 @@ function AutomataCanvasInner() {
     }
   }, [transitionMode])
 
-  // ── Cancel transition mode on Escape ───────────────────────
+  // ── Cancel transition mode / reset tool on Escape ───────────
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setTransitionMode(null)
         setContextMenu(null)
         setMousePos(null)
+        setCanvasTool('select')
       }
     }
     window.addEventListener('keydown', handler)
@@ -406,6 +462,16 @@ function AutomataCanvasInner() {
     (event: React.MouseEvent, node: Node) => {
       if (node.id === 'cursor-node') return
 
+      // Transition tool: first state click arms the draw-from-here mode; the
+      // second state click is completed by the `transitionMode` branch below.
+      if (canvasTool === 'transition' && !transitionMode && status !== 'running') {
+        const s = machine.states.find((st) => st.id === node.id)
+        if (s && !s.isText) {
+          setTransitionMode({ fromStateId: node.id })
+          return
+        }
+      }
+
       if (transitionMode) {
         // Complete the transition
         const { fromStateId } = transitionMode
@@ -414,7 +480,7 @@ function AutomataCanvasInner() {
         if (s?.isText) return
 
         // FA: edit the existing edge instead of stacking an empty duplicate.
-        const existing = !isPDA
+        const existing = !isModalEdited
           ? machine.transitions.find((t) => t.from === fromStateId && t.to === node.id)
           : undefined
         if (existing) {
@@ -427,7 +493,7 @@ function AutomataCanvasInner() {
         setMousePos(null)
       }
     },
-    [transitionMode, addTransition, machine.states, machine.transitions, beginEditingNewTransition, isPDA, setEditingTransition]
+    [transitionMode, addTransition, machine.states, machine.transitions, beginEditingNewTransition, isModalEdited, setEditingTransition, canvasTool, status]
   )
 
   // Expand a list of transition/edge ids to EVERY underlying transition that
@@ -448,6 +514,39 @@ function AutomataCanvasInner() {
     },
     [machine.transitions]
   )
+
+  // ── Focus request → pan to + highlight an element (validation / δ-table) ──
+  useEffect(() => {
+    if (!focusRequest || !rfInstance) return
+    const { kind, id } = focusRequest
+    const { zoom } = rfInstance.getViewport()
+    const targetZoom = Math.max(zoom, 0.9)
+    if (kind === 'state') {
+      const s = machine.states.find((st) => st.id === id)
+      if (!s) return
+      rfInstance.setCenter(s.x + 26, s.y + 26, { zoom: targetZoom, duration: 400 })
+      setSelectedStateIds([id])
+      setSelectedTransitionIds([])
+      setRfNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === id })))
+      setRfEdges((eds) => eds.map((e) => ({ ...e, selected: false })))
+    } else {
+      const t = machine.transitions.find((tr) => tr.id === id)
+      if (!t) return
+      const from = machine.states.find((st) => st.id === t.from)
+      const to = machine.states.find((st) => st.id === t.to)
+      if (!from || !to) return
+      rfInstance.setCenter((from.x + to.x) / 2 + 26, (from.y + to.y) / 2 + 26, { zoom: targetZoom, duration: 400 })
+      setSelectedStateIds([])
+      setSelectedTransitionIds(expandEdgeMembers([id]))
+      setRfNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
+      setRfEdges((eds) => eds.map((e) => {
+        const mem = (e.data as { memberTransitionIds?: string[] })?.memberTransitionIds
+        return { ...e, selected: mem ? mem.includes(id) : e.id === id }
+      }))
+    }
+    // Only react to a new focus request (nonce), not to unrelated machine edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.nonce])
 
   // ── React Flow selection change sync ────────────────────────
   const onSelectionChange = useCallback((params: { nodes: Node[]; edges: Edge[] }) => {
@@ -477,6 +576,7 @@ function AutomataCanvasInner() {
         isAccept: s.isAccept,
         isStart: s.isStart,
         isText: s.isText,
+        isReject: s.isReject,
         oldId: s.id,
       })),
       transitions: transitionsToCopy.map((t) => ({
@@ -486,13 +586,18 @@ function AutomataCanvasInner() {
         read: t.read,
         pop: t.pop,
         push: t.push,
+        write: t.write,
+        direction: t.direction,
+        reads: t.reads,
+        writes: t.writes,
+        directions: t.directions,
       })),
     })
   }, [machine, selectedStateIds, setClipboard])
 
   // ── Cut Action ───────────────────────────────────────────────
   const handleCut = useCallback(() => {
-    if (status !== 'idle') return // don't mutate the graph mid-simulation
+    if (status === 'running') return // only an active run locks edits; a finished run is editable (auto-resets)
     if (selectedStateIds.length === 0 && selectedTransitionIds.length === 0) return
     handleCopy()
 
@@ -504,7 +609,7 @@ function AutomataCanvasInner() {
 
   // ── Paste Action ─────────────────────────────────────────────
   const handlePaste = useCallback(() => {
-    if (status !== 'idle') return // don't mutate the graph mid-simulation
+    if (status === 'running') return // only an active run locks edits; a finished run is editable (auto-resets)
     if (!clipboard) return
 
     const idMapping: Record<string, string> = {}
@@ -532,6 +637,7 @@ function AutomataCanvasInner() {
         updateState(pastedState.id, {
           label: uniqueLabel(s.label),
           isAccept: s.isAccept,
+          isReject: s.isReject,
           isStart: false,
         })
       }
@@ -545,9 +651,17 @@ function AutomataCanvasInner() {
       const newTo = idMapping[t.oldTo]
       if (newFrom && newTo) {
         const newTrans = addTransition(newFrom, newTo, t.symbols)
-        // Preserve PDA stack operations (read/pop/push) when present.
-        if (t.read !== undefined || t.pop !== undefined || t.push !== undefined) {
-          updateTransition(newTrans.id, { read: t.read, pop: t.pop, push: t.push })
+        // Preserve PDA (read/pop/push) and TM (write/direction + multi-tape arrays) ops.
+        const hasOps =
+          t.read !== undefined || t.pop !== undefined || t.push !== undefined ||
+          t.write !== undefined || t.direction !== undefined ||
+          t.reads !== undefined || t.writes !== undefined || t.directions !== undefined
+        if (hasOps) {
+          updateTransition(newTrans.id, {
+            read: t.read, pop: t.pop, push: t.push,
+            write: t.write, direction: t.direction,
+            reads: t.reads, writes: t.writes, directions: t.directions,
+          })
         }
         newSelectedTransitionIds.push(newTrans.id)
       }
@@ -563,7 +677,7 @@ function AutomataCanvasInner() {
 
   // ── Delete Selection ─────────────────────────────────────────
   const handleDeleteSelected = useCallback(() => {
-    if (status !== 'idle') return // don't mutate the graph mid-simulation
+    if (status === 'running') return // only an active run locks edits; a finished run is editable (auto-resets)
     selectedStateIds.forEach((id) => deleteState(id))
     // selectedTransitionIds already holds every member of each selected edge.
     selectedTransitionIds.forEach((id) => deleteTransition(id))
@@ -584,7 +698,7 @@ function AutomataCanvasInner() {
 
   // ── Add a state at the viewport centre (keyboard / empty-state button) ──
   const handleAddStateAtCenter = useCallback(() => {
-    if (status !== 'idle') return
+    if (status === 'running') return
     let x = 0
     let y = 0
     if (rfInstance && reactFlowWrapper.current) {
@@ -612,10 +726,10 @@ function AutomataCanvasInner() {
 
       if (isCtrl && key === 'z' && !e.shiftKey) {
         e.preventDefault()
-        if (status === 'idle') { clearSelection(); undo() }
+        if (status !== 'running') { clearSelection(); undo() }
       } else if (isCtrl && (key === 'y' || (key === 'z' && e.shiftKey))) {
         e.preventDefault()
-        if (status === 'idle') { clearSelection(); redo() }
+        if (status !== 'running') { clearSelection(); redo() }
       } else if (isCtrl && key === 'c') {
         e.preventDefault()
         handleCopy()
@@ -650,7 +764,7 @@ function AutomataCanvasInner() {
       if (targetState?.isText) return
 
       // FA: edit the existing edge instead of stacking an empty duplicate.
-      const existing = !isPDA
+      const existing = !isModalEdited
         ? machine.transitions.find((t) => t.from === connection.source && t.to === connection.target)
         : undefined
       if (existing) {
@@ -661,7 +775,7 @@ function AutomataCanvasInner() {
       const newTrans = addTransition(connection.source, connection.target, [])
       beginEditingNewTransition(newTrans.id, connection.source)
     },
-    [addTransition, machine.states, machine.transitions, beginEditingNewTransition, isPDA, setEditingTransition]
+    [addTransition, machine.states, machine.transitions, beginEditingNewTransition, isModalEdited, setEditingTransition]
   )
 
   // ── Drag stop → persist position ────────────────────────────
@@ -688,9 +802,11 @@ function AutomataCanvasInner() {
         stateLabel: s.label,
         isAccept: s.isAccept,
         isStart: s.isStart,
+        isReject: s.isReject ?? false,
+        showReject: isTM,
       })
     },
-    [machine.states]
+    [machine.states, isTM]
   )
 
   const onEdgeContextMenu = useCallback(
@@ -731,7 +847,19 @@ function AutomataCanvasInner() {
     [rfInstance, transitionMode]
   )
 
-  const onPaneClick = useCallback(() => {
+  const onPaneClick = useCallback((event: React.MouseEvent) => {
+    // Tool-driven placement: a plain click on empty canvas drops the element.
+    if (status !== 'running' && (canvasTool === 'addState' || canvasTool === 'addText') && rfInstance) {
+      const pos = rfInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      if (canvasTool === 'addState') {
+        addState(pos.x, pos.y)
+      } else {
+        const t = addTextState(pos.x, pos.y)
+        startRenaming(t.id)
+      }
+      setContextMenu(null)
+      return
+    }
     clearSelection()
     setRfNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
     setRfEdges((eds) => eds.map((e) => ({ ...e, selected: false })))
@@ -741,7 +869,7 @@ function AutomataCanvasInner() {
       setTransitionMode(null)
       setMousePos(null)
     }
-  }, [clearSelection, transitionMode, setRfNodes, setRfEdges])
+  }, [clearSelection, transitionMode, setRfNodes, setRfEdges, status, canvasTool, rfInstance, addState, addTextState, startRenaming])
 
   // ── Transition mode banner ──────────────────────────────────
   const fromStateName = transitionMode
@@ -812,6 +940,88 @@ function AutomataCanvasInner() {
         </div>
       )}
 
+      {/* Tool palette — explicit, clickable editing modes (UX audit #6) */}
+      <div
+        role="toolbar"
+        aria-label="Canvas tools"
+        aria-orientation="vertical"
+        style={{
+          position: 'absolute',
+          top: 12,
+          left: 12,
+          zIndex: 60,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-md)',
+          padding: '4px',
+          boxShadow: 'var(--shadow-sm)',
+        }}
+      >
+        {TOOLS.map((t) => {
+          const active = canvasTool === t.id
+          const disabled = status === 'running' && t.id !== 'select'
+          return (
+            <button
+              key={t.id}
+              onClick={() => {
+                if (disabled) return
+                setCanvasTool(t.id)
+                if (t.id !== 'transition') {
+                  setTransitionMode(null)
+                  setMousePos(null)
+                }
+              }}
+              title={t.label}
+              aria-label={t.label}
+              aria-pressed={active}
+              disabled={disabled}
+              style={{
+                width: '30px',
+                height: '30px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: 'var(--radius-sm)',
+                border: `1px solid ${active ? 'var(--text-primary)' : 'var(--border-default)'}`,
+                background: active ? 'var(--bg-elevated)' : 'transparent',
+                color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
+                cursor: disabled ? 'not-allowed' : 'pointer',
+                opacity: disabled ? 0.4 : 1,
+                fontSize: '15px',
+                fontFamily: 'var(--font-mono)',
+                lineHeight: 1,
+              }}
+            >
+              {t.glyph}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Active-tool hint — keeps the current mode visible (UX audit #6) */}
+      {canvasTool !== 'select' && !transitionMode && (
+        <div style={{
+          position: 'absolute',
+          top: 12,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 100,
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-strong)',
+          borderRadius: 'var(--radius-md)',
+          padding: '6px 16px',
+          fontSize: '12px',
+          color: 'var(--text-primary)',
+          fontFamily: 'var(--font-mono)',
+          pointerEvents: 'none',
+        }}>
+          {TOOL_HINT[canvasTool]}
+        </div>
+      )}
+
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
@@ -841,13 +1051,17 @@ function AutomataCanvasInner() {
         
         multiSelectionKeyCode="Control"
         nodesDraggable={true}
-        nodesConnectable={status === 'idle'}
+        nodesConnectable={status !== 'running'}
         elementsSelectable={true}
         snapToGrid={true}
         snapGrid={[20, 20]}
         minZoom={0.2}
         maxZoom={4}
-        style={{ background: 'var(--bg-primary)', cursor: transitionMode ? 'crosshair' : selectionModeActive ? 'crosshair' : undefined }}
+        // Forgiving drop target so releasing anywhere on/near a node connects,
+        // and a clear dashed rubber-band while dragging the connection nub (#1).
+        connectionRadius={32}
+        connectionLineStyle={{ stroke: 'var(--border-strong)', strokeWidth: 2, strokeDasharray: '6 4' }}
+        style={{ background: 'var(--bg-primary)', cursor: transitionMode || canvasTool !== 'select' || selectionModeActive ? 'crosshair' : undefined }}
       >
         <Background
           variant={BackgroundVariant.Lines}
@@ -860,35 +1074,37 @@ function AutomataCanvasInner() {
           onFitView={() => fitToContent(400)}
           style={{ bottom: 16, right: 16, top: 'auto', left: 'auto' }}
         />
-        <MiniMap
-          pannable
-          zoomable
-          ariaLabel="Minimap — drag to pan, scroll to zoom, click to recenter"
-          onClick={(_, pos) => {
-            if (!rfInstance) return
-            const { zoom } = rfInstance.getViewport()
-            rfInstance.setCenter(pos.x, pos.y, { zoom, duration: 300 })
-          }}
-          nodeColor={(node) => {
-            if (node.id === 'cursor-node') return 'transparent'
-            const d = node.data as { isAccept?: boolean; isStart?: boolean }
-            if (activeStateIds.includes(node.id)) return isDark ? '#f4f4f5' : '#000'
-            if (d?.isAccept) return isDark ? '#52525b' : '#ccc'
-            return isDark ? '#27272a' : '#fff'
-          }}
-          nodeStrokeColor={isDark ? '#a1a1aa' : '#000'}
-          nodeStrokeWidth={2}
-          maskColor={isDark ? 'rgba(24, 24, 27, 0.7)' : 'rgba(244, 244, 245, 0.7)'}
-          style={{
-            background: isDark ? '#18181b' : '#fff',
-            border: `1px solid ${isDark ? '#3f3f46' : '#d4d4d8'}`,
-            borderRadius: 'var(--radius-md)',
-            bottom: 16,
-            left: 16,
-            top: 'auto',
-            right: 'auto',
-          }}
-        />
+        {showMinimap && (
+          <MiniMap
+            pannable
+            zoomable
+            ariaLabel="Minimap — drag to pan, scroll to zoom, click to recenter"
+            onClick={(_, pos) => {
+              if (!rfInstance) return
+              const { zoom } = rfInstance.getViewport()
+              rfInstance.setCenter(pos.x, pos.y, { zoom, duration: 300 })
+            }}
+            nodeColor={(node) => {
+              if (node.id === 'cursor-node') return 'transparent'
+              const d = node.data as { isAccept?: boolean; isStart?: boolean }
+              if (activeStateIds.includes(node.id)) return isDark ? '#f4f4f5' : '#000'
+              if (d?.isAccept) return isDark ? '#52525b' : '#ccc'
+              return isDark ? '#27272a' : '#fff'
+            }}
+            nodeStrokeColor={isDark ? '#a1a1aa' : '#000'}
+            nodeStrokeWidth={2}
+            maskColor={isDark ? 'rgba(24, 24, 27, 0.7)' : 'rgba(244, 244, 245, 0.7)'}
+            style={{
+              background: isDark ? '#18181b' : '#fff',
+              border: `1px solid ${isDark ? '#3f3f46' : '#d4d4d8'}`,
+              borderRadius: 'var(--radius-md)',
+              bottom: 16,
+              left: 16,
+              top: 'auto',
+              right: 'auto',
+            }}
+          />
+        )}
       </ReactFlow>
 
       {/* Result flash — brief green/red glow when a run finishes */}
@@ -922,7 +1138,7 @@ function AutomataCanvasInner() {
               Start building your automaton
             </div>
             Right-click the canvas or press <strong style={{ color: 'var(--text-secondary)' }}>N</strong> to add a state.<br />
-            Drag from one state to another to create a transition.
+            Hover a state, then drag the <strong style={{ color: 'var(--text-secondary)' }}>connection dot</strong> on its edge to another state.
           </div>
           <button
             onClick={handleAddStateAtCenter}
@@ -955,6 +1171,7 @@ function AutomataCanvasInner() {
           onDeleteState={(id) => { deleteState(id); setContextMenu(null) }}
           onSetStart={(id) => { setStartState(id); setContextMenu(null) }}
           onToggleAccept={(id) => { toggleAcceptState(id); setContextMenu(null) }}
+          onToggleReject={(id) => { toggleRejectState(id); setContextMenu(null) }}
           onDeleteTransition={(id) => {
             // Delete every transition bundled into this visual edge, not just one.
             expandEdgeMembers([id]).forEach((mid) => deleteTransition(mid))

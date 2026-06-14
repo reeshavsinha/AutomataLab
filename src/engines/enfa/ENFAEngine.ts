@@ -12,7 +12,13 @@ import type {
   StepResult,
 } from '../core/types'
 import { NFAEngine } from '../nfa/NFAEngine'
-import { epsilonClosure, getStartState, hasAcceptState } from '../core/utils'
+import {
+  consumedWindow,
+  epsilonClosure,
+  getStartState,
+  hasAcceptState,
+  remainingWindow,
+} from '../core/utils'
 
 export class ENFAEngine extends NFAEngine {
   constructor(definition: MachineDefinition) {
@@ -53,14 +59,14 @@ export class ENFAEngine extends NFAEngine {
       return this._makeResult(
         this.status,
         this.activeStateIds,
-        this.inputChars.slice(0, this.inputIndex).join(''),
+        consumedWindow(this.inputChars, this.inputIndex),
         ''
       )
     }
 
     const symbol = this.inputChars[this.inputIndex]
-    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
-    const remaining = this.inputChars.slice(this.inputIndex + 1).join('')
+    const consumed = consumedWindow(this.inputChars, this.inputIndex)
+    const remaining = remainingWindow(this.inputChars, this.inputIndex + 1)
 
     const fromStateIds = new Set(this.activeStateIds)
     const usedTransitionIds: string[] = []

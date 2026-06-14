@@ -23,8 +23,15 @@
 
   --text-primary:   #000000;
   --text-secondary: #555555;
-  --text-muted:     #888888;
+  /* Darkened from #888888 (≈3.5:1, fails WCAG AA) to ≈5:1 on white so the many
+     small muted labels are legible (UX audit #4). */
+  --text-muted:     #6b6b6b;
   --text-accent:    #000000;
+
+  /* Keyboard focus ring. A deliberate, scoped exception to the B&W palette:
+     a single accent hue that stays visible on both light and dark surfaces,
+     used only by :focus-visible (UX audit #4 — accessibility). */
+  --focus-ring:     #2563eb;
 
   --state-accept:   #000000;
   --state-reject:   #999999;
@@ -76,8 +83,10 @@
 
   --text-primary:   #f4f4f5;
   --text-secondary: #a1a1aa;
-  --text-muted:     #71717a;
+  --text-muted:     #8b8b93;
   --text-accent:    #ffffff;
+
+  --focus-ring:     #60a5fa;
 
   --state-accept:   #f4f4f5;
   --state-reject:   #71717a;
@@ -111,10 +120,22 @@ html, body, #root {
 
 body {
   font-family: var(--font-sans);
+  /* Raise the UI base size (UX audit #4): components that don't set an explicit
+     size inherit 13px instead of the browser 16px-then-shrunk-inline mix. */
+  font-size: 13px;
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+}
+
+/* ── Keyboard focus visibility (UX audit #4) ─────────────────────
+   A single global focus ring for keyboard users. Pointer focus stays
+   quiet (:focus-visible only), so this doesn't add chrome on click. */
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 /* ── React Flow canvas overrides ───────────────────────────── */
@@ -188,7 +209,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   font-family: var(--font-mono);
   cursor: pointer;
@@ -201,6 +222,32 @@ body {
 
 .state-node:hover {
   border-width: 2px;
+}
+
+/* ── Connection nub (UX audit #1) ────────────────────────────────
+   The drag-to-connect source handle. Invisible until the node is
+   hovered, then a high-contrast nub appears on the node's edge. Body
+   drag still moves the node; dragging the nub starts an edge. */
+.state-node-connect-handle {
+  width: 15px !important;
+  height: 15px !important;
+  border-radius: 50% !important;
+  background: var(--text-primary) !important;
+  border: 2px solid var(--bg-primary) !important;
+  opacity: 0;
+  transition: opacity 120ms ease, transform 120ms ease;
+  cursor: crosshair;
+  box-shadow: var(--shadow-sm);
+  z-index: 5;
+}
+
+.state-node-wrap:hover .state-node-connect-handle,
+.state-node-connect-handle:hover {
+  opacity: 1;
+}
+
+.state-node-connect-handle:hover {
+  transform: translate(-50%, -50%) scale(1.2) !important;
 }
 
 .state-node.selected {
@@ -232,10 +279,33 @@ body {
   border: 1px solid var(--text-primary);
 }
 
-/* Active state during simulation: bold border + grey bg */
+/* Reject (halt) state — TM/LBA only. A halting state like accept (double ring)
+   but coloured red so the outcome is unmistakable (a deliberate, scoped
+   exception to the B&W palette, like accept/reject finals and the tree). */
+.state-node.reject {
+  border-color: var(--status-reject);
+  color: var(--status-reject);
+}
+
+.state-node.reject::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px solid var(--status-reject);
+}
+
+/* Active state during simulation: bold border + grey bg + a soft halo so it
+   reads as "live" at a glance and at projector distance — clearly distinct
+   from the dashed `selected` outline (UX audit #9). */
 .state-node.active {
   border-width: 3px !important;
   background: var(--bg-secondary);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.10);
+}
+
+:root.dark .state-node.active {
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.14);
 }
 
 /* Transition-start mode: highlight eligible target states */

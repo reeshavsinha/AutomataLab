@@ -13,13 +13,15 @@ import type {
   SimulationStatus,
   StepResult,
 } from '../core/types'
-import type { TreeProvider } from '../core/computationTree'
+import { MAX_TREE_NODES, type TreeProvider } from '../core/computationTree'
 import {
   buildConfig,
+  consumedWindow,
   getStartState,
   getTransitionsOn,
   hasAcceptState,
   isEpsilon,
+  remainingWindow,
 } from '../core/utils'
 
 export class NFAEngine implements Automaton, TreeProvider {
@@ -36,6 +38,8 @@ export class NFAEngine implements Automaton, TreeProvider {
   /** Current frontier: active stateId → its branch-node id (one node per active state). */
   protected levelMap: Map<string, string> = new Map()
   protected branchSeq: number = 0
+  /** node id → recorded node, so a per-level merge can bump the survivor's parent count. */
+  protected nodeById: Map<string, Configuration> = new Map()
 
   constructor(definition: MachineDefinition) {
     this.definition = definition
@@ -67,14 +71,14 @@ export class NFAEngine implements Automaton, TreeProvider {
       return this._makeResult(
         this.status,
         this.activeStateIds,
-        this.inputChars.slice(0, this.inputIndex).join(''),
+        consumedWindow(this.inputChars, this.inputIndex),
         ''
       )
     }
 
     const symbol = this.inputChars[this.inputIndex]
-    const consumed = this.inputChars.slice(0, this.inputIndex).join('')
-    const remaining = this.inputChars.slice(this.inputIndex + 1).join('')
+    const consumed = consumedWindow(this.inputChars, this.inputIndex)
+    const remaining = remainingWindow(this.inputChars, this.inputIndex + 1)
 
     const fromStateIds = new Set(this.activeStateIds)
     const nextStateIds = new Set<string>()
@@ -145,6 +149,7 @@ export class NFAEngine implements Automaton, TreeProvider {
     this.history = []
     this.treeNodes = []
     this.levelMap = new Map()
+    this.nodeById = new Map()
     this.branchSeq = 0
   }
 
@@ -199,6 +204,7 @@ export class NFAEngine implements Automaton, TreeProvider {
     this.branchSeq = 0
     this.treeNodes = []
     this.levelMap = new Map()
+    this.nodeById = new Map()
     const root = buildConfig({
       stateId: startStateId,
       inputChars: this.inputChars,
@@ -209,6 +215,7 @@ export class NFAEngine implements Automaton, TreeProvider {
     })
     this.treeNodes.push(root)
     this.levelMap.set(startStateId, root.id)
+    this.nodeById.set(root.id, root)
   }
 
   /**
@@ -222,7 +229,20 @@ export class NFAEngine implements Automaton, TreeProvider {
     parentNodeId: string | null,
     inputIndex: number
   ): void {
-    if (level.has(stateId)) return
+    // Per-level dedup, first-parent-wins. A second parent reaching the same state
+    // this level is a MERGE: bump the survivor's parent count so the viewer can be
+    // honest that this is a trellis, not a true tree (UX audit #3).
+    const existingId = level.get(stateId)
+    if (existingId !== undefined) {
+      const survivor = this.nodeById.get(existingId)
+      if (survivor) survivor.mergedParents = (survivor.mergedParents ?? 0) + 1
+      return
+    }
+    // Tree-node cap: stop recording (and tracking lineage for) new branches once
+    // the buffer is full. The powerset frontier (`nextStateIds`) is built
+    // independently in `step`, so accept/reject stays correct — only the
+    // visualised tree stops growing.
+    if (this.treeNodes.length >= MAX_TREE_NODES) return
     const node = buildConfig({
       stateId,
       inputChars: this.inputChars,
@@ -233,6 +253,7 @@ export class NFAEngine implements Automaton, TreeProvider {
     })
     this.treeNodes.push(node)
     level.set(stateId, node.id)
+    this.nodeById.set(node.id, node)
   }
 
   /**

@@ -6,13 +6,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { isPDAType, supportsComputationTree } from '@/engines/core/utils'
+import { isPDAType, isTMType, supportsComputationTree } from '@/engines/core/utils'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
 import StackPanel from './StackPanel'
 import ComputationTreePanel from './ComputationTreePanel'
+import TapePanel from './TapePanel'
+import DeltaTablePanel from './DeltaTablePanel'
 
-type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree'
+type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
 
 const WIDTH_KEY = 'automatalab-panel-width'
 const MIN_WIDTH = 220
@@ -55,6 +57,7 @@ export default function SidePanel() {
   const { activePanel, setActivePanel } = useUIStore()
   const machineType = useMachineStore((s) => s.machine.type)
   const isPDA = isPDAType(machineType)
+  const isTM = isTMType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
   // Width is user-resizable (persisted). Until the user drags, stack-machine
@@ -65,7 +68,7 @@ export default function SidePanel() {
     return Number.isFinite(n) ? Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) : null
   })
 
-  const width = userWidth ?? (isPDA || hasTree ? 300 : 240)
+  const width = userWidth ?? (isPDA || hasTree || isTM ? 300 : 240)
 
   useEffect(() => {
     if (userWidth != null && typeof localStorage !== 'undefined') {
@@ -94,10 +97,12 @@ export default function SidePanel() {
     window.addEventListener('pointercancel', onUp)
   }, [width])
 
-  const tabs: { id: Tab; label: string }[] = [
+  const tabs: { id: Tab; label: string; title?: string }[] = [
+    { id: 'delta',      label: 'δ', title: 'Transition table (δ) — every move, grouped by state' },
     { id: 'history',    label: 'History' },
     { id: 'validation', label: 'Validate' },
     ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack' }] : []),
+    ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape' }] : []),
     ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree' }] : []),
     { id: 'info',       label: 'Info' },
   ]
@@ -108,8 +113,10 @@ export default function SidePanel() {
       setActivePanel('history')
     } else if (activePanel === 'tree' && !hasTree) {
       setActivePanel('history')
+    } else if (activePanel === 'tape' && !isTM) {
+      setActivePanel('history')
     }
-  }, [activePanel, isPDA, hasTree, setActivePanel])
+  }, [activePanel, isPDA, isTM, hasTree, setActivePanel])
 
   return (
     <aside style={{
@@ -138,7 +145,7 @@ export default function SidePanel() {
         }}
       />
       {/* Tab bar */}
-      <div style={{
+      <div role="tablist" aria-label="Side panel" style={{
         display: 'flex',
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
@@ -146,6 +153,9 @@ export default function SidePanel() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activePanel === tab.id}
+            title={tab.title}
             onClick={() => setActivePanel(tab.id)}
             style={{
               flex: 1,
@@ -154,7 +164,7 @@ export default function SidePanel() {
               background: 'transparent',
               borderBottom: `2px solid ${activePanel === tab.id ? 'var(--text-primary)' : 'transparent'}`,
               color: activePanel === tab.id ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontSize: '11px',
+              fontSize: '12px',
               cursor: 'pointer',
               fontFamily: 'var(--font-mono)',
               letterSpacing: '0.03em',
@@ -165,10 +175,12 @@ export default function SidePanel() {
         ))}
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div role="tabpanel" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {activePanel === 'delta'      && <DeltaTablePanel />}
         {activePanel === 'history'    && <HistoryLog />}
         {activePanel === 'validation' && <ValidationPanel />}
         {activePanel === 'stack'      && <StackPanel />}
+        {activePanel === 'tape'       && <TapePanel />}
         {activePanel === 'tree'       && <ComputationTreePanel />}
         {activePanel === 'info'       && <InfoPanel />}
       </div>
