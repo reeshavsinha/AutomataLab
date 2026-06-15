@@ -42,7 +42,7 @@ Ready to build some state machines? Download the latest stable release for your 
 - **Desktop Native**: A familiar classic-desktop workspace — a top **File / Edit / View / Simulate / Convert / Help** menu bar above a compact toolbar — with a multi-tab interface, native file saving/loading (`.autolab.json`), keyboard-accessible dialogs (focus-trapped, Esc-to-close), and over-the-air auto-updates.
 - **Real-Time Validation**: Instant UI feedback on missing start states, unreachable nodes, nondeterminism, and invalid configurations — plus optional declared stack/tape alphabets (Γ), a one-click **Complete DFA** fix, and click-to-locate from any warning to the offending element.
 
-## ⌨️ Keyboard Shortcuts
+## Keyboard Shortcuts
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -83,5 +83,5 @@ npm install
 npm run tauri:dev
 ```
 
-## 📄 License
+## License
 This project is licensed under the [MIT License](LICENSE).
