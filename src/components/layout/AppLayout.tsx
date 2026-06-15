@@ -12,6 +12,7 @@ import AutomataCanvas from '@/components/canvas/AutomataCanvas'
 import SidePanel from '@/components/panels/SidePanel'
 import TabBar from '@/components/layout/TabBar'
 import ToastContainer from '@/components/layout/ToastContainer'
+import UpdateBanner from '@/components/layout/UpdateBanner'
 import UnsavedChangesGuard from '@/components/layout/UnsavedChangesGuard'
 import HelpModal from '@/components/layout/HelpModal'
 import ExportModal from '@/components/layout/ExportModal'
@@ -63,6 +64,9 @@ export default function AppLayout() {
 
       {/* Toast notifications */}
       <ToastContainer />
+
+      {/* Top sliding update notification banner */}
+      <UpdateBanner />
 
       {/* Guards against quitting with unsaved work */}
       <UnsavedChangesGuard />

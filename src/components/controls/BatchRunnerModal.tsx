@@ -4,12 +4,13 @@
 // and a CSV export. (UX audit #7 / FR-4.7.)
 // ============================================================
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
 import { parseBatchCases, runBatch, batchSummary, type BatchResult } from '@/utils/batch'
 import { downloadText, fileStem } from '@/utils/exporters'
 import Dialog from '@/components/common/Dialog'
+import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 
 const PLACEHOLDER = `aabb
 abab
@@ -34,6 +35,8 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
   const [text, setText] = useState('')
   const [results, setResults] = useState<BatchResult[] | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [epsOpen, setEpsOpen] = useState(false)
 
   const blocking = useMemo(() => hasBlockingErrors(validateMachine(machine)), [machine])
   const summary = results ? batchSummary(results) : null
@@ -125,26 +128,32 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={PLACEHOLDER}
-            spellCheck={false}
-            rows={6}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-mono)',
-              padding: '8px 10px',
-              outline: 'none',
-              resize: 'vertical',
-            }}
-          />
+          <div style={{ position: 'relative' }}>
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={PLACEHOLDER}
+              spellCheck={false}
+              rows={6}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-primary)',
+                fontSize: '13px',
+                fontFamily: 'var(--font-mono)',
+                padding: '8px 10px',
+                outline: 'none',
+                resize: 'vertical',
+              }}
+            />
+            <div style={{ position: 'absolute', top: '6px', right: '6px' }}>
+              <EpsilonInserter targetRef={textareaRef} open={epsOpen} setOpen={setEpsOpen} onInsert={setText} size="sm" />
+            </div>
+          </div>
 
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button

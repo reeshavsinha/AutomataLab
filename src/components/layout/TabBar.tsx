@@ -4,11 +4,14 @@ import { saveMachine } from '@/utils/fileManager'
 import { toast } from '@/store/toastStore'
 
 export default function TabBar() {
-  const { tabs, activeTabIndex, dirtyTabs, switchTab, addTab, closeTab } = useMachineStore()
+  const { tabs, activeTabIndex, dirtyTabs, switchTab, addTab, closeTab, renameTab } = useMachineStore()
 
   // Index of the unsaved tab the user is attempting to close (null = no prompt).
   const [pendingCloseIndex, setPendingCloseIndex] = useState<number | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
 
   const requestClose = (index: number) => {
     const tab = tabs[index]
@@ -92,7 +95,7 @@ export default function TabBar() {
         return (
           <div
             key={`${index}-${tab.id}`}
-            onClick={() => switchTab(index)}
+            onClick={() => { if (editingIndex !== index) switchTab(index) }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -117,14 +120,60 @@ export default function TabBar() {
               zIndex: isActive ? 10 : 1
             }}
           >
-            <span style={{
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              flex: 1
-            }}>
-              {tab.name || 'Untitled'}
-            </span>
+            {editingIndex === index ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={() => {
+                  renameTab(index, editName)
+                  setEditingIndex(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    renameTab(index, editName)
+                    setEditingIndex(null)
+                  } else if (e.key === 'Escape') {
+                    setEditingIndex(null)
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '2px 4px',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  minWidth: '50px',
+                  width: '100%',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setEditingIndex(index)
+                  setEditName(tab.name || 'Untitled')
+                }}
+                onDoubleClick={(e) => {
+                  e.preventDefault()
+                  setEditingIndex(index)
+                  setEditName(tab.name || 'Untitled')
+                }}
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1
+                }}
+              >
+                {tab.name || 'Untitled'}
+              </span>
+            )}
             {isDirty && (
               <span
                 title="Unsaved changes"

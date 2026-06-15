@@ -209,11 +209,28 @@ export default function SidePanel() {
         display: 'flex',
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
+        overflow: 'hidden'
       }}>
-        {tabs.map((tab) => {
+        {tabs.map((tab, idx) => {
           const selected = activePanel === tab.id
           const showBadge = tab.id === 'validation' && (issues.errors > 0 || issues.warnings > 0)
-          return (
+          const isCompressed = width / tabs.length < 55
+          const displayLabel = isCompressed && tab.label !== 'δ' ? tab.label.charAt(0) : tab.label
+          
+          return [
+            idx > 0 && (
+              <div
+                key={`${tab.id}-sep`}
+                style={{
+                  width: '1px',
+                  height: '14px',
+                  backgroundColor: 'var(--border-strong)',
+                  alignSelf: 'center',
+                  opacity: 0.4,
+                  flexShrink: 0
+                }}
+              />
+            ),
             <button
               key={tab.id}
               role="tab"
@@ -226,7 +243,7 @@ export default function SidePanel() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '4px',
-                padding: '8px 4px',
+                padding: '8px 2px',
                 border: 'none',
                 background: 'transparent',
                 borderBottom: `2px solid ${selected ? 'var(--text-primary)' : 'transparent'}`,
@@ -235,9 +252,12 @@ export default function SidePanel() {
                 cursor: 'pointer',
                 fontFamily: 'var(--font-mono)',
                 letterSpacing: '0.03em',
+                minWidth: 0,
               }}
             >
-              {tab.label}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {displayLabel}
+              </span>
               {showBadge && (
                 <span
                   aria-label={`${issues.errors} error(s), ${issues.warnings} warning(s)`}
@@ -253,13 +273,14 @@ export default function SidePanel() {
                     lineHeight: '15px',
                     textAlign: 'center',
                     boxSizing: 'border-box',
+                    flexShrink: 0,
                   }}
                 >
                   {issues.errors > 0 ? issues.errors : issues.warnings}
                 </span>
               )}
             </button>
-          )
+          ]
         })}
         <button
           onClick={togglePanel}

@@ -40,6 +40,7 @@ interface MachineStore {
   switchTab: (index: number) => void
   closeTab: (index: number) => void
   markTabSaved: (index: number, path?: string | null) => void
+  renameTab: (index: number, name: string) => void
 
   // Actions — History
   undo: () => void
@@ -221,6 +222,19 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       return {
         dirtyTabs: { ...s.dirtyTabs, [tab.id]: false },
         tabPaths: path != null ? { ...s.tabPaths, [tab.id]: path } : s.tabPaths,
+      }
+    }),
+
+    renameTab: (index, name) => set((s) => {
+      if (index < 0 || index >= s.tabs.length) return {}
+      if (index === s.activeTabIndex) {
+        return sync(s, { name }, 'name')
+      }
+      const newTabs = [...s.tabs]
+      newTabs[index] = { ...newTabs[index], name }
+      return {
+        tabs: newTabs,
+        dirtyTabs: { ...s.dirtyTabs, [newTabs[index].id]: true }
       }
     }),
 

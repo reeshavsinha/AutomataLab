@@ -2,6 +2,30 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v4.0.1
+
+### Added
+- **Classic desktop menu bar.** A familiar top **File / Edit / View / Simulate / Convert / Help** menu bar now sits above a refreshed toolbar, so every action (new/open/save, copy/cut/paste, run/step/reset, conversions, batch testing, export, help) is reachable from a predictable place — not just from scattered toolbar icons.
+- **Custom application logo & icons.** Finalized the 4-state transition diagram logo (with solid white background and 1:1 aspect ratio) in the top menu bar, and regenerated all native platform desktop app icons (including taskbar and window icons) using Tauri's CLI icon generator.
+- **Auto-Update Banner.** Added a non-blocking notification banner sliding down from the top of the application when a new update is available. Supports development mocking to test available, downloading, and installed states, and caches dismissal using sessionStorage.
+- **Frameless window & custom window controls.** Removed the native OS title bar in the Tauri desktop app for a cleaner, unified workspace. Integrated a custom window control suite (Minimize, Maximize, and Close) at the right end of the `MenuBar`, featuring system-accurate Windows hover/active effects (e.g. red close hover state). Added drag capability using `data-tauri-drag-region` on the menu bar background.
+- **Rename machine tabs from tab bar.** Right-click or double-click any tab in the tab bar to rename the machine directly, with immediate sync to the store.
+- **Simulation and batch input ε (epsilon) inserter.** A clickable **ε / λ** button is now available on the simulation input bar and the batch runner inputs. The inserter remains persistent during active typing to allow epsilon entry at any point.
+- **Keyboard parity for state roles & visible selection.** Press **I** to mark the selected state as the start state and **F** to toggle it as an accept state; drag with **Shift** held to rubber-band-select several elements at once (Ctrl/Cmd-click still adds to a selection).
+
+### Changed
+- **MenuBar outside click collapse & separators.** Added vertical separators between menu options for visual clarity and registered pointer/mouse event capture phase listeners to ensure the dropdown menu collapses reliably when clicking anywhere outside.
+- **SidePanel tab compression & separators.** The side panel tabs now show vertical separators for better readability, and when the panel is compressed (narrow width), tab labels dynamically abbreviate to their first letter (e.g. 'δ', 'H', 'V', 'T', 'I') instead of disappearing entirely.
+- **Refreshed “classic desktop” look.** The toolbar and menus adopt a native-application chrome (subtle bevels, compact icons, a menu bar) for a more familiar, less cluttered workspace; the simulation transport (play / step / step-back / reset / speed) and the canvas tool palette were restyled to match.
+- **Accessibility & UX pass.** Modal dialogs (Help, Export, Convert, Batch) now trap keyboard focus, restore focus when they close, close on **Esc**, and announce themselves to screen readers. The right side panel remembers which tab you were on (defaulting to the **δ** transition table instead of an empty History tab) and can be collapsed to reclaim space. A **blocked run now explains why** — it surfaces the first validation problem and opens the Validate tab (with a count badge) instead of doing nothing. A halted run **highlights the witness path** on the diagram, and **“stuck” is now clearly distinguished from “reject”** in tooltips and styling. Epsilon typed as `eps` / `λ` / `lambda` (or left blank) normalizes to `ε`. The δ-table and nondeterministic history now render set-valued state collections as `{q0, q1}`.
+
+### Performance & robustness
+- **Nondeterministic runs can no longer exhaust memory.** An NPDA distinguishes computation branches by their *stack*, so a grammar/machine with ε-moves that push different symbols could double the live branch set every step and run the app out of memory in seconds. The engine now caps the live frontier width: when a single step would blow past the limit it stops expanding and decides on what it has (accepting if a valid accepting branch exists, otherwise halting as `stuck`) — the verdict stays correct, the memory stays bounded.
+- **Malformed machine files fail gracefully.** Opening a corrupt, truncated, or hand-edited `.autolab.json` (or a file whose `name` / fields have the wrong type) now reports a clean error instead of crashing; the loader only ever reads known fields (prototype-pollution safe).
+- **A bad step limit can’t brick a run.** A zero, negative, or non-numeric step limit for a TM / PDA now falls back to the default instead of halting the machine on its first step.
+- **Property-based fuzzing.** A new randomized test suite throws thousands of arbitrary machines of every type at the engines (must never crash and must always halt), cross-checks every conversion against its source machine for language equivalence, and verifies Regex → NFA against a reference regular-expression engine.
+- **Dependency synchronization.** Synchronized package lockfiles and resolved import warnings (such as the `elkjs` warning on build).
+
 ## v4.0.0
 
 ### Added
@@ -15,20 +39,10 @@ All notable changes to AutomataLab are documented in this file.
 - **Readable converted states with provenance.** Subset construction and minimization no longer produce illegible nested-set labels like `{{q3,q5},{q6}}`. Converted states are named compactly (`q0, q1, …`), and the set / equivalence class they stand for is shown **on hover**, via a **short ⇄ full labels** toggle in the preview, and in the step text — so the diagram stays clean without losing the construction's meaning (ε-elimination states also show their ε-closure).
 - **Diagram image export (PNG / SVG).** The Export dialog now exports the **state diagram** itself as a crisp vector **SVG** or a high-resolution **PNG**, theme-aware (light/dark), in addition to the existing data exports. Powered by a new dependency-free machine→SVG renderer.
 - **Clickable ε (epsilon) inserter.** A small **ε / λ** button now appears wherever you type symbols — the transition editor, the δ-table (for ε-NFAs), and the Regex / CFG conversion inputs — so you can enter epsilon without an epsilon key on your keyboard.
-- **Classic desktop menu bar.** A familiar top **File / Edit / View / Simulate / Convert / Help** menu bar now sits above a refreshed toolbar, so every action (new/open/save, copy/cut/paste, run/step/reset, conversions, batch testing, export, help) is reachable from a predictable place — not just from scattered toolbar icons.
-- **Keyboard parity for state roles & visible selection.** Press **I** to mark the selected state as the start state and **F** to toggle it as an accept state; drag with **Shift** held to rubber-band-select several elements at once (Ctrl/Cmd-click still adds to a selection).
 
 ### Changed
 - The **Export** dialog gained a **Diagram** section (SVG / PNG) alongside the transition table, trace, tree, and machine-definition exports.
 - **Help** now documents the conversion utilities, readable converted labels, the ε inserter, and diagram image export.
-- **Refreshed “classic desktop” look.** The toolbar and menus adopt a native-application chrome (subtle bevels, compact icons, a menu bar) for a more familiar, less cluttered workspace; the simulation transport (play / step / step-back / reset / speed) and the canvas tool palette were restyled to match.
-- **Accessibility & UX pass.** Modal dialogs (Help, Export, Convert, Batch) now trap keyboard focus, restore focus when they close, close on **Esc**, and announce themselves to screen readers. The right side panel remembers which tab you were on (defaulting to the **δ** transition table instead of an empty History tab) and can be collapsed to reclaim space. A **blocked run now explains why** — it surfaces the first validation problem and opens the Validate tab (with a count badge) instead of doing nothing. A halted run **highlights the witness path** on the diagram, and **“stuck” is now clearly distinguished from “reject”** in tooltips and styling. Epsilon typed as `eps` / `λ` / `lambda` (or left blank) normalizes to `ε`. The δ-table and nondeterministic history now render set-valued state collections as `{q0, q1}`.
-
-### Performance & robustness
-- **Nondeterministic runs can no longer exhaust memory.** An NPDA distinguishes computation branches by their *stack*, so a grammar/machine with ε-moves that push different symbols could double the live branch set every step and run the app out of memory in seconds. The engine now caps the live frontier width: when a single step would blow past the limit it stops expanding and decides on what it has (accepting if a valid accepting branch exists, otherwise halting as `stuck`) — the verdict stays correct, the memory stays bounded.
-- **Malformed machine files fail gracefully.** Opening a corrupt, truncated, or hand-edited `.autolab.json` (or a file whose `name` / fields have the wrong type) now reports a clean error instead of crashing; the loader only ever reads known fields (prototype-pollution safe).
-- **A bad step limit can’t brick a run.** A zero, negative, or non-numeric step limit for a TM / PDA now falls back to the default instead of halting the machine on its first step.
-- **Property-based fuzzing.** A new randomized test suite throws thousands of arbitrary machines of every type at the engines (must never crash and must always halt), cross-checks every conversion against its source machine for language equivalence, and verifies Regex → NFA against a reference regular-expression engine.
 
 ### Fixed
 - **Transitions now follow a state while you drag it.** Previously the connected edges stayed pinned to a state's old position until the drag ended; they now track the node continuously as it moves.

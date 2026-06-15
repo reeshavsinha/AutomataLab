@@ -17,6 +17,7 @@ import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
 import { isPDAType, isTMType } from '@/engines/core/utils'
 import type { MachineType } from '@/engines/core/types'
+import logoUrl from '@/assets/logo.png'
 
 type Item =
   | { kind: 'sep' }
@@ -103,15 +104,17 @@ export default function MenuBar() {
   // Close on outside click / Escape.
   useEffect(() => {
     if (!open) return
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: Event) => {
       if (barRef.current && !barRef.current.contains(e.target as Node)) setOpen(null)
     }
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(null) }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
+    document.addEventListener('pointerdown', onDown, true)
+    document.addEventListener('mousedown', onDown, true)
+    document.addEventListener('keydown', onKey, true)
     return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('mousedown', onDown, true)
+      document.removeEventListener('keydown', onKey, true)
     }
   }, [open])
 
@@ -272,39 +275,112 @@ export default function MenuBar() {
     return () => window.removeEventListener('keydown', onKey)
   }, [openModal])
 
+  const handleMinimize = async () => {
+    if (!isTauri()) return
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().minimize()
+  }
+
+  const handleToggleMaximize = async () => {
+    if (!isTauri()) return
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    const win = getCurrentWindow()
+    const isMax = await win.isMaximized()
+    if (isMax) {
+      await win.unmaximize()
+    } else {
+      await win.maximize()
+    }
+  }
+
+  const handleClose = async () => {
+    if (!isTauri()) return
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().close()
+  }
+
+  const handleDrag = async (e: React.PointerEvent) => {
+    if (e.button !== 0 || !isTauri()) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('a')) return;
+    try {
+      const { getCurrentWindow } = await import('@tauri-apps/api/window');
+      await getCurrentWindow().startDragging();
+    } catch (err) {
+      console.error('Failed to start drag', err);
+    }
+  };
+
   return (
-    <div className="menubar" ref={barRef}>
-      <a
-        className="menubar-brand"
-        href="https://github.com/reeshavsinha/AutomataLab"
-        onClick={(e) => { e.preventDefault(); openGitHub() }}
-        title={`AutomataLab v${packageJson.version}`}
-        rel="noopener noreferrer"
-      >
-        <span aria-hidden style={{
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          width: 14, height: 14, borderRadius: '50%',
-          border: '1.5px solid currentColor', fontSize: 8, fontWeight: 700,
-        }}>q</span>
-        AutomataLab
-      </a>
-      {menus.map((m) => (
-        <div
-          key={m.id}
-          style={{ position: 'relative', display: 'flex' }}
-          onMouseEnter={() => { if (open && open !== m.id) setOpen(m.id) }}
+    <div className="menubar" ref={barRef} data-tauri-drag-region onPointerDown={handleDrag}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} data-tauri-drag-region>
+        <a
+          className="menubar-brand"
+          href="https://github.com/reeshavsinha/AutomataLab"
+          onClick={(e) => { e.preventDefault(); openGitHub() }}
+          title={`AutomataLab v${packageJson.version}`}
+          rel="noopener noreferrer"
         >
+          <img
+            src={logoUrl}
+            alt="AutomataLab Logo"
+            style={{
+              width: '14px',
+              height: '14px',
+              objectFit: 'contain'
+            }}
+          />
+          AutomataLab
+        </a>
+        {menus.map((m, index) => (
+          <div key={m.id} style={{ display: 'flex', alignItems: 'center' }} data-tauri-drag-region>
+            {index > 0 && <div style={{ width: '1px', height: '16px', backgroundColor: 'currentColor', opacity: 0.4, margin: '0 6px' }} />}
+            <div
+              style={{ position: 'relative', display: 'flex' }}
+              onMouseEnter={() => { if (open && open !== m.id) setOpen(m.id) }}
+            >
+              <button
+                className={`menubar-item ${open === m.id ? 'open' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={open === m.id}
+                onClick={() => setOpen(open === m.id ? null : m.id)}
+              >
+                {m.label}
+              </button>
+              {open === m.id && <MenuPopup items={m.items} onClose={() => setOpen(null)} />}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {isTauri() && (
+        <div style={{ display: 'flex', alignItems: 'stretch' }}>
           <button
-            className={`menubar-item ${open === m.id ? 'open' : ''}`}
-            aria-haspopup="menu"
-            aria-expanded={open === m.id}
-            onClick={() => setOpen(open === m.id ? null : m.id)}
+            onClick={handleMinimize}
+            className="win-btn"
+            title="Minimize"
+            aria-label="Minimize"
           >
-            {m.label}
+            <svg width="10" height="10" viewBox="0 0 10 10"><line x1="1.5" y1="5" x2="8.5" y2="5" stroke="currentColor" strokeWidth="1.2"/></svg>
           </button>
-          {open === m.id && <MenuPopup items={m.items} onClose={() => setOpen(null)} />}
+          <button
+            onClick={handleToggleMaximize}
+            className="win-btn"
+            title="Maximize"
+            aria-label="Maximize"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10"><rect x="1.5" y="1.5" width="7" height="7" fill="none" stroke="currentColor" strokeWidth="1.2"/></svg>
+          </button>
+          <button
+            onClick={handleClose}
+            className="win-btn close-btn"
+            title="Close"
+            aria-label="Close"
+          >
+            <svg width="10" height="10" viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8" stroke="currentColor" strokeWidth="1.2"/><line x1="8" y1="2" x2="2" y2="8" stroke="currentColor" strokeWidth="1.2"/></svg>
+          </button>
         </div>
-      ))}
+      )}
     </div>
   )
 }

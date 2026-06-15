@@ -421,12 +421,44 @@ body {
 .menubar {
   display: flex;
   align-items: stretch;
+  justify-content: space-between;
   height: 25px;
   background: var(--chrome-bg);
   border-bottom: 1px solid var(--chrome-border);
-  padding: 0 3px;
+  padding: 0 0 0 3px;
   user-select: none;
   flex-shrink: 0;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.win-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--chrome-text);
+  cursor: default;
+  transition: background-color 0.1s, color 0.1s;
+  outline: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+.win-btn:hover {
+  background: var(--chrome-hover-bg);
+}
+.win-btn:active {
+  background: var(--chrome-active-bg);
+}
+.win-btn.close-btn:hover {
+  background: #e81123 !important;
+  color: #ffffff !important;
+}
+.win-btn.close-btn:active {
+  background: #f1707a !important;
+  color: #ffffff !important;
 }
 .menubar-item {
   display: flex;
@@ -440,6 +472,8 @@ body {
   margin: 2px 0;
   cursor: default;
   white-space: nowrap;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 .menubar-item:hover,
 .menubar-item.open {
@@ -456,6 +490,8 @@ body {
   letter-spacing: -0.2px;
   color: var(--chrome-text);
   text-decoration: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 /* Drop-down menu popup */

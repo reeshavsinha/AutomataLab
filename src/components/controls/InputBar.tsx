@@ -2,12 +2,16 @@
 // InputBar — Input string entry with tape visualization. Plain B&W.
 // ============================================================
 
+import { useRef, useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
 import { isTMType } from '@/engines/core/utils'
+import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 
 export default function InputBar() {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [epsOpen, setEpsOpen] = useState(false)
   const { inputString, setInputString, consumedInput, remainingInput, currentSymbol, status } =
     useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
@@ -54,32 +58,46 @@ export default function InputBar() {
         INPUT
       </span>
 
-      <input
-        type="text"
-        value={inputString}
-        onChange={(e) => handleInputChange(e.target.value)}
-        disabled={status === 'running'}
-        placeholder={isTM ? 'Enter initial tape contents (e.g. 0011)' : 'Enter input string (e.g. aabb)'}
-        style={{
-          flex: 1,
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '5px 10px',
-          fontSize: '13px',
-          fontFamily: 'var(--font-mono)',
-          color: 'var(--text-primary)',
-          outline: 'none',
-          opacity: status === 'running' ? 0.5 : 1,
-        }}
-        onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
-        onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
-      />
+      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+        <input
+          ref={inputRef}
+          type="text"
+          value={inputString}
+          onChange={(e) => handleInputChange(e.target.value)}
+          disabled={status === 'running'}
+          placeholder={isTM ? 'Enter initial tape contents (e.g. 0011)' : 'Enter input string (e.g. aabb)'}
+          style={{
+            flex: 1,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '5px 30px 5px 10px',
+            fontSize: '13px',
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--text-primary)',
+            outline: 'none',
+            opacity: status === 'running' ? 0.5 : 1,
+          }}
+          onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
+          onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
+        />
+        {!isTM && (
+          <div style={{ position: 'absolute', right: '4px' }}>
+            <EpsilonInserter
+              targetRef={inputRef}
+              open={epsOpen}
+              setOpen={setEpsOpen}
+              onInsert={handleInputChange}
+              size="sm"
+            />
+          </div>
+        )}
+      </div>
 
       {/* Membership of the empty string ε is a routine query — make it explicit
           that an empty field means ε (UX audit THY-4). Not shown for TM/LBA,
           where an empty field means a blank tape. */}
-      {!isTM && isIdle && inputString === '' && (
+      {!isTM && isIdle && (
         <span
           title="An empty input tests the empty string ε"
           style={{ flexShrink: 0, fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
