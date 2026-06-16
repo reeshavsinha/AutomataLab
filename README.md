@@ -1,3 +1,6 @@
+<div align="center"> <img width="128" height="128" alt="image" src="https://github.com/user-attachments/assets/4e9f021f-ea8c-43f4-acac-38bac88dd67f" /> </div>
+
+
 <div align="center">
   <h1>AutomataLab</h1>
   <p><strong>A modern, fast, and interactive cross-platform desktop application for designing, simulating, and testing automata across the Chomsky hierarchy — from finite automata to Turing machines.</strong></p>
@@ -23,7 +26,7 @@
 
 Ready to build some state machines? Download the latest stable release for your operating system:
 
-**[Download AutomataLab v4.0.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
+**[Download AutomataLab v4.0.1](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
 *Auto-updates are fully supported for all platforms from v1.0.2 onward.*
 
@@ -42,6 +45,10 @@ Ready to build some state machines? Download the latest stable release for your 
 - **Desktop Native**: A familiar classic-desktop workspace — a top **File / Edit / View / Simulate / Convert / Help** menu bar above a compact toolbar — with a multi-tab interface, native file saving/loading (`.autolab.json`), keyboard-accessible dialogs (focus-trapped, Esc-to-close), and over-the-air auto-updates.
 - **Real-Time Validation**: Instant UI feedback on missing start states, unreachable nodes, nondeterminism, and invalid configurations — plus optional declared stack/tape alphabets (Γ), a one-click **Complete DFA** fix, and click-to-locate from any warning to the offending element.
 
+For more detailed information, please check out our **[Project Wiki](https://github.com/reeshavsinha/AutomataLab/wiki)**.
+
+---
+
 ## Keyboard Shortcuts
 
 | Shortcut | Action |
@@ -59,17 +66,7 @@ Ready to build some state machines? Download the latest stable release for your 
 | `Delete` | Remove selected elements |
 | `Double Click` | Edit label / Enter drag mode |
 
-> Editing is locked only while a simulation is actively running. Once a run finishes (Accepted / Rejected / Stuck), the diagram is fully editable again — your first edit clears the result and returns to idle automatically.
-
-## Roadmap
-
-The ultimate goal of AutomataLab is to evolve into a comprehensive visual learning environment for all levels of computational theory.
-
-- **Phase 1:** Advanced Models — Pushdown Automata (DPDA & NPDA) shipped in v2.0.0; Turing Machines & Linear-Bounded Automata (tape visualization, reject states, loop guard, multi-tape) shipped in v3.0.0, alongside a transition-table editor, data/trace/tree export, and a batch test runner.
-- **Phase 2:** Analytical Tools — NFA → DFA conversion, DFA minimization, Regex → NFA, and CFG → PDA — all with step-by-step playback — shipped in v4.0.0.
-- **Phase 3:** Image exports (PNG/SVG of the diagram) shipped in v4.0.0; web-browser parity next.
-
-For more detailed information, please check out our **[Project Wiki](https://github.com/reeshavsinha/AutomataLab/wiki)**.
+---
 
 ## Development
 
