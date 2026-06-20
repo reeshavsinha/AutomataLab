@@ -59,7 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update version tag elements dynamically
       ['dl-win-ver', 'dl-deb-ver', 'dl-mac-ver'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.textContent = versionTag;
+        if (el) el.textContent = 'v' + versionTag.replace(/^v/, '');
       });
 
       // Map assets to columns dynamically
@@ -223,13 +223,53 @@ document.addEventListener('DOMContentLoaded', () => {
       if (overlayText) overlayText.textContent = "Interactive Demo Coming Soon";
     }
   } else {
-    if (demoExitBtn) demoExitBtn.setAttribute('href', SIMULATOR_URL);
+    if (demoExitBtn) demoExitBtn.setAttribute('href', SIMULATOR_URL + '?demo=true');
     
     if (demoOverlay && demoContainer && demoExitBtn) {
       demoOverlay.addEventListener('click', (e) => {
         e.preventDefault();
-        window.open(SIMULATOR_URL, '_blank', 'noopener,noreferrer');
+        window.open(SIMULATOR_URL + '?demo=true', '_blank', 'noopener,noreferrer');
       });
     }
   }
+
+  // Initialize Download Accordions
+  const accordions = document.querySelectorAll('.lp-download-accordion');
+  accordions.forEach(acc => {
+    const summary = acc.querySelector('.lp-accordion-summary');
+    if (summary) {
+      summary.addEventListener('click', () => {
+        const isOpen = acc.classList.contains('open');
+        
+        // Close all other accordions
+        accordions.forEach(other => other.classList.remove('open'));
+        
+        if (!isOpen) {
+          acc.classList.add('open');
+        }
+      });
+    }
+  });
+
+  // Copy to Clipboard logic for SHA256 hashes
+  const copyBtns = document.querySelectorAll('.lp-copy-btn');
+  copyBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const targetId = btn.getAttribute('data-target');
+      const targetEl = document.getElementById(targetId);
+      if (targetEl) {
+        const textToCopy = targetEl.textContent.replace('SHA256:', '').trim();
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          // Temporarily show checkmark icon
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+          }, 2000);
+        }).catch(err => {
+          console.error('Failed to copy text: ', err);
+        });
+      }
+    });
+  });
 });

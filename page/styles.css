@@ -107,20 +107,6 @@ html.lenis, html.lenis body {
   pointer-events: none;
 }
 
-::-webkit-scrollbar {
-  width: 10px;
-}
-::-webkit-scrollbar-track {
-  background: var(--lp-bg);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--lp-border);
-  border-radius: 5px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--lp-text-muted);
-}
-
 .landing-root {
   min-height: 100vh;
   position: relative;
@@ -179,7 +165,7 @@ html.lenis, html.lenis body {
 }
 
 .lp-header-container {
-  max-width: 1400px;
+  max-width: 1200px;
   height: 100%;
   margin: 0 auto;
   padding: 0 40px;
@@ -247,18 +233,20 @@ html.lenis, html.lenis body {
 .lp-hero {
   position: relative;
   z-index: 10;
-  min-height: 100vh;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding-top: 68px;
-  padding-bottom: 40px;
+  justify-content: flex-start;
+  min-height: min(100vh, 1000px);
+  padding-top: 120px;
+  padding-bottom: 80px;
   text-align: center;
 }
 
 .lp-hero-container {
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: 1200px;
+  margin: auto;
+  width: 100%;
   padding: 0 24px;
 }
 
@@ -408,7 +396,7 @@ html.lenis, html.lenis body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 96px 40px;
 }
@@ -435,7 +423,6 @@ html.lenis, html.lenis body {
 }
 
 .lp-demo-container.is-interactive {
-  max-width: 1400px; /* Expand horizontally */
   border-color: rgba(255, 255, 255, 0.1);
   box-shadow: 0 30px 100px rgba(0, 0, 0, 0.8);
 }
@@ -618,7 +605,7 @@ html.lenis, html.lenis body {
 
 .lp-features-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
 }
 
@@ -626,7 +613,7 @@ html.lenis, html.lenis body {
   display: flex;
   flex-direction: row;
   gap: var(--space-4);
-  align-items: center;
+  align-items: baseline;
   justify-content: flex-start;
   position: relative;
   z-index: 1;
@@ -712,7 +699,7 @@ html.lenis, html.lenis body {
 .lp-doc-number,
 .lp-download-number {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 1rem;
+  font-size: 1.3rem;
   font-weight: 500;
   color: var(--lp-text-muted);
   position: relative;
@@ -720,7 +707,7 @@ html.lenis, html.lenis body {
   right: auto;
   z-index: 0;
   pointer-events: none;
-  line-height: 1;
+  line-height: normal;
 }
 
 .lp-feature-body {
@@ -730,14 +717,6 @@ html.lenis, html.lenis body {
   position: relative;
   z-index: 2;
   flex: 1;
-}
-
-.lp-feature-item:nth-child(1) .lp-feature-body {
-  max-width: 100%;
-}
-
-.lp-feature-item:nth-child(1) .lp-feature-heading {
-  font-size: 1.65rem;
 }
 
 .lp-feature-item:nth-child(1) .lp-feature-text {
@@ -793,6 +772,7 @@ html.lenis, html.lenis body {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 48px; /* Increased separation */
+  align-items: start;
 }
 
 .lp-download-item {
@@ -809,7 +789,7 @@ html.lenis, html.lenis body {
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.1); /* Stronger border */
   background: rgba(255, 255, 255, 0.015);
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
   transition: transform var(--lp-duration) var(--lp-ease),
               background var(--lp-duration) var(--lp-ease),
@@ -914,14 +894,14 @@ html.lenis, html.lenis body {
 
 .lp-docs-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 32px;
 }
 
 .lp-doc-item {
   display: flex;
   gap: var(--space-4);
-  align-items: flex-start;
+  align-items: baseline;
   position: relative;
   z-index: 1;
   min-height: 176px;
@@ -997,71 +977,36 @@ html.lenis, html.lenis body {
 }
 
 .lp-footer-container {
-  max-width: 1400px;
+  max-width: 1200px;
   margin: 0 auto;
-  padding: 0 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 0.85rem;
-  color: var(--lp-text-muted);
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1.5fr;
+  gap: 60px;
+  align-items: start;
 }
 
-.lp-footer-left {
+.lp-footer-col {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  gap: 12px;
 }
 
-.lp-footer-logo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.lp-footer-col-title {
   color: var(--lp-text);
+  font-size: 0.95rem;
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
 }
 
-.lp-footer-tagline {
-  font-size: 0.78rem;
-  color: var(--lp-text-muted);
-}
-
-.lp-footer-right {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
-.lp-footer-links {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.lp-footer-links a {
+.lp-footer-link {
   color: var(--lp-text-muted);
   text-decoration: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 600;
+  font-size: 0.9rem;
   transition: color 0.2s ease;
 }
 
-.lp-footer-links a:hover {
-  color: var(--lp-accent);
-}
-
-.lp-footer-divider {
-  color: var(--lp-border);
-  user-select: none;
-  font-size: 0.82rem;
-}
-
-.lp-footer-copyright {
-  font-size: 0.76rem;
-  color: var(--lp-text-muted);
+.lp-footer-link:hover {
+  color: var(--lp-text);
 }
 
 /* 13. Animations */
@@ -1096,17 +1041,15 @@ html.lenis, html.lenis body {
 @media (max-width: 1100px) {
   .lp-hero-title { font-size: 3.8rem; }
   .lp-features-grid { grid-template-columns: 1fr; }
-  .lp-feature-item:nth-child(1),
-  .lp-feature-item:nth-child(4),
-  .lp-feature-item:nth-child(7),
-  .lp-feature-item:nth-child(8) {
-    grid-column: span 1;
-  }
   .lp-downloads-grid { grid-template-columns: 1fr; gap: 24px; }
   .lp-docs-grid { grid-template-columns: 1fr; }
   .lp-feature-body,
   .lp-doc-body {
     max-width: 100%;
+  }
+  .lp-footer-container {
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
   }
 }
 
@@ -1122,11 +1065,13 @@ html.lenis, html.lenis body {
   .lp-docs-section { padding: 60px 20px; }
   .lp-hero-cta-group { flex-direction: column; }
   .lp-footer-container {
-    flex-direction: column;
-    gap: 32px;
+    grid-template-columns: 1fr;
     text-align: center;
+    gap: 32px;
   }
-  .lp-footer-left, .lp-footer-right { align-items: center; }
+  .lp-footer-col {
+    align-items: center;
+  }
 }
 
 /* Animations */
@@ -1159,7 +1104,7 @@ html.lenis, html.lenis body {
 }
 
 .lp-citation-container {
-  max-width: 900px; /* Widened to avoid scrollbar */
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -1208,7 +1153,56 @@ html.lenis, html.lenis body {
   color: var(--lp-text);
 }
 
-/* 13. Accessibility Settings */
+/* 14. Download Accordion */
+.lp-download-accordion {
+  position: relative;
+  z-index: 50;
+}
+.lp-download-item:has(.lp-download-accordion.open) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.lp-download-accordion.open {
+  border-radius: 0 !important;
+}
+.lp-accordion-content {
+  position: absolute;
+  top: calc(100% - 1px);
+  left: -1px;
+  width: calc(100% + 2px);
+  box-sizing: border-box;
+  z-index: 40;
+  display: block;
+  
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  
+  /* Hardware-accelerated sliding window that is 100% cross-browser compatible */
+  transition: max-height 0.5s var(--lp-ease), 
+              opacity 0.5s var(--lp-ease);
+}
+.lp-accordion-inner {
+  /* Internal wrapper needs no overflow hidden, the parent handles clipping */
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.lp-download-accordion.open .lp-accordion-content {
+  max-height: 120px; /* Very close to actual height to preserve easing timing */
+  opacity: 1;
+  pointer-events: auto;
+}
+.lp-copy-btn:hover {
+  color: var(--lp-text) !important;
+}
+.lp-download-accordion.open .lp-accordion-icon {
+  transform: rotate(180deg);
+}
+
+/* 15. Accessibility Settings */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

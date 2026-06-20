@@ -21,7 +21,7 @@ import BatchRunnerModal from '@/components/controls/BatchRunnerModal'
 import AnalysisModal from '@/components/analysis/AnalysisModal'
 
 export default function AppLayout() {
-  const isDemoMode = window.location.href.includes('demo=true')
+  const isDemoMode = import.meta.env.VITE_SIMULATOR_MODE === 'true' || window.location.href.includes('demo=true')
   const theme = useUIStore((s) => s.theme)
   const activeModal = useUIStore((s) => s.activeModal)
   const closeModal = useUIStore((s) => s.closeModal)

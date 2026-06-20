@@ -41,6 +41,7 @@ internal-ref-files/architecture.md
 internal-ref-files/review_checklist.md
 internal-ref-files/NEXT_STEPS.md
 internal-ref-files/performance.md
+internal-ref-files/security_guidelines.md
 
 # Local sample machines (not part of the shipped app)
 examples/

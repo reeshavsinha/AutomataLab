@@ -51,7 +51,7 @@ function Sep() {
 }
 
 export default function Toolbar() {
-  const isDemoMode = window.location.href.includes('demo=true')
+  const isDemoMode = import.meta.env.VITE_SIMULATOR_MODE === 'true' || window.location.href.includes('demo=true')
   const {
     machine, setMachineName, setMachineType, setAlphabet,
     setStackAlphabet, setTapeAlphabet,
