@@ -3,9 +3,11 @@
 // ============================================================
 
 import type { AutomataState, MachineDefinition, Transition } from '@/engines/core/types'
-import { generateId } from '@/engines/core/utils'
+import { generateId, isPDAType } from '@/engines/core/utils'
 import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
+import { parseJFLAP } from '@/utils/jflap'
+import { toast } from '@/store/toastStore'
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
 const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA']
@@ -194,7 +196,7 @@ export async function loadMachine(): Promise<LoadedMachine> {
       multiple: false,
       filters: [{
         name: 'AutomataLab Machine',
-        extensions: ['autolab.json', 'json']
+        extensions: ['autolab.json', 'json', 'jff']
       }]
     })
 
@@ -204,7 +206,9 @@ export async function loadMachine(): Promise<LoadedMachine> {
 
     const filePath = Array.isArray(path) ? path[0] : path
     const content = await readTextFile(filePath)
-    const def = parseMachineJson(content)
+    const isJff = filePath.toLowerCase().endsWith('.jff')
+    const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
+    if (isJff) checkImportWarnings(def)
     addRecentFile(filePath, def.name)
     return { def, path: filePath }
   } else {
@@ -212,7 +216,7 @@ export async function loadMachine(): Promise<LoadedMachine> {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.json,.autolab.json'
+      input.accept = '.json,.autolab.json,.jff'
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) {
@@ -222,7 +226,11 @@ export async function loadMachine(): Promise<LoadedMachine> {
         const reader = new FileReader()
         reader.onload = (e) => {
           try {
-            resolve({ def: parseMachineJson(e.target?.result as string), path: null })
+            const content = e.target?.result as string
+            const isJff = file.name.toLowerCase().endsWith('.jff')
+            const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
+            if (isJff) checkImportWarnings(def)
+            resolve({ def, path: null })
           } catch (err) {
             reject(new Error('Failed to parse machine file'))
           }
@@ -241,9 +249,20 @@ export async function loadMachineFromPath(path: string): Promise<MachineDefiniti
   }
   const { readTextFile } = await import('@tauri-apps/plugin-fs')
   const content = await readTextFile(path)
-  const def = parseMachineJson(content)
+  const isJff = path.toLowerCase().endsWith('.jff')
+  const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
+  if (isJff) checkImportWarnings(def)
   addRecentFile(path, def.name)
   return def
+}
+
+function checkImportWarnings(def: MachineDefinition) {
+  if (isPDAType(def.type) && !def.states.some((s) => s.isAccept)) {
+    toast.warning(
+      'Warning: This imported PDA has no final states. AutomataLab evaluates acceptance by Final State, not Empty Stack.',
+      8000
+    )
+  }
 }
 
 /** Export machine as plain JSON string (for clipboard or other uses) */

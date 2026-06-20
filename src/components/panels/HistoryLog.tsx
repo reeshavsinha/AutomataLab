@@ -5,6 +5,7 @@
 import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
+import { useCommandStore } from '@/store/commandStore'
 
 /** Cap on rendered rows — keeps the DOM small during long runs. */
 const MAX_VISIBLE = 500
@@ -12,6 +13,7 @@ const MAX_VISIBLE = 500
 export default function HistoryLog() {
   const { history } = useSimulationStore()
   const { machine } = useMachineStore()
+  const sim = useCommandStore((s) => s.sim)
 
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -78,6 +80,8 @@ export default function HistoryLog() {
         return (
           <div
             key={i}
+            onClick={() => sim?.seekTo(entry.step + 1)}
+            title="Click to jump to this step"
             style={{
               padding: '6px 12px',
               borderBottom: '1px solid var(--border-subtle)',
@@ -87,6 +91,14 @@ export default function HistoryLog() {
               gap: '8px',
               fontSize: '12px',
               fontFamily: 'var(--font-mono)',
+              cursor: 'pointer',
+              transition: 'background 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!isLast) e.currentTarget.style.background = 'var(--bg-subtle)'
+            }}
+            onMouseLeave={(e) => {
+              if (!isLast) e.currentTarget.style.background = 'transparent'
             }}
           >
             {/* Step */}

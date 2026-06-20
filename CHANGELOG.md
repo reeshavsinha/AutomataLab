@@ -2,6 +2,18 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v4.1.0
+
+### Added
+- **Analysis Tools**: Reachability, Emptiness, Equivalence, and Inclusion structural analysis.
+- **Background Computation**: Offloaded O(2^n) equivalence construction to a Web Worker to ensure 60 FPS UI performance.
+- **JFLAP Compatibility**: Native browser DOM parsing and exporting for JFLAP 7.1 `.jff` XML files across all 7 machine types, featuring dynamic alphabet inference.
+
+### Fixed
+- **Theoretical correctness gating**: Operations like reachability are now properly gated by `isFAType` to prevent executing undecidable properties on Pushdown Automata and Turing Machines.
+- **Render performance**: Decoupled the cosmetic node coordinates from structural changes via `topologyKey` and optimized `StateNode` Zustand selectors to prevent O(N^2) React Flow thrashing.
+- **Build stability**: Fixed a critical TypeScript compilation crash in the Toolbar component.
+
 ## v4.0.1
 
 ### Added

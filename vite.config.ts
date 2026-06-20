@@ -15,8 +15,16 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     watch: {
-      ignored: ['**/src-tauri/**'],
+      ignored: ['**/src-tauri/**', '**/*.rar'],
     },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        page: path.resolve(__dirname, 'page/index.html')
+      }
+    }
   },
   envPrefix: ['VITE_', 'TAURI_'],
 })

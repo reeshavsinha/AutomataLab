@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AutomataLab</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css">
+  <script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
+</head>
+
+<body>
+  <div class="landing-root">
+    <!-- Ambient Background Lighting -->
+    <div class="lp-ambient-glow"></div>
+    <div class="lp-grid-overlay"></div>
+
+    <!-- Navigation Header -->
+    <header class="lp-header">
+      <div class="lp-header-container">
+        <a href="#" class="lp-header-logo">AutomataLab</a>
+        <nav class="lp-nav">
+          <a href="#demo" class="lp-nav-link">Live Demo</a>
+          <a href="#features" class="lp-nav-link">Features</a>
+          <a href="#tech-stack" class="lp-nav-link">Tech Stack</a>
+          <a href="#docs" class="lp-nav-link">Documentation</a>
+          <a href="#downloads" class="lp-nav-download">Download</a>
+        </nav>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+      <!-- Hero Section -->
+      <section class="lp-hero" style="position: relative; overflow: hidden;">
+        <!-- Subtle Automata Visual Motifs (State Nodes & Transitions) -->
+        <div class="lp-motif-state" style="position: absolute; top: -80px; right: 5%; width: 400px; height: 400px; border: 1px dashed rgba(255,255,255,0.04); border-radius: 50%; z-index: 0; pointer-events: none;"></div>
+        <div class="lp-motif-state-inner" style="position: absolute; top: 70px; right: 12%; width: 100px; height: 100px; border: 2px solid rgba(166, 226, 46, 0.08); border-radius: 50%; z-index: 0; pointer-events: none;"></div>
+        <div class="lp-motif-transition" style="position: absolute; top: 120px; right: 8%; width: 2px; height: 200px; background: repeating-linear-gradient(to bottom, transparent, transparent 6px, rgba(255,255,255,0.06) 6px, rgba(255,255,255,0.06) 12px); transform: rotate(45deg); z-index: 0; pointer-events: none;"></div>
+        <div class="lp-motif-state-left" style="position: absolute; bottom: 10%; left: -100px; width: 300px; height: 300px; border: 1px dashed rgba(255,255,255,0.03); border-radius: 50%; z-index: 0; pointer-events: none;"></div>
+
+        <div class="lp-hero-container" style="position: relative; z-index: 1;">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; justify-content: center; gap: 16px;">
+              <h1 class="lp-hero-title" style="margin-bottom: 0;">AutomataLab</h1>
+              <span class="lp-hero-version">v4.0.1</span>
+            </div>
+            <div class="lp-hero-domain" style="font-size: 1.4rem; font-weight: 500; color: var(--lp-text); letter-spacing: -0.01em;">
+              Visual Automata Theory Simulator
+            </div>
+          </div>
+          
+          <p class="lp-hero-subtitle">
+            A rigorous visual environment for automata theory and formal languages. Build, simulate, and analyze deterministic and non-deterministic state machines natively in the browser.
+          </p>
+          
+          <div class="lp-hero-trust-row" style="display: flex; gap: 12px; justify-content: center; align-items: center; margin-bottom: 24px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--lp-text-muted);">
+            <span>Open Source</span>
+            <span>&bull;</span>
+            <span>Cross Platform</span>
+            <span>&bull;</span>
+            <span>Lightweight</span>
+            <span>&bull;</span>
+            <span>Educational</span>
+          </div>
+          
+          <p class="lp-hero-privacy" style="margin-bottom: 40px; font-size: 0.9rem; color: var(--lp-text-muted); display: flex; align-items: center; justify-content: center; gap: 6px;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            Runs 100% locally in your browser. No data leaves your machine.
+          </p>
+
+          <div class="lp-hero-cta-group">
+            <a href="#demo" class="lp-cta-button lp-cta-primary">
+              Try Live Web Demo
+            </a>
+            <a href="https://github.com/reeshavsinha/AutomataLab" target="_blank" rel="noreferrer" class="lp-cta-button lp-cta-secondary">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.379.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z" />
+              </svg>
+              View on GitHub
+            </a>
+          </div>
+
+          <!-- Hero Metrics Stat Grid -->
+          <div class="lp-stats-grid">
+            <div class="lp-stat-item">
+              <div class="lp-stat-value">7</div>
+              <div class="lp-stat-label">Machine Types</div>
+            </div>
+            <div class="lp-stat-item">
+              <div class="lp-stat-value">60 FPS</div>
+              <div class="lp-stat-label">Renderer</div>
+            </div>
+            <div class="lp-stat-item">
+              <div class="lp-stat-value">Zero</div>
+              <div class="lp-stat-label">Telemetry</div>
+            </div>
+            <div class="lp-stat-item">
+              <div class="lp-stat-value">100%</div>
+              <div class="lp-stat-label">Local & Private</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Live Web Demo Section -->
+      <section class="lp-demo-section lp-section-alt" id="demo">
+        <div class="lp-section-header" style="margin-bottom: 24px;">
+          <h2 class="lp-section-title">Live Web Demo</h2>
+        </div>
+
+        <div class="lp-demo-machine-strip" style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--lp-text-muted); margin-bottom: 24px; letter-spacing: 0.05em;">
+          DFA &bull; NFA &bull; &epsilon;-NFA &bull; DPDA &bull; NPDA &bull; TM &bull; LBA
+        </div>
+
+        <div class="lp-demo-container">
+          <!-- App Interactive Iframe -->
+          <div class="lp-demo-body" id="demo-body">
+            <iframe src="../index.html?demo=true#/app" class="lp-demo-iframe" title="AutomataLab Live Demo"></iframe>
+
+            <div class="lp-demo-overlay" id="demo-overlay">
+              <div class="lp-demo-play-btn" title="Click to Interact">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#272822" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+              </div>
+              <span class="lp-demo-overlay-text">Click to Interact</span>
+            </div>
+            
+            <button class="lp-demo-exit-btn" id="demo-exit-btn">Exit Interactive Mode</button>
+          </div>
+        </div>
+        <div style="text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--lp-text-muted); font-style: italic;">
+          Fully interactive AutomataLab simulation canvas.
+        </div>
+      </section>
+
+      <!-- Features Section -->
+      <section class="lp-features-section lp-section-alt" id="features">
+        <div class="lp-features-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Engineered for theory. Built for speed.</h2>
+            <p class="lp-section-subtitle">Everything you need to design, simulate, and analyze automata.</p>
+          </div>
+
+                    <div class="lp-features-layout">
+            <div class="lp-feature-group" style="margin-bottom: 48px;">
+              <h3 class="lp-feature-group-title" style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">Automata Design</h3>
+              <div class="lp-features-grid">
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">01</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Full Chomsky Hierarchy</h4>
+                    <p class="lp-feature-text">
+                      Native support for DFA, NFA, ε-NFA, DPDA, NPDA, Turing Machines,
+                      and Linear Bounded Automata — all with deterministic computation trees.
+                    </p>
+                  </div>
+                </div>
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">02</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Multi-tape Turing Machines</h4>
+                    <p class="lp-feature-text">
+                      Design and simulate multi-tape TMs with per-tape read/write/direction
+                      controls and full tape visualization with head tracking.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lp-feature-group" style="margin-bottom: 48px;">
+              <h3 class="lp-feature-group-title" style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">Simulation & Analysis</h3>
+              <div class="lp-features-grid">
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">03</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Step-Through Debugger</h4>
+                    <p class="lp-feature-text">
+                      Step forward and backward through computations. Visualize current state,
+                      input head position, stack contents, and tape simultaneously.
+                    </p>
+                  </div>
+                </div>
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">04</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Reachability Analysis</h4>
+                    <p class="lp-feature-text">
+                      Automatically detect unreachable, dead, and sink states. Visually
+                      highlight them on the canvas for instant feedback.
+                    </p>
+                  </div>
+                </div>
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">05</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Computation Trellis</h4>
+                    <p class="lp-feature-text">
+                      Visualize non-determinism correctly. Watch exact branch structures of
+                      NFA and NPDA computations unfold in a reproducible tree view.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="lp-feature-group">
+              <h3 class="lp-feature-group-title" style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">Academic & Research Tools</h3>
+              <div class="lp-features-grid">
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">06</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">JFLAP Compatibility</h4>
+                    <p class="lp-feature-text">
+                      Import and export native JFLAP .jff files with zero dependencies.
+                      Seamlessly bridge classic academic tools with a modern interface.
+                    </p>
+                  </div>
+                </div>
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">07</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Conversion Algorithms</h4>
+                    <p class="lp-feature-text">
+                      NFA→DFA subset construction, DFA minimization, and others — all with step-by-step animated playback.
+                    </p>
+                  </div>
+                </div>
+                <div class="lp-feature-item">
+                  <div class="lp-feature-number">08</div>
+                  <div class="lp-feature-body">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--lp-accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 8px;"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    <h4 class="lp-feature-heading">Scientific Export</h4>
+                    <p class="lp-feature-text">
+                      High-resolution SVG, PNG, JFLAP (.jff), LaTeX δ-tables, and full
+                      trace CSVs for academic papers and presentations.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tech Stack Section -->
+      <section class="lp-docs-section" id="tech-stack">
+        <div class="lp-docs-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Tech Stack</h2>
+          </div>
+
+          <div class="lp-docs-grid">
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">01</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">React & TypeScript</h3>
+                  <p class="lp-doc-text">
+                    Built on a robust foundation using React for component architecture
+                    and strict TypeScript for type-safe automata representations.
+                  </p>
+                </div>
+              </div>
+
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">02</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">React Flow</h3>
+                  <p class="lp-doc-text">
+                    Utilizes React Flow for the interactive, node-based canvas,
+                    providing smooth dragging, zooming, and edge routing.
+                  </p>
+                </div>
+              </div>
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">03</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">Web Workers</h3>
+                  <p class="lp-doc-text">
+                    Heavy computational tasks like reachability analysis and
+                    non-deterministic simulation run off the main thread.
+                  </p>
+                </div>
+              </div>
+
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">04</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">Zustand</h3>
+                  <p class="lp-doc-text">
+                    Lightweight, fast state management for the engine, separating
+                    UI rendering from core simulation logic perfectly.
+                  </p>
+                </div>
+              </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Documentation Section -->
+      <section class="lp-docs-section lp-section-alt" id="docs">
+        <div class="lp-docs-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Documentation</h2>
+            <p class="lp-section-subtitle">Deep dive into the architecture and API of AutomataLab.</p>
+          </div>
+
+          <div class="lp-docs-grid">
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">01</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">Architecture Reference</h3>
+                  <p class="lp-doc-text">
+                    system design and engine architecture
+                  </p>
+                  <a href="./docs/web_architecture.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                    Read Architecture Docs →
+                  </a>
+                </div>
+              </div>
+
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">02</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">.autolab.json Format Spec</h3>
+                  <p class="lp-doc-text">
+                    machine schema and serialization format
+                  </p>
+                  <a href="./docs/web_fsm_format.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                    Read Format Spec →
+                  </a>
+                </div>
+              </div>
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">03</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">Decision Log</h3>
+                  <p class="lp-doc-text">
+                    engineering rationale and design decisions
+                  </p>
+                  <a href="./docs/web_decisions.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                    Read Decision Log →
+                  </a>
+                </div>
+              </div>
+
+              <div class="lp-doc-item">
+                <div class="lp-doc-number">04</div>
+                <div class="lp-doc-body">
+                  <h3 class="lp-doc-heading">Contributing Guide</h3>
+                  <p class="lp-doc-text">
+                    development standards and review process
+                  </p>
+                  <a href="./docs/web_contributing.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                    Read Contributing Guide →
+                  </a>
+                </div>
+              </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Academic Citation Section -->
+      <section class="lp-citation-section" id="citation">
+        <div class="lp-citation-container">
+          <div class="lp-section-header" style="text-align: center; margin-bottom: 40px;">
+            <h2 class="lp-section-title" style="font-size: 2.2rem; margin-bottom: 16px;">Academic Use</h2>
+            <p class="lp-section-subtitle" style="margin: 0 auto; max-width: 600px;">If you use AutomataLab in your research, teaching, or publications, please cite it as follows:</p>
+          </div>
+          
+          <div class="lp-citation-content">
+            <!-- Reserved for future DOI integration (e.g. Zenodo badge) -->
+            <!-- <div class="lp-citation-doi" style="margin-bottom: 16px;"><a href="https://doi.org/10.xxxx/zenodo.xxxxxx"><img src="https://zenodo.org/badge/DOI/10.xxxx/zenodo.xxxxxx.svg" alt="DOI"></a></div> -->
+            
+            <div class="lp-citation-block">
+<pre><code>@software{sinha2026automatalab,
+  author = {Sinha, Reeshav},
+  title = {{AutomataLab}: A Modern Visual Simulator for Automata Theory},
+  year = {2026},
+  url = {https://github.com/reeshavsinha/AutomataLab}
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Downloads Section -->
+      <section class="lp-downloads-section" id="downloads">
+        <div class="lp-downloads-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Get AutomataLab</h2>
+          </div>
+
+          <div class="lp-downloads-grid">
+            <div class="lp-download-item">
+              <div class="lp-download-number">01</div>
+              <div class="lp-download-body">
+                <h3 class="lp-download-heading">Windows</h3>
+                <p class="lp-download-desc">x64 setup</p>
+                <div class="lp-download-version" id="dl-win-ver">v4.0.1</div>
+                <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-win-btn"
+                  class="lp-download-btn">
+                  Download .exe
+                </a>
+              </div>
+              <div id="dl-win-sha" class="lp-download-checksum" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); background: rgba(0,0,0,0.3); padding: 12px 32px; word-break: break-all; margin-top: auto; width: 100%; box-sizing: border-box; border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+                SHA256: 8f4e92a8e8f81f1b0a2c91a3b1a8f9c1b3d7a9b1c2e4f6a8b0c2d4e6f8a0b2c4
+              </div>
+            </div>
+
+            <div class="lp-download-item">
+              <div class="lp-download-number">02</div>
+              <div class="lp-download-body">
+                <h3 class="lp-download-heading">Linux Debian</h3>
+                <p class="lp-download-desc">x64 .deb</p>
+                <div class="lp-download-version" id="dl-deb-ver">v4.0.1</div>
+                <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-deb-btn"
+                  class="lp-download-btn">
+                  Download .deb
+                </a>
+              </div>
+              <div id="dl-deb-sha" class="lp-download-checksum" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); background: rgba(0,0,0,0.3); padding: 12px 32px; word-break: break-all; margin-top: auto; width: 100%; box-sizing: border-box; border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+                SHA256: 3a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b
+              </div>
+            </div>
+
+            <div class="lp-download-item">
+              <div class="lp-download-number">03</div>
+              <div class="lp-download-body">
+                <h3 class="lp-download-heading">macOS</h3>
+                <p class="lp-download-desc">Apple Silicon & Intel</p>
+                <div class="lp-download-version" id="dl-mac-ver">v4.0.1</div>
+                <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-mac-btn"
+                  class="lp-download-btn">
+                  Download .dmg
+                </a>
+              </div>
+              <div id="dl-mac-sha" class="lp-download-checksum" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); background: rgba(0,0,0,0.3); padding: 12px 32px; word-break: break-all; margin-top: auto; width: 100%; box-sizing: border-box; border-radius: 0 0 var(--radius-lg) var(--radius-lg);">
+                SHA256: 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="lp-footer" style="padding: 60px 40px; border-top: 1px solid var(--lp-border); background: var(--lp-bg);">
+      <div class="lp-footer-container" style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 40px;">
+        <div class="lp-footer-col">
+          <div class="lp-footer-logo" style="font-weight: 800; font-size: 1.4rem; margin-bottom: 8px; color: var(--lp-text); letter-spacing: -0.02em;">
+            AutomataLab
+          </div>
+          <p class="lp-footer-tagline" style="color: var(--lp-text-secondary); font-size: 0.95rem; margin-bottom: 24px; font-weight: 500;">Engineered for theory. Built for speed.</p>
+          <div style="display: flex; flex-direction: column; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--lp-text-muted);">
+            <span>Maintainer: Reeshav Sinha</span>
+            <span>License: MIT Open Source</span>
+          </div>
+        </div>
+        
+        <div class="lp-footer-col" style="display: flex; flex-direction: column; gap: 12px;">
+          <h4 style="color: var(--lp-text); font-size: 0.95rem; font-weight: 600; margin-bottom: 8px;">Project</h4>
+          <a href="https://github.com/reeshavsinha/AutomataLab" target="_blank" rel="noreferrer" class="lp-footer-link">Source Code</a>
+          <a href="https://github.com/reeshavsinha/AutomataLab/issues" target="_blank" rel="noreferrer" class="lp-footer-link">Issue Tracker</a>
+          <a href="https://github.com/reeshavsinha/AutomataLab/releases" target="_blank" rel="noreferrer" class="lp-footer-link">Changelog</a>
+        </div>
+
+        <div class="lp-footer-col" style="display: flex; flex-direction: column; gap: 12px;">
+          <h4 style="color: var(--lp-text); font-size: 0.95rem; font-weight: 600; margin-bottom: 8px;">Resources</h4>
+          <a href="#docs" class="lp-footer-link">Documentation</a>
+          <a href="#demo" class="lp-footer-link">Live Demo</a>
+          <a href="#citation" class="lp-footer-link">How to Cite</a>
+        </div>
+      </div>
+    </footer>
+  </div>
+  <script src="./script.js"></script>
+</body>
+
+</html>

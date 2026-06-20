@@ -213,7 +213,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
   it('finite automata on arbitrary inputs', () => {
     const rng = mulberry32(1)
     const alpha = ['a', 'b']
-    for (let i = 0; i < 150; i++) {
+    for (let i = 0; i < 1000; i++) {
       const m =
         rng() < 0.34 ? randomDFA(rng, alpha) : randomNFA(rng, alpha, rng() < 0.5)
       expect(() => validateMachine(m)).not.toThrow()
@@ -225,7 +225,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
 
   it('pushdown automata on arbitrary inputs', () => {
     const rng = mulberry32(2)
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 500; i++) {
       const m = randomPDA(rng, rng() < 0.5 ? 'DPDA' : 'NPDA')
       expect(() => validateMachine(m)).not.toThrow()
       for (const input of ['', 'a', 'ab', 'aabb', 'abab']) {
@@ -236,7 +236,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
 
   it('Turing machines / LBAs on arbitrary inputs', () => {
     const rng = mulberry32(3)
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 500; i++) {
       const m = randomTM(rng, rng() < 0.5 ? 'TM' : 'LBA')
       expect(() => validateMachine(m)).not.toThrow()
       for (const input of ['', 'a', 'ab', 'aabb', 'baba']) {
@@ -275,9 +275,9 @@ describe('fuzz: conversion language-equivalence', () => {
   it('NFA / ε-NFA ≡ subset-construction DFA', () => {
     const rng = mulberry32(10)
     const alpha = ['a', 'b']
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 1000; i++) {
       const src = randomNFA(rng, alpha, rng() < 0.5)
-      const dfa = nfaToDfa(src).result
+      const dfa = nfaToDfa(src).result as MachineDefinition
       for (const s of allStrings(alpha, 4)) {
         expect(accepts(dfa, s), `subset mismatch on "${s || 'ε'}" (seed iter ${i})`).toBe(
           accepts(src, s)
@@ -289,9 +289,9 @@ describe('fuzz: conversion language-equivalence', () => {
   it('DFA ≡ minimised DFA', () => {
     const rng = mulberry32(20)
     const alpha = ['a', 'b']
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 1000; i++) {
       const src = randomDFA(rng, alpha)
-      const min = minimizeDfa(src).result
+      const min = minimizeDfa(src).result as MachineDefinition
       expect(min.states.length).toBeLessThanOrEqual(
         src.states.length + 1 // +1 for a possible trap
       )
@@ -306,9 +306,9 @@ describe('fuzz: conversion language-equivalence', () => {
   it('ε-NFA ≡ ε-eliminated NFA', () => {
     const rng = mulberry32(30)
     const alpha = ['a', 'b']
-    for (let i = 0; i < 120; i++) {
+    for (let i = 0; i < 1000; i++) {
       const src = randomNFA(rng, alpha, true)
-      const nfa = enfaToNfa(src).result
+      const nfa = enfaToNfa(src).result as MachineDefinition
       for (const s of allStrings(alpha, 4)) {
         expect(accepts(nfa, s), `ε-elim mismatch on "${s || 'ε'}" (iter ${i})`).toBe(
           accepts(src, s)
@@ -350,12 +350,12 @@ describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
     const rng = mulberry32(40)
     const alpha = ['a', 'b']
     const strings = allStrings(alpha, 4)
-    for (let i = 0; i < 80; i++) {
+    for (let i = 0; i < 1000; i++) {
       const re = genRegex(rng, 3)
       let nfa: MachineDefinition
       let ref: RegExp
       try {
-        nfa = regexToNfa(re).result
+        nfa = regexToNfa(re).result as MachineDefinition
         ref = new RegExp('^(?:' + re + ')$')
       } catch (e) {
         throw new Error(`regex "${re}" failed to build: ${(e as Error).message}`)

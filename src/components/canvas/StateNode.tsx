@@ -25,7 +25,9 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as StateNodeData
   const { updateState } = useMachineStore()
   const { activeStateIds, status, pathStateIds } = useSimulationStore()
-  const { renamingStateId, stopRenaming } = useUIStore()
+  const renamingStateId = useUIStore((s) => s.renamingStateId)
+  const stopRenaming = useUIStore((s) => s.stopRenaming)
+  const analysisState = useUIStore((s) => s.analysisHighlights[id])
 
   const [isEditing, setIsEditing] = useState(false)
   const [labelDraft, setLabelDraft] = useState(nodeData.label)
@@ -103,11 +105,14 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     halted && isActive && status === 'rejected' ? 'rejected-final' : '',
     halted && isActive && status === 'stuck' ? 'stuck-final' : '',
     nodeData.isTransitionTarget ? 'transition-target-mode' : '',
+    analysisState === 'unreachable' ? 'analysis-unreachable' : '',
+    analysisState === 'dead' ? 'analysis-dead' : '',
+    analysisState === 'sink' ? 'analysis-sink' : '',
   ]
     .filter(Boolean)
     .join(' ')
 
-  const hasRole = nodeData.isStart || nodeData.isAccept || nodeData.isReject
+  const hasRole = nodeData.isStart || nodeData.isAccept || nodeData.isReject || analysisState === 'sink'
 
   return (
     <div className="state-node-wrap" style={{ position: 'relative', width: 52, height: 52 }}>
@@ -168,6 +173,7 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
           {nodeData.isStart && <RoleBadge glyph="▶" title="Start state" />}
           {nodeData.isAccept && <RoleBadge glyph="◎" title="Accept (final) state" />}
           {nodeData.isReject && <RoleBadge glyph="⊘" title="Reject (halt) state" reject />}
+          {analysisState === 'sink' && <RoleBadge glyph="⭲" title="Sink state (analysis)" />}
         </div>
       )}
 

@@ -8,7 +8,7 @@ import { create } from 'zustand'
 export type Theme = 'dark' | 'light'
 export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
 /** Top-level modal dialogs that can be opened from both the menu bar and toolbar. */
-export type ModalKind = 'help' | 'export' | 'convert' | 'batch'
+export type ModalKind = 'help' | 'export' | 'convert' | 'batch' | 'analysis'
 
 const THEME_KEY = 'automatalab-theme'
 const PANEL_KEY = 'automatalab-active-panel'
@@ -96,6 +96,8 @@ interface UIStore {
       validation row or δ-table row is clicked). The `nonce` makes repeat clicks
       on the same element re-trigger the pan. */
   focusRequest: { kind: 'state' | 'transition'; id: string; nonce: number } | null
+  /** Transient visual states for Reachability Analysis (unreachable, dead, sink) */
+  analysisHighlights: Record<string, 'unreachable' | 'dead' | 'sink'>
 
   // Actions
   toggleTheme: () => void
@@ -117,6 +119,8 @@ interface UIStore {
   setClipboard: (data: ClipboardData | null) => void
   openModal: (kind: ModalKind) => void
   closeModal: () => void
+  setAnalysisHighlights: (highlights: Record<string, 'unreachable' | 'dead' | 'sink'>) => void
+  clearAnalysisHighlights: () => void
 }
 
 export const useUIStore = create<UIStore>((set) => ({
@@ -132,6 +136,7 @@ export const useUIStore = create<UIStore>((set) => ({
   activeModal: null,
   fitViewNonce: 0,
   focusRequest: null,
+  analysisHighlights: {},
 
   requestFitView: () => set((s) => ({ fitViewNonce: s.fitViewNonce + 1 })),
 
@@ -192,5 +197,8 @@ export const useUIStore = create<UIStore>((set) => ({
   setClipboard: (clipboard) => set({ clipboard }),
 
   openModal: (kind) => set({ activeModal: kind }),
-  closeModal: () => set({ activeModal: null }),
+  closeModal: () => set({ activeModal: null, analysisHighlights: {} }),
+
+  setAnalysisHighlights: (analysisHighlights) => set({ analysisHighlights }),
+  clearAnalysisHighlights: () => set({ analysisHighlights: {} }),
 }))

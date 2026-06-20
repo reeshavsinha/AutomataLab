@@ -247,6 +247,14 @@ export default function MenuBar() {
       ],
     },
     {
+      id: 'analyze', label: 'Analyze', items: [
+        { kind: 'action', label: 'Reachability Analysis…', onClick: () => openModal('analysis') },
+        { kind: 'action', label: 'Emptiness Checking…', onClick: () => openModal('analysis') },
+        { kind: 'sep' },
+        { kind: 'action', label: 'Equivalence & Inclusion…', onClick: () => openModal('analysis') },
+      ],
+    },
+    {
       id: 'convert', label: 'Convert', items: [
         { kind: 'action', label: 'Conversions / Transform…', onClick: () => openModal('convert') },
         { kind: 'sep' },

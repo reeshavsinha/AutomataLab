@@ -253,6 +253,7 @@ const MIME: Record<string, string> = {
   tex: 'text/plain',
   txt: 'text/plain',
   svg: 'image/svg+xml',
+  jff: 'application/xml',
 }
 
 /** A safe-ish file stem from the machine name. */

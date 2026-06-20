@@ -5,11 +5,11 @@
 // Plain black & white, no animations.
 // ============================================================
 
-import { useState, useCallback, useRef, useEffect } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import { isPDAType, isTMType, tmTapeOps, BLANK } from '@/engines/core/utils'
-import type { Transition } from '@/engines/core/types'
-import EpsilonInserter from './EpsilonInserter'
+import FiniteAutomataEditor from '@/components/canvas/editors/FiniteAutomataEditor'
+import PDAEditor from '@/components/canvas/editors/PDAEditor'
+import TMEditor from '@/components/canvas/editors/TMEditor'
+import LBAEditor from '@/components/canvas/editors/LBAEditor'
 
 interface TransitionEditorProps {
   /** stateId whose outgoing transitions we are editing */
@@ -18,96 +18,44 @@ interface TransitionEditorProps {
 }
 
 export default function TransitionEditor({ stateId, onClose }: TransitionEditorProps) {
-  const { machine, addTransition, updateTransition, deleteTransition } = useMachineStore()
-
+  const machine = useMachineStore((s) => s.machine)
   const state = machine.states.find((s) => s.id === stateId)
-  const outgoingTransitions = machine.transitions.filter((t) => t.from === stateId)
-  const otherStates = machine.states.filter((s) => s.id !== stateId)
-  const isENFA = machine.type === 'ENFA'
-  const isPDA = isPDAType(machine.type)
-  const isTM = isTMType(machine.type)
-  const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
-  // Empty PDA fields mean ε; empty TM fields mean the blank symbol. Show that as
-  // the placeholder rather than the field name, so "empty" is self-explanatory (#6).
-  const blank = machine.blankSymbol || BLANK
-
-  const [newTo, setNewTo] = useState(otherStates[0]?.id ?? '')
-  const [newSymbols, setNewSymbols] = useState('')
-  const [newRead, setNewRead] = useState('')
-  const [newPop, setNewPop] = useState('')
-  const [newPush, setNewPush] = useState('')
-  // Per-tape add-form fields (length === tapeCount; single-tape uses index 0).
-  const [tmReads, setTmReads] = useState<string[]>(() => Array(tapeCount).fill(''))
-  const [tmWrites, setTmWrites] = useState<string[]>(() => Array(tapeCount).fill(''))
-  const [tmDirs, setTmDirs] = useState<('L' | 'R' | 'S')[]>(() => Array(tapeCount).fill('R'))
-  const [newSymbolsDropdownOpen, setNewSymbolsDropdownOpen] = useState(false)
-  const newSymbolsInputRef = useRef<HTMLInputElement>(null)
-
-  // Resize the add-form arrays when the tape count changes (keep prior entries).
-  useEffect(() => {
-    const fit = <T,>(arr: T[], fill: T): T[] =>
-      arr.length === tapeCount ? arr : Array.from({ length: tapeCount }, (_, i) => arr[i] ?? fill)
-    setTmReads((p) => fit(p, ''))
-    setTmWrites((p) => fit(p, ''))
-    setTmDirs((p) => fit(p, 'R' as const))
-  }, [tapeCount])
-
-  const handleAddTransition = useCallback(() => {
-    if (!newTo) return
-    if (isTM) {
-      const tr = addTransition(stateId, newTo, [])
-      if (tapeCount === 1) {
-        updateTransition(tr.id, { read: tmReads[0].trim(), write: tmWrites[0].trim(), direction: tmDirs[0] })
-      } else {
-        updateTransition(tr.id, {
-          reads: tmReads.map((r) => r.trim()),
-          writes: tmWrites.map((w) => w.trim()),
-          directions: [...tmDirs],
-        })
-      }
-      setTmReads(Array(tapeCount).fill(''))
-      setTmWrites(Array(tapeCount).fill(''))
-      setTmDirs(Array(tapeCount).fill('R'))
-      return
-    }
-    if (isPDA) {
-      const tr = addTransition(stateId, newTo, [])
-      updateTransition(tr.id, {
-        read: newRead.trim(),
-        pop: newPop.trim(),
-        push: newPush.trim(),
-      })
-      setNewRead('')
-      setNewPop('')
-      setNewPush('')
-      return
-    }
-    const trimmed = newSymbols.trim()
-    if (!trimmed) return
-    const symbols = trimmed
-      .split(/[,，\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean)
-    addTransition(stateId, newTo, symbols)
-    setNewSymbols('')
-  }, [stateId, newTo, newSymbols, newRead, newPop, newPush, tmReads, tmWrites, tmDirs, tapeCount, isPDA, isTM, addTransition, updateTransition])
-
-  const handleUpdateSymbols = useCallback(
-    (transId: string, raw: string) => {
-      const symbols = raw
-        .split(/[,，\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean)
-      if (symbols.length > 0) {
-        updateTransition(transId, { symbols })
-      }
-    },
-    [updateTransition]
-  )
 
   if (!state) return null
 
-  const canAdd = (isPDA || isTM) ? !!newTo : !!newSymbols.trim() && !!newTo
+  const renderEditor = () => {
+    switch (machine.type) {
+      case 'DFA':
+      case 'NFA':
+      case 'ENFA':
+        return <FiniteAutomataEditor stateId={stateId} onClose={onClose} />
+      case 'DPDA':
+      case 'NPDA':
+        return <PDAEditor stateId={stateId} onClose={onClose} />
+      case 'TM':
+        return <TMEditor stateId={stateId} onClose={onClose} />
+      case 'LBA':
+        return <LBAEditor stateId={stateId} onClose={onClose} />
+      default:
+        return null
+    }
+  }
+
+  const getSubTitle = () => {
+    switch (machine.type) {
+      case 'TM':
+        return machine.tapeCount && machine.tapeCount > 1
+          ? `Format per tape (T1–T${machine.tapeCount}): read → write, dir. Blank read/write = the blank symbol.`
+          : 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
+      case 'LBA':
+        return 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
+      case 'DPDA':
+      case 'NPDA':
+        return 'Format: read, pop → push. Leave a field blank for ε.'
+      default:
+        return 'Edit symbols for each transition leaving this state'
+    }
+  }
 
   return (
     <div
@@ -151,13 +99,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
               Outgoing Transitions — {state.label}
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px', fontFamily: 'var(--font-mono)' }}>
-              {isTM
-                ? tapeCount > 1
-                  ? `Format per tape (T1–T${tapeCount}): read → write, dir. Blank read/write = the blank symbol.`
-                  : 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
-                : isPDA
-                ? 'Format: read, pop → push. Leave a field blank for ε.'
-                : 'Edit symbols for each transition leaving this state'}
+              {getSubTitle()}
             </div>
           </div>
           <button
@@ -176,220 +118,8 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
           </button>
         </div>
 
-        {/* Existing transitions */}
-        <div style={{ overflowY: 'auto', flex: 1, padding: '8px 0' }}>
-          {outgoingTransitions.length === 0 ? (
-            <div style={{
-              padding: '24px',
-              textAlign: 'center',
-              color: 'var(--text-muted)',
-              fontSize: '13px',
-            }}>
-              No outgoing transitions yet. Add one below.
-            </div>
-          ) : (
-            outgoingTransitions.map((t) => {
-              const toState = machine.states.find((s) => s.id === t.to)
-              const toLabel = toState?.label ?? t.to
-              return isTM ? (
-                <TMTransitionRow
-                  key={t.id}
-                  fromLabel={state.label}
-                  toLabel={toLabel}
-                  transition={t}
-                  tapeCount={tapeCount}
-                  blank={blank}
-                  onChange={(patch) => updateTransition(t.id, patch)}
-                  onDelete={() => deleteTransition(t.id)}
-                />
-              ) : isPDA ? (
-                <PDATransitionRow
-                  key={t.id}
-                  fromLabel={state.label}
-                  toLabel={toLabel}
-                  transition={t}
-                  onChange={(patch) => updateTransition(t.id, patch)}
-                  onDelete={() => deleteTransition(t.id)}
-                />
-              ) : (
-                <TransitionRow
-                  key={t.id}
-                  fromLabel={state.label}
-                  toLabel={toLabel}
-                  symbols={t.symbols}
-                  isENFA={isENFA}
-                  onChangeSymbols={(raw) => handleUpdateSymbols(t.id, raw)}
-                  onDelete={() => deleteTransition(t.id)}
-                />
-              )
-            })
-          )}
-        </div>
-
-        {/* Add new transition */}
-        {machine.states.length > 0 && (
-          <div style={{
-            padding: '12px 16px',
-            borderTop: '1px solid var(--border-default)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-          }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.05em' }}>
-              ADD TRANSITION
-            </div>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-              {/* Source — fixed */}
-              <span style={{
-                fontFamily: 'var(--font-mono)',
-                fontSize: '13px',
-                color: 'var(--text-secondary)',
-                background: 'var(--bg-secondary)',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '5px 10px',
-              }}>
-                {state.label}
-              </span>
-
-              <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
-
-              {/* Target state selector */}
-              <select
-                value={newTo}
-                onChange={(e) => setNewTo(e.target.value)}
-                style={selectStyle}
-              >
-                {machine.states.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-
-              {isTM ? (
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
-                  {tmReads.map((_, i) => (
-                    <div key={i} style={tapeGroupStyle}>
-                      {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
-                      <input
-                        type="text"
-                        value={tmReads[i]}
-                        onChange={(e) => setTmReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                        placeholder={blank}
-                        title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
-                        style={pdaInputStyle}
-                      />
-                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
-                      <input
-                        type="text"
-                        value={tmWrites[i]}
-                        onChange={(e) => setTmWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                        placeholder={blank}
-                        title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
-                        style={pdaInputStyle}
-                      />
-                      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
-                      <select
-                        value={tmDirs[i]}
-                        onChange={(e) => setTmDirs((p) => p.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
-                        title={`Tape ${i + 1} head move direction`}
-                        style={selectStyle}
-                      >
-                        <option value="L">L</option>
-                        <option value="R">R</option>
-                        <option value="S">S</option>
-                      </select>
-                    </div>
-                  ))}
-                </div>
-              ) : isPDA ? (
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flex: 1, minWidth: '220px' }}>
-                  <input
-                    type="text"
-                    value={newRead}
-                    onChange={(e) => setNewRead(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="ε"
-                    title="Input symbol read (blank = ε)"
-                    style={pdaInputStyle}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
-                  <input
-                    type="text"
-                    value={newPop}
-                    onChange={(e) => setNewPop(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="ε"
-                    title="Stack symbol popped (blank = ε)"
-                    style={pdaInputStyle}
-                  />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
-                  <input
-                    type="text"
-                    value={newPush}
-                    onChange={(e) => setNewPush(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder="ε"
-                    title="String pushed; first char ends on top (blank = ε)"
-                    style={pdaInputStyle}
-                  />
-                </div>
-              ) : (
-                <>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '13px', margin: '0 2px' }}>on</span>
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-                    <input
-                      ref={newSymbolsInputRef}
-                      type="text"
-                      value={newSymbols}
-                      onChange={(e) => setNewSymbols(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                      placeholder="a, b, ε"
-                      style={{ ...pdaInputStyle, flex: 1 }}
-                    />
-                    {isENFA && (
-                      <EpsilonInserter
-                        targetRef={newSymbolsInputRef}
-                        open={newSymbolsDropdownOpen}
-                        setOpen={setNewSymbolsDropdownOpen}
-                        onInsert={(val) => setNewSymbols(val)}
-                      />
-                    )}
-                  </div>
-                </>
-              )}
-
-              <button
-                onClick={handleAddTransition}
-                disabled={!canAdd}
-                style={{
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  fontSize: '13px',
-                  padding: '5px 14px',
-                  cursor: !canAdd ? 'not-allowed' : 'pointer',
-                  opacity: !canAdd ? 0.4 : 1,
-                }}
-              >
-                Add
-              </button>
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              {isTM
-                ? tapeCount > 1
-                  ? 'Each move reads/writes one symbol per tape and moves each head L/R/S. It fires only when every tape’s read matches.'
-                  : 'Read the symbol under the head, write a symbol, then move the head L/R/S. Blank read/write = the blank symbol.'
-                : isPDA
-                ? 'Leave read/pop/push blank for ε. Push first character ends up on top of the stack.'
-                : 'Separate multiple symbols with commas. Use ε for epsilon transitions (ε-NFA only).'}
-            </div>
-          </div>
-        )}
+        {/* Editor Body */}
+        {renderEditor()}
 
         {/* Footer */}
         <div style={{
@@ -414,357 +144,6 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
           </button>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ─── Shared styles ─────────────────────────────────────────────
-
-const selectStyle: React.CSSProperties = {
-  background: 'var(--bg-secondary)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  padding: '5px 8px',
-  outline: 'none',
-  cursor: 'pointer',
-}
-
-const pdaInputStyle: React.CSSProperties = {
-  width: '56px',
-  background: 'var(--bg-secondary)',
-  border: '1px solid var(--border-default)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-primary)',
-  fontSize: '13px',
-  fontFamily: 'var(--font-mono)',
-  padding: '5px 8px',
-  outline: 'none',
-  minWidth: 0,
-  textAlign: 'center',
-}
-
-const deleteButtonStyle: React.CSSProperties = {
-  background: 'transparent',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-sm)',
-  color: 'var(--text-muted)',
-  cursor: 'pointer',
-  fontSize: '12px',
-  padding: '4px 8px',
-  flexShrink: 0,
-}
-
-/** One tape's (read → write, dir) cluster; for multi-tape it carries a T{n} badge. */
-const tapeGroupStyle: React.CSSProperties = {
-  display: 'flex',
-  gap: '4px',
-  alignItems: 'center',
-  background: 'var(--bg-secondary)',
-  border: '1px solid var(--border-subtle)',
-  borderRadius: 'var(--radius-sm)',
-  padding: '3px 5px',
-}
-
-const tapeBadgeStyle: React.CSSProperties = {
-  fontSize: '10px',
-  fontFamily: 'var(--font-mono)',
-  fontWeight: 700,
-  color: 'var(--text-muted)',
-  letterSpacing: '0.04em',
-  marginRight: '1px',
-}
-
-// ─── PDA transition row ────────────────────────────────────────
-
-function PDATransitionRow({
-  fromLabel,
-  toLabel,
-  transition,
-  onChange,
-  onDelete,
-}: {
-  fromLabel: string
-  toLabel: string
-  transition: Transition
-  onChange: (patch: Partial<Transition>) => void
-  onDelete: () => void
-}) {
-  const [read, setRead] = useState(transition.read ?? '')
-  const [pop, setPop] = useState(transition.pop ?? '')
-  const [push, setPush] = useState(transition.push ?? '')
-
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      padding: '8px 16px',
-      borderBottom: '1px solid var(--border-subtle)',
-    }}>
-      <span style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: '13px',
-        color: 'var(--text-secondary)',
-        minWidth: '90px',
-        flexShrink: 0,
-      }}>
-        {fromLabel} → {toLabel}
-      </span>
-
-      <input
-        type="text"
-        value={read}
-        onChange={(e) => setRead(e.target.value)}
-        onBlur={() => onChange({ read: read.trim() })}
-        placeholder="ε"
-        title="Input symbol read (blank = ε)"
-        style={pdaInputStyle}
-      />
-      <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
-      <input
-        type="text"
-        value={pop}
-        onChange={(e) => setPop(e.target.value)}
-        onBlur={() => onChange({ pop: pop.trim() })}
-        placeholder="ε"
-        title="Stack symbol popped (blank = ε)"
-        style={pdaInputStyle}
-      />
-      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
-      <input
-        type="text"
-        value={push}
-        onChange={(e) => setPush(e.target.value)}
-        onBlur={() => onChange({ push: push.trim() })}
-        placeholder="ε"
-        title="String pushed; first char ends on top (blank = ε)"
-        style={pdaInputStyle}
-      />
-
-      <div style={{ flex: 1 }} />
-
-      <button
-        onClick={onDelete}
-        title="Delete transition"
-        style={deleteButtonStyle}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
-        }}
-      >
-        ✕
-      </button>
-    </div>
-  )
-}
-
-// ─── TM / LBA transition row (single- or multi-tape) ───────────
-
-function TMTransitionRow({
-  fromLabel,
-  toLabel,
-  transition,
-  tapeCount,
-  blank,
-  onChange,
-  onDelete,
-}: {
-  fromLabel: string
-  toLabel: string
-  transition: Transition
-  tapeCount: number
-  blank: string
-  onChange: (patch: Partial<Transition>) => void
-  onDelete: () => void
-}) {
-  const ops = tmTapeOps(transition, tapeCount)
-  const [reads, setReads] = useState<string[]>(ops.reads)
-  const [writes, setWrites] = useState<string[]>(ops.writes)
-  const dirs = ops.directions
-
-  // Persist as scalar fields for a single tape (and clear any stale arrays);
-  // as per-tape arrays for multi-tape.
-  const persist = (r: string[], w: string[], d: ('L' | 'R' | 'S')[]) => {
-    if (tapeCount === 1) {
-      onChange({ read: r[0].trim(), write: w[0].trim(), direction: d[0], reads: undefined, writes: undefined, directions: undefined })
-    } else {
-      onChange({ reads: r.map((x) => x.trim()), writes: w.map((x) => x.trim()), directions: d })
-    }
-  }
-
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      padding: '8px 16px',
-      borderBottom: '1px solid var(--border-subtle)',
-    }}>
-      <span style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: '13px',
-        color: 'var(--text-secondary)',
-        minWidth: '90px',
-        flexShrink: 0,
-      }}>
-        {fromLabel} → {toLabel}
-      </span>
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: 1 }}>
-        {reads.map((_, i) => (
-          <div key={i} style={tapeGroupStyle}>
-            {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
-            <input
-              type="text"
-              value={reads[i]}
-              onChange={(e) => setReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-              onBlur={() => persist(reads, writes, dirs)}
-              placeholder={blank}
-              title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
-              style={pdaInputStyle}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
-            <input
-              type="text"
-              value={writes[i]}
-              onChange={(e) => setWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-              onBlur={() => persist(reads, writes, dirs)}
-              placeholder={blank}
-              title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
-              style={pdaInputStyle}
-            />
-            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
-            <select
-              value={dirs[i]}
-              onChange={(e) => persist(reads, writes, dirs.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
-              title={`Tape ${i + 1} head move direction`}
-              style={selectStyle}
-            >
-              <option value="L">L</option>
-              <option value="R">R</option>
-              <option value="S">S</option>
-            </select>
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={onDelete}
-        title="Delete transition"
-        style={deleteButtonStyle}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
-        }}
-      >
-        ✕
-      </button>
-    </div>
-  )
-}
-
-// ─── Finite-automaton transition row ───────────────────────────
-
-function TransitionRow({
-  fromLabel,
-  toLabel,
-  symbols,
-  isENFA,
-  onChangeSymbols,
-  onDelete,
-}: {
-  fromLabel: string
-  toLabel: string
-  symbols: string[]
-  isENFA: boolean
-  onChangeSymbols: (raw: string) => void
-  onDelete: () => void
-}) {
-  const [draft, setDraft] = useState(symbols.join(', '))
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      padding: '8px 16px',
-      borderBottom: '1px solid var(--border-subtle)',
-    }}>
-      {/* From → To */}
-      <span style={{
-        fontFamily: 'var(--font-mono)',
-        fontSize: '13px',
-        color: 'var(--text-secondary)',
-        minWidth: '100px',
-        flexShrink: 0,
-      }}>
-        {fromLabel} → {toLabel}
-      </span>
-
-      <span style={{ color: 'var(--text-muted)', fontSize: '11px', flexShrink: 0 }}>on</span>
-
-      {/* Symbol input */}
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '4px', position: 'relative' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={() => onChangeSymbols(draft)}
-          onKeyDown={(e) => e.key === 'Enter' && onChangeSymbols(draft)}
-          style={{
-            flex: 1,
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--text-primary)',
-            fontSize: '12px',
-            fontFamily: 'var(--font-mono)',
-            padding: '4px 8px',
-            outline: 'none',
-            minWidth: 0,
-          }}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
-        />
-        {isENFA && (
-          <EpsilonInserter
-            targetRef={inputRef}
-            open={dropdownOpen}
-            setOpen={setDropdownOpen}
-            onInsert={(val) => setDraft(val)}
-          />
-        )}
-      </div>
-
-      {/* Delete */}
-      <button
-        onClick={onDelete}
-        title="Delete transition"
-        style={deleteButtonStyle}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'
-          ;(e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'
-        }}
-      >
-        ✕
-      </button>
     </div>
   )
 }

@@ -29,6 +29,12 @@ export function isBlank(symbol: string | undefined, blank: string = BLANK): bool
   return symbol === undefined || symbol === '' || symbol === blank
 }
 
+export const FA_TYPES = ['DFA', 'NFA', 'ENFA'] as const
+
+export function isFAType(type: string): boolean {
+  return (FA_TYPES as readonly string[]).includes(type)
+}
+
 /**
  * Machine types backed by a stack. `'NPDA'` is listed ahead of its engine so
  * the PDA-aware UI/validator branches light up the moment the type is added.

@@ -6,52 +6,24 @@
 // with a before/after toggle. "Open in new tab" loads the result into the editor.
 // ============================================================
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMachineStore, isPristineTab } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
-import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 import { applyAutoLayout } from '@/utils/layout'
 import { machineToSVG, LIGHT_COLORS, DARK_COLORS } from '@/utils/diagramSvg'
 import {
-  transformsFor,
-  constructs,
-  runTransform,
-  runConstruct,
-  type ConversionMeta,
-  type ConversionResult,
-} from '@/engines/conversions'
+  CONVERSION_PLUGINS,
+  transformsForPlugin,
+  constructsPlugins,
+  extractsPlugins,
+  defaultAnimationBuilder,
+  type ConversionPlugin,
+} from './conversionsRegistry'
 import type { MachineDefinition } from '@/engines/core/types'
+import type { ConversionResult } from '@/engines/conversions'
 import { generateId } from '@/engines/core/utils'
 import { toast } from '@/store/toastStore'
 import Dialog from '@/components/common/Dialog'
-
-const REGEX_EXAMPLES = ['(a|b)*abb', 'a(a|b)*', '(ab)*', 'a*b*', '(0|1)*1']
-const CFG_PLACEHOLDER = `S -> a S b | ε
-# uppercase = nonterminal, anything else = terminal, ε/empty = epsilon`
-const CFG_EXAMPLES = ['S -> a S b | ε', 'S -> (S)S | ε', 'S -> a S a | b S b | a | b | ε']
-
-interface Reveal {
-  states: Set<string>
-  trans: Set<string>
-  hlStates: Set<string>
-  hlTrans: Set<string>
-}
-
-function computeReveal(result: ConversionResult, stepIndex: number): Reveal {
-  const states = new Set<string>()
-  const trans = new Set<string>()
-  for (let i = 0; i <= stepIndex && i < result.steps.length; i++) {
-    for (const id of result.steps[i].addedStateIds) states.add(id)
-    for (const id of result.steps[i].addedTransitionIds) trans.add(id)
-  }
-  const step = result.steps[stepIndex]
-  return {
-    states,
-    trans,
-    hlStates: new Set(step?.addedStateIds ?? []),
-    hlTrans: new Set(step?.addedTransitionIds ?? []),
-  }
-}
 
 export default function ConversionsModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
@@ -62,7 +34,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
   const dark = theme === 'dark'
   const colors = dark ? DARK_COLORS : LIGHT_COLORS
 
-  const [selected, setSelected] = useState<ConversionMeta | null>(null)
+  const [selected, setSelected] = useState<ConversionPlugin | null>(null)
   const [text, setText] = useState('')
   const [result, setResult] = useState<ConversionResult | null>(null)
   const [laidOut, setLaidOut] = useState<MachineDefinition | null>(null)
@@ -72,12 +44,17 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<'result' | 'source'>('result')
   const [labelMode, setLabelMode] = useState<'short' | 'full'>('short')
 
-  const transforms = useMemo(() => transformsFor(machine.type), [machine.type])
-  const builders = useMemo(() => constructs(), [])
+  const transforms = useMemo(() => transformsForPlugin(machine.type), [machine.type])
+  const builders = useMemo(() => constructsPlugins(), [])
+  const extracts = useMemo(() => extractsPlugins(machine.type), [machine.type])
 
   // Lay out the result for the preview (grid first, then ELK when ready).
   useEffect(() => {
     if (!result) {
+      setLaidOut(null)
+      return
+    }
+    if (typeof result.result === 'string') {
       setLaidOut(null)
       return
     }
@@ -104,9 +81,9 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     return () => clearTimeout(id)
   }, [playing, stepIndex, result])
 
-  const runTransformNow = (meta: ConversionMeta) => {
+  const runTransformNow = (plugin: ConversionPlugin) => {
     try {
-      const r = runTransform(meta.kind, machine)
+      const r = plugin.execute(machine)
       setResult(r)
       setStepIndex(0)
       setError(null)
@@ -117,8 +94,8 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     }
   }
 
-  const choose = (meta: ConversionMeta) => {
-    setSelected(meta)
+  const choose = (plugin: ConversionPlugin) => {
+    setSelected(plugin)
     setResult(null)
     setError(null)
     setStepIndex(0)
@@ -126,13 +103,13 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     setText('')
     setView('result')
     setLabelMode('short')
-    if (meta.mode === 'transform') runTransformNow(meta)
+    if (plugin.mode === 'transform') runTransformNow(plugin)
   }
 
   const build = () => {
     if (!selected) return
     try {
-      const r = runConstruct(selected.kind, text)
+      const r = selected.execute(text)
       setResult(r)
       setStepIndex(0)
       setError(null)
@@ -150,12 +127,8 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     setPlaying(false)
   }
 
-  // Give the result a fresh, unique machine id so tab bookkeeping (keyed by id)
-  // never collides with an existing tab or another conversion result.
   const openInNewTab = () => {
     if (!laidOut) return
-    // openMachine reuses the current tab when it's pristine, so report what
-    // actually happened instead of always claiming "new tab" (UX audit DISC-2).
     const reused = isPristineTab(machine)
     openMachine({ ...laidOut, id: generateId('machine') }, null)
     requestFitView()
@@ -165,7 +138,6 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
-  // Apply the result to the current machine in place (UX audit DISC-2).
   const replaceCurrent = () => {
     if (!laidOut) return
     loadMachine({ ...laidOut, id: generateId('machine') }, false)
@@ -178,14 +150,15 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
 
   const previewSvg = useMemo(() => {
     if (view === 'source') {
-      if (selected?.mode === 'transform') {
+      if (selected?.mode === 'transform' || selected?.mode === 'extract') {
         const { svg } = machineToSVG(machine, { colors, verboseLabels })
         return inject(svg)
       }
-      return null // construct source is text, rendered separately
+      return null
     }
-    if (!laidOut || !result) return null
-    const reveal = computeReveal(result, stepIndex)
+    if (!laidOut || !result || typeof result.result === 'string') return null
+    const builder = selected?.animationBuilder || defaultAnimationBuilder
+    const reveal = builder(result, stepIndex)
     const { svg } = machineToSVG(laidOut, {
       includeStateIds: reveal.states,
       includeTransitionIds: reveal.trans,
@@ -248,22 +221,37 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
               machineType={machine.type}
               transforms={transforms}
               builders={builders}
+              extracts={extracts}
               onChoose={choose}
             />
           )}
 
           {/* 2) Construct input (regex / cfg) before a result exists */}
-          {selected && selected.mode === 'construct' && !result && (
-            <ConstructInput
-              meta={selected}
-              text={text}
-              setText={setText}
-              onBuild={build}
-              error={error}
-            />
+          {selected && selected.mode === 'construct' && !result && selected.inputComponent && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <selected.inputComponent
+                text={text}
+                setText={setText}
+                onBuild={build}
+              />
+              {error && <ErrorBox message={error} />}
+              <div>
+                <button
+                  onClick={build}
+                  disabled={text.trim() === ''}
+                  style={{
+                    ...primaryBtn,
+                    opacity: text.trim() === '' ? 0.4 : 1,
+                    cursor: text.trim() === '' ? 'not-allowed' : 'pointer'
+                  }}
+                >
+                  Build {selected.resultType} →
+                </button>
+              </div>
+            </div>
           )}
 
-          {/* Transform error (e.g. blow-up) */}
+          {/* Transform error */}
           {selected && selected.mode === 'transform' && !result && error && (
             <ErrorBox message={error} />
           )}
@@ -363,7 +351,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
                   <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'var(--text-muted)' }}>
-                    {view === 'result' ? `${selected?.resultType} preview` : selected?.mode === 'transform' ? `${machine.type} (input)` : 'Input text'}
+                    {view === 'result' ? (typeof result?.result === 'string' ? 'Extracted text' : `${selected?.resultType} preview`) : (selected?.mode === 'transform' || selected?.mode === 'extract') ? `${machine.type} (input)` : 'Input text'}
                   </span>
                 </div>
                 <div
@@ -382,6 +370,10 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
                     <pre style={{ margin: 0, fontFamily: 'var(--font-mono)', fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
                       {text || '(empty)'}
                     </pre>
+                  ) : view === 'result' && typeof result?.result === 'string' ? (
+                    <div style={{ padding: '20px', fontFamily: 'var(--font-mono)', fontSize: '14px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                      {result.result}
+                    </div>
                   ) : previewSvg ? (
                     <div dangerouslySetInnerHTML={{ __html: previewSvg }} />
                   ) : (
@@ -400,26 +392,32 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
           <div style={footerStyle}>
             <button onClick={back} style={secondaryBtn}>Choose another</button>
             <div style={{ flex: 1 }} />
-            <button onClick={replaceCurrent} style={secondaryBtn} title="Apply the result to the current machine, replacing it">Replace current</button>
-            <button onClick={openInNewTab} style={primaryBtn}>Open in new tab →</button>
+            {typeof result.result === 'string' ? (
+              <button onClick={() => { navigator.clipboard.writeText(result.result as string); toast.success('Copied to clipboard!') }} style={primaryBtn}>Copy to Clipboard</button>
+            ) : (
+              <>
+                <button onClick={replaceCurrent} style={secondaryBtn} title="Apply the result to the current machine, replacing it">Replace current</button>
+                <button onClick={openInNewTab} style={primaryBtn}>Open in new tab →</button>
+              </>
+            )}
           </div>
         )}
     </Dialog>
   )
 }
 
-// ─── sub-views ──────────────────────────────────────────────────
-
 function Picker({
   machineType,
   transforms,
   builders,
+  extracts,
   onChoose,
 }: {
   machineType: string
-  transforms: ConversionMeta[]
-  builders: ConversionMeta[]
-  onChoose: (m: ConversionMeta) => void
+  transforms: ConversionPlugin[]
+  builders: ConversionPlugin[]
+  extracts: ConversionPlugin[]
+  onChoose: (m: ConversionPlugin) => void
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -445,134 +443,25 @@ function Picker({
           ))}
         </div>
       </div>
-    </div>
-  )
-}
-
-function ConstructInput({
-  meta,
-  text,
-  setText,
-  onBuild,
-  error,
-}: {
-  meta: ConversionMeta
-  text: string
-  setText: (s: string) => void
-  onBuild: () => void
-  error: string | null
-}) {
-  const isRegex = meta.inputKind === 'regex'
-  const examples = isRegex ? REGEX_EXAMPLES : CFG_EXAMPLES
-  const inputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const [epsOpen, setEpsOpen] = useState(false)
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-        {isRegex ? (
-          <>
-            Operators: <code>|</code> (or), <code>*</code> (zero+), <code>+</code> (one+), <code>?</code> (optional),
-            <code> ( )</code> grouping. Use <code>ε</code> for the empty string; every other character is a literal.
-          </>
+      <div>
+        <GroupTitle>Extract text from this machine</GroupTitle>
+        {extracts.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {extracts.map((m) => (
+              <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
+            ))}
+          </div>
         ) : (
-          <>
-            One rule per line: <code>A -&gt; α | β</code>. Uppercase letters are nonterminals, everything else is a
-            terminal, and <code>ε</code> (or empty) is the empty production. Symbols are single characters.
-          </>
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            No extractions available for a {machineType}.
+          </div>
         )}
       </div>
-
-      {isRegex ? (
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="(a|b)*abb"
-            spellCheck={false}
-            onKeyDown={(e) => { if (e.key === 'Enter') onBuild() }}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              boxSizing: 'border-box',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-primary)',
-              fontSize: '14px',
-              fontFamily: 'var(--font-mono)',
-              padding: '8px 10px',
-              outline: 'none',
-            }}
-          />
-          <EpsilonInserter targetRef={inputRef} open={epsOpen} setOpen={setEpsOpen} onInsert={setText} />
-        </div>
-      ) : (
-        <div style={{ position: 'relative' }}>
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={CFG_PLACEHOLDER}
-            spellCheck={false}
-            rows={6}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-primary)',
-              fontSize: '13px',
-              fontFamily: 'var(--font-mono)',
-              padding: '8px 10px',
-              outline: 'none',
-              resize: 'vertical',
-            }}
-          />
-          <div style={{ position: 'absolute', top: '6px', right: '6px' }}>
-            <EpsilonInserter targetRef={textareaRef} open={epsOpen} setOpen={setEpsOpen} onInsert={setText} size="sm" />
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Examples:</span>
-        {examples.map((ex) => (
-          <button
-            key={ex}
-            onClick={() => setText(ex)}
-            style={{
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-default)',
-              borderRadius: 'var(--radius-sm)',
-              color: 'var(--text-secondary)',
-              fontSize: '11px',
-              fontFamily: 'var(--font-mono)',
-              padding: '3px 8px',
-              cursor: 'pointer',
-            }}
-          >
-            {ex}
-          </button>
-        ))}
-      </div>
-
-      {error && <ErrorBox message={error} />}
-
-      <div>
-        <button onClick={onBuild} disabled={text.trim() === ''} style={{ ...primaryBtn, opacity: text.trim() === '' ? 0.4 : 1, cursor: text.trim() === '' ? 'not-allowed' : 'pointer' }}>
-          Build {meta.resultType} →
-        </button>
-      </div>
     </div>
   )
 }
 
-// ─── small UI atoms ─────────────────────────────────────────────
-
-function ConvCard({ meta, onClick }: { meta: ConversionMeta; onClick: () => void }) {
+function ConvCard({ meta, onClick }: { meta: ConversionPlugin; onClick: () => void }) {
   return (
     <button
       onClick={onClick}

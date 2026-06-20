@@ -151,17 +151,14 @@ export function useSimulation() {
     resetSimulation()
   }, [stopInterval, resetSimulation])
 
-  // ── Step back — retrace one step ───────────────────────────
-  // Engines are stateful and not serialisable, so the robust way to "undo" a
-  // step is to rebuild a fresh engine from the start and re-run (stepCount − 1)
-  // steps. The engines are deterministic, so this reproduces the exact prior
-  // configuration (active states, stack, computation-tree frontier, history).
-  const stepBack = useCallback(() => {
-    const { stepCount, status: simStatus } = useSimulationStore.getState()
-    if (simStatus === 'idle' || stepCount <= 0) return
+  // ── Seek to a specific step ─────────────────────────────────────────
+  // Engines are stateful and not serialisable, so we "seek" by rebuilding a
+  // fresh engine and running silently to the target step.
+  const seekTo = useCallback((target: number) => {
+    const { status: simStatus } = useSimulationStore.getState()
+    if (simStatus === 'idle' || target < 0) return
     stopInterval()
 
-    const target = stepCount - 1
     if (target === 0) {
       // Back to the very start → idle, before the first step.
       engineRef.current = null
@@ -213,6 +210,12 @@ export function useSimulation() {
       liveBranchIds: tree ? engine.getLiveBranchIds() : [],
     })
   }, [machine, inputString, stopInterval, resetSimulation, surfaceBlocking])
+
+  // ── Step back — retrace one step ───────────────────────────
+  const stepBack = useCallback(() => {
+    const { stepCount } = useSimulationStore.getState()
+    seekTo(stepCount - 1)
+  }, [seekTo])
 
   // ── Cleanup on unmount ────────────────────────────────────
   useEffect(() => {
@@ -283,6 +286,7 @@ export function useSimulation() {
   return {
     step,
     stepBack,
+    seekTo,
     play,
     pause,
     reset,

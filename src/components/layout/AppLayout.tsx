@@ -18,8 +18,10 @@ import HelpModal from '@/components/layout/HelpModal'
 import ExportModal from '@/components/layout/ExportModal'
 import ConversionsModal from '@/components/conversions/ConversionsModal'
 import BatchRunnerModal from '@/components/controls/BatchRunnerModal'
+import AnalysisModal from '@/components/analysis/AnalysisModal'
 
 export default function AppLayout() {
+  const isDemoMode = window.location.href.includes('demo=true')
   const theme = useUIStore((s) => s.theme)
   const activeModal = useUIStore((s) => s.activeModal)
   const closeModal = useUIStore((s) => s.closeModal)
@@ -39,11 +41,11 @@ export default function AppLayout() {
       background: 'var(--bg-primary)',
     }}>
       {/* Classic menu bar + icon toolbar */}
-      <MenuBar />
+      {!isDemoMode && <MenuBar />}
       <Toolbar />
 
       {/* Tab Bar — top placement, just below the toolbar (conventional). */}
-      <TabBar />
+      {!isDemoMode && <TabBar />}
 
       {/* Input tape bar */}
       <InputBar />
@@ -76,6 +78,7 @@ export default function AppLayout() {
       {activeModal === 'export' && <ExportModal onClose={closeModal} />}
       {activeModal === 'convert' && <ConversionsModal onClose={closeModal} />}
       {activeModal === 'batch' && <BatchRunnerModal onClose={closeModal} />}
+      {activeModal === 'analysis' && <AnalysisModal onClose={closeModal} />}
     </div>
   )
 }

@@ -32,6 +32,7 @@ export interface SimApi {
   play: () => void
   step: () => void
   stepBack: () => void
+  seekTo: (target: number) => void
   reset: () => void
   isPlaying: boolean
 }

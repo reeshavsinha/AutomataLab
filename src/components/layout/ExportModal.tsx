@@ -20,6 +20,7 @@ import {
   fileStem,
 } from '@/utils/exporters'
 import { exportDiagramSVG, exportDiagramPNG } from '@/utils/diagramExport'
+import { exportJFLAP } from '@/utils/jflap'
 import { toast } from '@/store/toastStore'
 import Dialog from '@/components/common/Dialog'
 
@@ -33,7 +34,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const hasTree = supportsComputationTree(machine.type) && treeNodes.length > 0
   const hasDiagram = machine.states.some((s) => !s.isText)
 
-  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex') => {
+  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex' | 'jff') => {
     try {
       const out = await downloadText(name, content, ext)
       if (out) toast.success(`Exported ${name}`)
@@ -137,6 +138,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
           <Section title="Machine definition" hint="The full diagram + δ as a reloadable file.">
             <ExportButton label="JSON" onClick={() => save(exportMachineJSON(machine), `${stem}.autolab.json`, 'json')} />
+            <ExportButton label="JFLAP (.jff)" onClick={() => save(exportJFLAP(machine), `${stem}.jff`, 'jff')} />
           </Section>
         </div>
     </Dialog>

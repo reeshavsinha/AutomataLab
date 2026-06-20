@@ -76,7 +76,7 @@ function ControlButton({
 }
 
 export default function SimulationControls() {
-  const { step, stepBack, play, pause, reset } = useSimulation()
+  const { step, stepBack, seekTo, play, pause, reset } = useSimulation()
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
   const stepLimit = useMachineStore((s) => s.machine.stepLimit)
@@ -111,6 +111,14 @@ export default function SimulationControls() {
     }
     stepBack()
   }, [isPlaying, pause, stepBack])
+
+  const handleSeekTo = useCallback((target: number) => {
+    if (isPlaying) {
+      pause()
+      setIsPlaying(false)
+    }
+    seekTo(target)
+  }, [isPlaying, pause, seekTo])
 
   const handleReset = useCallback(() => {
     pause()
@@ -182,9 +190,9 @@ export default function SimulationControls() {
   // toolbar / Simulate menu can drive the same (single) engine instance.
   const setSimApi = useCommandStore((s) => s.setSimApi)
   useEffect(() => {
-    setSimApi({ play: handlePlay, step: handleStep, stepBack: handleStepBack, reset: handleReset, isPlaying })
+    setSimApi({ play: handlePlay, step: handleStep, stepBack: handleStepBack, seekTo: handleSeekTo, reset: handleReset, isPlaying })
     return () => setSimApi(null)
-  }, [setSimApi, handlePlay, handleStep, handleStepBack, handleReset, isPlaying])
+  }, [setSimApi, handlePlay, handleStep, handleStepBack, handleSeekTo, handleReset, isPlaying])
 
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 

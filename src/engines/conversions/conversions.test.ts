@@ -16,6 +16,8 @@ import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { cfgToPda, parseGrammar } from './cfgToPda'
+import { dfaToRegex } from './dfaToRegex'
+import { pdaToCfg } from './pdaToCfg'
 
 // ─── helpers ────────────────────────────────────────────────────
 
@@ -53,8 +55,9 @@ function expectStepsCoverResult(r: ConversionResult) {
     for (const id of step.addedStateIds) stateIds.add(id)
     for (const id of step.addedTransitionIds) transIds.add(id)
   }
-  for (const s of r.result.states) expect(stateIds.has(s.id), `state ${s.id} never revealed`).toBe(true)
-  for (const t of r.result.transitions) expect(transIds.has(t.id), `transition ${t.id} never revealed`).toBe(true)
+  const result = r.result as MachineDefinition
+  for (const s of result.states) expect(stateIds.has(s.id), `state ${s.id} never revealed`).toBe(true)
+  for (const t of result.transitions) expect(transIds.has(t.id), `transition ${t.id} never revealed`).toBe(true)
 }
 
 function isDeterministic(m: MachineDefinition): boolean {
@@ -127,13 +130,15 @@ const dfaRedundant: MachineDefinition = {
 describe('enfaToNfa (epsilon elimination)', () => {
   it('preserves the language', () => {
     const r = enfaToNfa(enfaAStarBStar)
-    expect(r.result.type).toBe('NFA')
-    expectEquivalent(enfaAStarBStar, r.result, ['a', 'b'], 5)
+    const result = r.result as MachineDefinition
+    expect(result.type).toBe('NFA')
+    expectEquivalent(enfaAStarBStar, result, ['a', 'b'], 5)
   })
 
   it('produces no ε-transitions', () => {
     const r = enfaToNfa(enfaAStarBStar)
-    for (const t of r.result.transitions) {
+    const result = r.result as MachineDefinition
+    for (const t of result.transitions) {
       expect(t.symbols.some(isEpsilon)).toBe(false)
     }
   })
@@ -148,18 +153,20 @@ describe('enfaToNfa (epsilon elimination)', () => {
 describe('nfaToDfa (subset construction)', () => {
   it('preserves the language of an NFA', () => {
     const r = nfaToDfa(nfaEndsInA)
-    expect(r.result.type).toBe('DFA')
-    expectEquivalent(nfaEndsInA, r.result, ['a', 'b'], 5)
+    const result = r.result as MachineDefinition
+    expect(result.type).toBe('DFA')
+    expectEquivalent(nfaEndsInA, result, ['a', 'b'], 5)
   })
 
   it('produces a deterministic machine', () => {
-    expect(isDeterministic(nfaToDfa(nfaEndsInA).result)).toBe(true)
+    expect(isDeterministic(nfaToDfa(nfaEndsInA).result as MachineDefinition)).toBe(true)
   })
 
   it('works directly on an ε-NFA', () => {
     const r = nfaToDfa(enfaAStarBStar)
-    expectEquivalent(enfaAStarBStar, r.result, ['a', 'b'], 5)
-    expect(isDeterministic(r.result)).toBe(true)
+    const result = r.result as MachineDefinition
+    expectEquivalent(enfaAStarBStar, result, ['a', 'b'], 5)
+    expect(isDeterministic(result)).toBe(true)
   })
 
   it('steps reveal every result element', () => {
@@ -172,13 +179,14 @@ describe('nfaToDfa (subset construction)', () => {
 describe('minimizeDfa', () => {
   it('preserves the language and reduces state count', () => {
     const r = minimizeDfa(dfaRedundant)
-    expectEquivalent(dfaRedundant, r.result, ['a', 'b'], 5)
-    expect(r.result.states.length).toBe(2) // minimal DFA for "ends in a"
+    const result = r.result as MachineDefinition
+    expectEquivalent(dfaRedundant, result, ['a', 'b'], 5)
+    expect(result.states.length).toBe(2) // minimal DFA for "ends in a"
   })
 
   it('leaves an already-minimal DFA at the same size', () => {
-    const min = minimizeDfa(dfaRedundant).result
-    const again = minimizeDfa(min).result
+    const min = minimizeDfa(dfaRedundant).result as MachineDefinition
+    const again = minimizeDfa(min).result as MachineDefinition
     expect(again.states.length).toBe(min.states.length)
     expectEquivalent(min, again, ['a', 'b'], 5)
   })
@@ -189,7 +197,8 @@ describe('minimizeDfa', () => {
       states: [...dfaRedundant.states, { id: 'orphan', label: 'orphan', x: 0, y: 0, isStart: false, isAccept: true }],
     }
     const r = minimizeDfa(withOrphan)
-    expect(r.result.states.length).toBe(2)
+    const result = r.result as MachineDefinition
+    expect(result.states.length).toBe(2)
   })
 
   it('steps reveal every result element', () => {
@@ -202,35 +211,36 @@ describe('minimizeDfa', () => {
 describe('regexToNfa (Thompson construction)', () => {
   it('handles a single symbol', () => {
     const r = regexToNfa('a')
-    expectMemberships(r.result, ['a'], ['', 'b', 'aa'])
+    expectMemberships(r.result as MachineDefinition, ['a'], ['', 'b', 'aa'])
   })
 
   it('handles union', () => {
-    expectMemberships(regexToNfa('a|b').result, ['a', 'b'], ['', 'ab', 'aa'])
+    expectMemberships(regexToNfa('a|b').result as MachineDefinition, ['a', 'b'], ['', 'ab', 'aa'])
   })
 
   it('handles Kleene star', () => {
-    expectMemberships(regexToNfa('a*').result, ['', 'a', 'aaaa'], ['b', 'ab'])
+    expectMemberships(regexToNfa('a*').result as MachineDefinition, ['', 'a', 'aaaa'], ['b', 'ab'])
   })
 
   it('handles one-or-more (+) and optional (?)', () => {
-    expectMemberships(regexToNfa('a+').result, ['a', 'aaa'], ['', 'b'])
-    expectMemberships(regexToNfa('ab?').result, ['a', 'ab'], ['', 'b', 'abb'])
+    expectMemberships(regexToNfa('a+').result as MachineDefinition, ['a', 'aaa'], ['', 'b'])
+    expectMemberships(regexToNfa('ab?').result as MachineDefinition, ['a', 'ab'], ['', 'b', 'abb'])
   })
 
   it('handles a compound regex (a|b)*abb', () => {
     const r = regexToNfa('(a|b)*abb')
+    const result = r.result as MachineDefinition
     expectMemberships(
-      r.result,
+      result,
       ['abb', 'aabb', 'babb', 'abababb', 'bbabb'],
       ['', 'ab', 'abba', 'b', 'aab']
     )
-    expect(r.result.type).toBe('ENFA')
+    expect(result.type).toBe('ENFA')
   })
 
   it('the result round-trips through ε-elimination and subset construction', () => {
-    const enfa = regexToNfa('(a|b)*abb').result
-    const dfa = nfaToDfa(enfa).result
+    const enfa = regexToNfa('(a|b)*abb').result as MachineDefinition
+    const dfa = nfaToDfa(enfa).result as MachineDefinition
     expectEquivalent(enfa, dfa, ['a', 'b'], 5)
   })
 
@@ -256,9 +266,10 @@ describe('cfgToPda', () => {
 
   it('builds a PDA for { aⁿbⁿ }', () => {
     const r = cfgToPda('S -> a S b | ε')
-    expect(r.result.type).toBe('NPDA')
+    const result = r.result as MachineDefinition
+    expect(result.type).toBe('NPDA')
     expectMemberships(
-      r.result,
+      result,
       ['', 'ab', 'aabb', 'aaabbb'],
       ['a', 'b', 'abb', 'ba', 'aab', 'abab']
     )
@@ -267,7 +278,7 @@ describe('cfgToPda', () => {
   it('builds a PDA for balanced parentheses', () => {
     const r = cfgToPda('S -> (S)S | ε')
     expectMemberships(
-      r.result,
+      r.result as MachineDefinition,
       ['', '()', '(())', '()()', '(()())'],
       ['(', ')', '(()', '())', ')(']
     )
@@ -281,5 +292,60 @@ describe('cfgToPda', () => {
     expect(() => parseGrammar('x -> a')).toThrow()
     expect(() => parseGrammar('no arrow here')).toThrow()
     expect(() => parseGrammar('# only a comment')).toThrow()
+  })
+})
+
+// ─── DFA/NFA → Regex (State Elimination) ────────────────────────
+
+describe('dfaToRegex', () => {
+  it('extracts regex from a simple DFA', () => {
+    const r = dfaToRegex(dfaRedundant)
+    expect(typeof r.result).toBe('string')
+    expect((r.result as string).length).toBeGreaterThan(0)
+    expect(r.steps.length).toBeGreaterThan(0)
+  })
+
+  it('handles machine with no accept states', () => {
+    const noAccept: MachineDefinition = {
+      ...dfaRedundant,
+      states: dfaRedundant.states.map((s) => ({ ...s, isAccept: false })),
+    }
+    const r = dfaToRegex(noAccept)
+    expect(r.result).toBe('∅')
+  })
+})
+
+// ─── PDA → CFG (Triplet Construction) ───────────────────────────
+
+describe('pdaToCfg', () => {
+  it('extracts CFG from a valid NPDA', () => {
+    // Generate a simple valid NPDA manually that strictly follows the constraints
+    const pda: MachineDefinition = {
+      id: 'pda_test', name: 'valid_pda', type: 'DPDA', language: '', alphabet: ['a', 'b'],
+      blankSymbol: 'Z',
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true },
+        { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: false },
+      ],
+      transitions: [
+        // 1 pop, 2 pushes
+        { id: 't0', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'Z', push: 'AZ' },
+        // 1 pop, 1 push
+        { id: 't1', from: 'q1', to: 'q1', symbols: [], read: 'a', pop: 'A', push: 'A' },
+        // 1 pop, 0 pushes
+        { id: 't2', from: 'q1', to: 'q0', symbols: [], read: 'b', pop: 'A', push: '' },
+      ],
+    }
+    const r = pdaToCfg(pda)
+    expect(typeof r.result).toBe('string')
+    expect((r.result as string).includes('S ->')).toBe(true)
+    expect(r.steps.length).toBeGreaterThan(0)
+  })
+
+  it('throws on PDA with epsilon pop', () => {
+    const pda = cfgToPda('S -> a').result as MachineDefinition
+    // Invalidate the PDA by giving it a transition that pops epsilon
+    pda.transitions[0].pop = ''
+    expect(() => pdaToCfg(pda)).toThrow(/pops ε/)
   })
 })

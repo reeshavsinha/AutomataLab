@@ -14,6 +14,8 @@ export type ConversionKind =
   | 'minimize-dfa'
   | 'regex-to-nfa'
   | 'cfg-to-pda'
+  | 'dfa-to-regex'
+  | 'pda-to-cfg'
 
 /**
  * One construction step. Steps reference ids on the FINAL `result` machine;
@@ -36,16 +38,16 @@ export interface ConversionStep {
 /** Full outcome of a conversion: the new machine plus the construction trace. */
 export interface ConversionResult {
   kind: ConversionKind
-  /** The converted machine. State/transition ids are stable & deterministic. */
-  result: MachineDefinition
+  /** The converted machine or extracted text. State/transition ids are stable & deterministic. */
+  result: MachineDefinition | string
   /** Ordered construction steps (union of added ids covers every result element). */
   steps: ConversionStep[]
   /** Human-readable headline notes (e.g. "5 states → 3 states"). */
   summary: string[]
 }
 
-/** Whether a conversion transforms the current machine or builds one from text. */
-export type ConversionMode = 'transform' | 'construct'
+/** Whether a conversion transforms the current machine, constructs one from text, or extracts text from one. */
+export type ConversionMode = 'transform' | 'construct' | 'extract'
 
 /** Static description of a conversion, used to drive the UI menu. */
 export interface ConversionMeta {

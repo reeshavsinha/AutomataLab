@@ -51,6 +51,7 @@ function Sep() {
 }
 
 export default function Toolbar() {
+  const isDemoMode = window.location.href.includes('demo=true')
   const {
     machine, setMachineName, setMachineType, setAlphabet,
     setStackAlphabet, setTapeAlphabet,
@@ -135,12 +136,15 @@ export default function Toolbar() {
 
   return (
     <div className="toolbar-classic">
-      {/* File */}
-      <TbBtn title="New (Ctrl+N)" onClick={file.handleNew}><NewIcon /></TbBtn>
-      <TbBtn title="Open (Ctrl+O)" onClick={file.handleOpen}><OpenIcon /></TbBtn>
-      <TbBtn title={file.isDirty ? 'Save — unsaved changes (Ctrl+S)' : 'Save (Ctrl+S)'} onClick={file.handleSave} on={file.isDirty}><SaveIcon /></TbBtn>
-
-      <Sep />
+      {!isDemoMode && (
+        <>
+          {/* File */}
+          <TbBtn title="New (Ctrl+N)" onClick={file.handleNew}><NewIcon /></TbBtn>
+          <TbBtn title="Open (Ctrl+O)" onClick={file.handleOpen}><OpenIcon /></TbBtn>
+          <TbBtn title={file.isDirty ? 'Save — unsaved changes (Ctrl+S)' : 'Save (Ctrl+S)'} onClick={file.handleSave} on={file.isDirty}><SaveIcon /></TbBtn>
+          <Sep />
+        </>
+      )}
 
       {/* Edit */}
       <TbBtn title="Undo (Ctrl+Z)" onClick={() => { clearSelection(); undo() }} disabled={!canUndo}><UndoIcon /></TbBtn>
@@ -170,9 +174,13 @@ export default function Toolbar() {
 
       <Sep />
 
-      {/* Convert / export */}
-      <TbBtn title="Convert / transform (NFA→DFA, minimize, Regex→NFA, CFG→PDA…)" onClick={() => openModal('convert')}><ConvertIcon /></TbBtn>
-      <TbBtn title="Export (diagram, δ-table, trace, tree)" onClick={() => openModal('export')}><ExportIcon /></TbBtn>
+      {!isDemoMode && (
+        <>
+          {/* Convert / export */}
+          <TbBtn title="Convert / transform (NFA→DFA, minimize, Regex→NFA, CFG→PDA…)" onClick={() => openModal('convert')}><ConvertIcon /></TbBtn>
+          <TbBtn title="Export (diagram, δ-table, trace, tree)" onClick={() => openModal('export')}><ExportIcon /></TbBtn>
+        </>
+      )}
 
       <div style={{ flex: 1, minWidth: 8 }} />
 
