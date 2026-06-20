@@ -15,7 +15,7 @@ All notable changes to AutomataLab are documented in this file.
 - **Theoretical correctness gating**: Operations like reachability are now properly gated by `isFAType` to prevent executing undecidable properties on Pushdown Automata and Turing Machines.
 - **Render performance**: Decoupled the cosmetic node coordinates from structural changes via `topologyKey` and optimized `StateNode` Zustand selectors to prevent O(N^2) React Flow thrashing.
 - **Build stability**: Fixed a critical TypeScript compilation crash in the Toolbar component.
-- **Documentation**: Renamed the root `docs/` folder to `internal-docs/` to separate it from the public web documentation.
+- **Documentation**: Renamed the root `docs/` folder to `internal-ref-files/` to separate it from the public web documentation.
 
 ## v4.0.1
 
