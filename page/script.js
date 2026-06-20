@@ -1,4 +1,4 @@
-const SIMULATOR_URL = "https://automata-lab-one.vercel.app";
+const SIMULATOR_URL = "https://automata-lab-sim.vercel.app";
 
 document.addEventListener('DOMContentLoaded', () => {
   // Defensive Lenis Initialization
