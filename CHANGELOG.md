@@ -5,6 +5,8 @@ All notable changes to AutomataLab are documented in this file.
 ## v4.1.0
 
 ### Added
+- **Landing Page Academic Redesign**: Cleaned up the landing page aesthetic, grouped features into academic Chomsky Hierarchy categories, and refined citation elements.
+- **Dynamic SHA-256 Verification**: The landing page now dynamically fetches the latest GitHub release and extracts SHA-256 integrity verification hashes for secure downloads.
 - **Analysis Tools**: Reachability, Emptiness, Equivalence, and Inclusion structural analysis.
 - **Background Computation**: Offloaded O(2^n) equivalence construction to a Web Worker to ensure 60 FPS UI performance.
 - **JFLAP Compatibility**: Native browser DOM parsing and exporting for JFLAP 7.1 `.jff` XML files across all 7 machine types, featuring dynamic alphabet inference.
@@ -13,6 +15,7 @@ All notable changes to AutomataLab are documented in this file.
 - **Theoretical correctness gating**: Operations like reachability are now properly gated by `isFAType` to prevent executing undecidable properties on Pushdown Automata and Turing Machines.
 - **Render performance**: Decoupled the cosmetic node coordinates from structural changes via `topologyKey` and optimized `StateNode` Zustand selectors to prevent O(N^2) React Flow thrashing.
 - **Build stability**: Fixed a critical TypeScript compilation crash in the Toolbar component.
+- **Documentation**: Renamed the root `docs/` folder to `internal-docs/` to separate it from the public web documentation.
 
 ## v4.0.1
 
