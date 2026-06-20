@@ -1,32 +1,47 @@
+const SIMULATOR_URL = null; // Update this when the simulator is deployed
+
 document.addEventListener('DOMContentLoaded', () => {
-  // Initialize Lenis for premium smooth inertial scrolling
-  const lenis = new Lenis({
-    duration: 1.2,
-    easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-    direction: 'vertical',
-    gestureDirection: 'vertical',
-    smooth: true,
-    mouseMultiplier: 1,
-    smoothTouch: false,
-    touchMultiplier: 2,
-    infinite: false,
-  });
+  // Defensive Lenis Initialization
+  let lenis;
+  if (typeof Lenis !== 'undefined') {
+    lenis = new Lenis({
+      duration: 1.2,
+      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+      direction: 'vertical',
+      gestureDirection: 'vertical',
+      smooth: true,
+      mouseMultiplier: 1,
+      smoothTouch: false,
+      touchMultiplier: 2,
+      infinite: false,
+    });
 
-  function raf(time) {
-    lenis.raf(time);
+    function raf(time) {
+      lenis.raf(time);
+      requestAnimationFrame(raf);
+    }
     requestAnimationFrame(raf);
+  } else {
+    console.warn("Lenis scroll library failed to load. Falling back to native scrolling.");
   }
-  requestAnimationFrame(raf);
 
-  // Smooth scroll for anchor links using Lenis
+  // Smooth scroll for anchor links using Lenis or fallback
   document.querySelectorAll('a[href^="#"]').forEach(anchor => {
     anchor.addEventListener('click', function (e) {
-      e.preventDefault();
       const targetId = this.getAttribute('href');
       if (targetId === '#') return;
+      
       const target = document.querySelector(targetId);
       if (target) {
-        lenis.scrollTo(target, { offset: -68 }); // Offset for sticky header
+        e.preventDefault();
+        if (lenis) {
+          lenis.scrollTo(target, { offset: -68 }); // Offset for sticky header
+        } else {
+          window.scrollTo({
+            top: target.offsetTop - 68,
+            behavior: 'smooth'
+          });
+        }
       }
     });
   });
@@ -38,8 +53,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!response.ok) return;
       const data = await response.json();
 
-      const assets = data.assets || [];
-      const versionTag = data.tag_name || 'latest';
+      const assets = data?.assets || [];
+      const versionTag = data?.tag_name || 'latest';
 
       // Update version tag elements dynamically
       ['dl-win-ver', 'dl-deb-ver', 'dl-mac-ver'].forEach(id => {
@@ -49,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Map assets to columns dynamically
       assets.forEach(asset => {
+        if (!asset?.name) return;
         const name = asset.name.toLowerCase();
         const sizeMB = (asset.size / (1024 * 1024)).toFixed(1);
         const url = asset.browser_download_url;
@@ -75,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
       });
 
       // Extract and update SHA256 checksums from release notes body (if present)
-      const bodyText = data.body || '';
+      const bodyText = data?.body || '';
       if (bodyText) {
         const lines = bodyText.split('\n');
         let winSha = '', debSha = '', macSha = '';
@@ -147,61 +163,73 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     });
   });
+
   // Scroll Spy for Navigation Links
   const sections = document.querySelectorAll('section[id]');
   const navLinks = document.querySelectorAll('.lp-nav-link');
 
-  const observerOptions = {
-    root: null,
-    rootMargin: '-20% 0px -60% 0px',
-    threshold: 0
-  };
+  if (sections.length > 0 && navLinks.length > 0 && typeof IntersectionObserver !== 'undefined') {
+    const observerOptions = {
+      root: null,
+      rootMargin: '-20% 0px -60% 0px',
+      threshold: 0
+    };
 
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        navLinks.forEach(link => {
-          link.classList.remove('lp-nav-active');
-          if (link.getAttribute('href') === `#${entry.target.id}`) {
-            link.classList.add('lp-nav-active');
-          }
-        });
-      }
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          navLinks.forEach(link => {
+            link.classList.remove('lp-nav-active');
+            if (link.getAttribute('href') === `#${entry.target.id}`) {
+              link.classList.add('lp-nav-active');
+            }
+          });
+        }
+      });
+    }, observerOptions);
+
+    sections.forEach(section => {
+      observer.observe(section);
     });
-  }, observerOptions);
-
-  sections.forEach(section => {
-    observer.observe(section);
-  });
+  }
 
   // Scroll Animation for Items
   const animatedItems = document.querySelectorAll('.lp-feature-item, .lp-doc-item, .lp-download-item, .lp-stat-item, .lp-section-header');
-  const animationObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('in-view');
-      }
-    });
-  }, { threshold: 0.1 });
+  if (animatedItems.length > 0 && typeof IntersectionObserver !== 'undefined') {
+    const animationObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+        }
+      });
+    }, { threshold: 0.1 });
 
-  animatedItems.forEach(item => animationObserver.observe(item));
+    animatedItems.forEach(item => animationObserver.observe(item));
+  }
 
   // Interactive Demo Logic
   const demoContainer = document.querySelector('.lp-demo-container');
   const demoOverlay = document.getElementById('demo-overlay');
   const demoExitBtn = document.getElementById('demo-exit-btn');
+  const demoLaunchBtnIcon = document.getElementById('demo-launch-btn-icon');
 
-  if (demoOverlay && demoContainer && demoExitBtn) {
-    demoOverlay.addEventListener('click', (e) => {
-      e.preventDefault();
-      demoContainer.classList.add('is-interactive');
-      // Scroll to center the demo comfortably
-      lenis.scrollTo(demoContainer, { offset: -80, duration: 1.2 });
-    });
-
-    demoExitBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      demoContainer.classList.remove('is-interactive');
-    });
+  if (SIMULATOR_URL === null) {
+    // Hide buttons until simulator receives its deployment
+    if (demoExitBtn) demoExitBtn.style.display = 'none';
+    if (demoOverlay) {
+      demoOverlay.style.pointerEvents = 'none';
+      if (demoLaunchBtnIcon) demoLaunchBtnIcon.style.display = 'none';
+      const overlayText = demoOverlay.querySelector('.lp-demo-overlay-text');
+      if (overlayText) overlayText.textContent = "Interactive Demo Coming Soon";
+    }
+  } else {
+    if (demoExitBtn) demoExitBtn.setAttribute('href', SIMULATOR_URL);
+    
+    if (demoOverlay && demoContainer && demoExitBtn) {
+      demoOverlay.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.open(SIMULATOR_URL, '_blank', 'noopener,noreferrer');
+      });
+    }
   }
 });

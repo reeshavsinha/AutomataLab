@@ -117,24 +117,27 @@
         </div>
 
         <div class="lp-demo-container">
-          <!-- App Interactive Iframe -->
+          <!-- App Interactive Placeholder -->
           <div class="lp-demo-body" id="demo-body">
-            <iframe src="../index.html?demo=true#/app" class="lp-demo-iframe" title="AutomataLab Live Demo"></iframe>
+            <img src="./docs/screenshot.png" alt="AutomataLab Simulator Preview" class="lp-demo-iframe" style="object-fit: cover; pointer-events: auto;">
 
             <div class="lp-demo-overlay" id="demo-overlay">
-              <div class="lp-demo-play-btn" title="Click to Interact">
+              <div class="lp-demo-play-btn" title="Launch Interactive Demo" id="demo-launch-btn-icon">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#272822" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>
                 </svg>
               </div>
-              <span class="lp-demo-overlay-text">Click to Interact</span>
+              <span class="lp-demo-overlay-text">Launch Interactive Demo</span>
             </div>
             
-            <button class="lp-demo-exit-btn" id="demo-exit-btn">Exit Interactive Mode</button>
+            <a href="#" target="_blank" rel="noreferrer" class="lp-demo-exit-btn" id="demo-exit-btn" style="text-decoration: none; display: flex; align-items: center; gap: 8px;">
+              Launch Full Simulator
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            </a>
           </div>
         </div>
         <div style="text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--lp-text-muted); font-style: italic;">
-          Fully interactive AutomataLab simulation canvas.
+          Simulator opens in a new tab.
         </div>
       </section>
 
@@ -325,7 +328,7 @@
                   <p class="lp-doc-text">
                     system design and engine architecture
                   </p>
-                  <a href="./docs/web_architecture.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer" class="lp-doc-link">
                     Read Architecture Docs →
                   </a>
                 </div>
@@ -338,7 +341,7 @@
                   <p class="lp-doc-text">
                     machine schema and serialization format
                   </p>
-                  <a href="./docs/web_fsm_format.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer" class="lp-doc-link">
                     Read Format Spec →
                   </a>
                 </div>
@@ -350,7 +353,7 @@
                   <p class="lp-doc-text">
                     engineering rationale and design decisions
                   </p>
-                  <a href="./docs/web_decisions.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer" class="lp-doc-link">
                     Read Decision Log →
                   </a>
                 </div>
@@ -363,7 +366,7 @@
                   <p class="lp-doc-text">
                     development standards and review process
                   </p>
-                  <a href="./docs/web_contributing.md" target="_blank" rel="noreferrer" class="lp-doc-link">
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer" class="lp-doc-link">
                     Read Contributing Guide →
                   </a>
                 </div>
@@ -486,7 +489,7 @@
       </div>
     </footer>
   </div>
-  <script src="./script.js"></script>
+  <script type="module" src="./script.js"></script>
 </body>
 
 </html>
