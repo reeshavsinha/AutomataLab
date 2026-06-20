@@ -12,15 +12,21 @@ export default function App() {
     const handleHashChange = () => setRoute(window.location.hash)
     window.addEventListener('hashchange', handleHashChange)
     
-    // If we hit the root with no hash, redirect to the standalone landing page
-    if (!window.location.hash || window.location.hash === '#/') {
+    const isTauri = '__TAURI_INTERNALS__' in window;
+    
+    // On the web, if we hit the root with no hash, redirect to the standalone landing page
+    if (!isTauri && (!window.location.hash || window.location.hash === '#/')) {
       window.location.href = '/page/'
+    } else if (isTauri && (!window.location.hash || window.location.hash === '#/')) {
+      // In Tauri, enforce #/app if empty to ensure the app renders
+      window.location.hash = '#/app'
     }
     
     return () => window.removeEventListener('hashchange', handleHashChange)
   }, [])
 
-  if (route === '#/app') {
+  const isTauri = '__TAURI_INTERNALS__' in window;
+  if (isTauri || route === '#/app') {
     return <AppLayout />
   }
 
