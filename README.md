@@ -26,7 +26,7 @@
 
 Ready to build some state machines? Download the latest stable release for your operating system:
 
-**[Download AutomataLab v4.0.1](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
+**[Download AutomataLab v4.1.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
 *Auto-updates are fully supported for all platforms from v1.0.2 onward.*
 
