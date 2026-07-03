@@ -1,0 +1,568 @@
+import { useEffect, useState, useRef } from 'react'
+import { useMachineStore } from '@/store/machineStore'
+import { saveMachine } from '@/utils/fileManager'
+import { toast } from '@/store/toastStore'
+import { useFileActions } from '@/hooks/useFileActions'
+import { useUIStore } from '@/store/uiStore'
+import type { MachineDefinition, MachineType } from '@/engines/machine/core/types'
+import { ThemeIcon, HelpIcon } from '@/components/toolbar/icons'
+
+function tabLabel(tab: MachineDefinition): string {
+  if (tab.name) return tab.name
+  if (tab.type === 'CFG_PARSER') return 'Untitled Parser'
+  if (tab.type === 'REG') return 'Untitled Regex'
+  if (tab.type === 'CFG' || tab.type === 'CSG') return 'Untitled Grammar'
+  return 'Untitled Machine'
+}
+
+function getWorkspaceName(type: MachineType | undefined): string {
+  if (type === 'CFG_PARSER') return 'Parser'
+  if (type === 'CFG' || type === 'CSG') return 'Grammar'
+  if (type === 'REG') return 'Regex'
+  return 'Machine'
+}
+
+function ContextMenuItem({ label, onClick }: { label: string, onClick: () => void }) {
+  return (
+    <div
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      style={{ padding: '6px 12px', cursor: 'pointer', fontSize: '12px', color: 'var(--text-primary)', borderRadius: '2px' }}
+      onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+      onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+    >
+      {label}
+    </div>
+  )
+}
+
+export default function TabBar() {
+  const { tabs, activeTabIndex, dirtyTabs, switchTab, addTab, closeTab, renameTab, duplicateTabs, closeMultipleTabs, reorderTab } = useMachineStore()
+  const file = useFileActions()
+  const theme = useUIStore((s) => s.theme)
+  const toggleTheme = useUIStore((s) => s.toggleTheme)
+  
+  const [selectedTabIds, setSelectedTabIds] = useState<Set<string>>(new Set())
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, tabId: string } | null>(null)
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+  const activeId = tabs[activeTabIndex]?.id
+  const actualSelection = (activeId && selectedTabIds.has(activeId)) ? selectedTabIds : new Set(activeId ? [activeId] : [])
+
+  useEffect(() => {
+    const handler = () => setContextMenu(null)
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [])
+
+  // Index of the unsaved tab the user is attempting to close (null = no prompt).
+  const [pendingCloseIndex, setPendingCloseIndex] = useState<number | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editName, setEditName] = useState('')
+  const [showAddMenu, setShowAddMenu] = useState(false)
+  const addBtnRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (addBtnRef.current && !addBtnRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false)
+      }
+    }
+    window.addEventListener('click', handler)
+    return () => window.removeEventListener('click', handler)
+  }, [])
+
+  const requestClose = (index: number) => {
+    const tab = tabs[index]
+    if (tab && dirtyTabs[tab.id]) {
+      setPendingCloseIndex(index)
+    } else {
+      closeTab(index)
+    }
+  }
+
+  // Tab keyboard shortcuts: Ctrl/Cmd+W closes the active tab (dirty-aware),
+  // Ctrl/Cmd+T opens a new one — matching browser/editor conventions.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isMac = navigator.userAgent.toLowerCase().includes('mac')
+      const mod = isMac ? e.metaKey : e.ctrlKey
+      if (!mod) return
+      const k = e.key.toLowerCase()
+      if (k === 'w') {
+        e.preventDefault()
+        requestClose(activeTabIndex)
+      } else if (k === 't') {
+        e.preventDefault()
+        addTab(tabs[activeTabIndex]?.type)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabIndex, tabs, dirtyTabs, addTab])
+
+  const handleSaveAndClose = async () => {
+    if (pendingCloseIndex === null) return
+    const tab = tabs[pendingCloseIndex]
+    if (!tab) {
+      setPendingCloseIndex(null)
+      return
+    }
+    setIsSaving(true)
+    try {
+      const saved = await saveMachine(tab)
+      if (saved) {
+        toast.success(`Saved "${tab.name || 'Untitled'}".`)
+        closeTab(pendingCloseIndex)
+        setPendingCloseIndex(null)
+      }
+      // If the user cancelled the save dialog, keep the tab open.
+    } catch (err) {
+      if (err instanceof Error) toast.error(err.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCloseWithoutSaving = () => {
+    if (pendingCloseIndex === null) return
+    closeTab(pendingCloseIndex)
+    setPendingCloseIndex(null)
+  }
+
+  const handleCancel = () => setPendingCloseIndex(null)
+
+    const pendingTabName =
+    pendingCloseIndex !== null ? (tabs[pendingCloseIndex] ? tabLabel(tabs[pendingCloseIndex]) : '') : ''
+
+  return (
+    <div style={{
+      display: 'flex',
+      alignItems: 'flex-end',
+      background: 'var(--chrome-bg)',
+      borderBottom: '1px solid var(--chrome-border)',
+      height: '34px',
+      padding: '0 8px',
+      gap: '4px',
+      flexShrink: 0
+    }}>
+      <div className="hide-scrollbar" style={{
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '4px',
+        overflowX: 'auto',
+        height: '100%',
+        flex: '0 1 auto'
+      }}>
+        {tabs.map((tab, index) => {
+          const isActive = index === activeTabIndex
+          const isSelected = actualSelection.has(tab.id)
+          const isDirty = !!dirtyTabs[tab.id]
+        return (
+          <div
+            key={`${index}-${tab.id}`}
+            title={tab.name || tabLabel(tab)}
+            onClick={(e) => { 
+              if (editingIndex === index) return;
+              if (e.ctrlKey || e.metaKey) {
+                const next = new Set(actualSelection);
+                if (next.has(tab.id) && next.size > 1) next.delete(tab.id);
+                else next.add(tab.id);
+                setSelectedTabIds(next);
+              } else {
+                setSelectedTabIds(new Set([tab.id]));
+                switchTab(index);
+                const preferredRoute = useMachineStore.getState().tabRoutes[tab.id];
+                if (preferredRoute && preferredRoute !== window.location.hash) {
+                  window.location.hash = preferredRoute;
+                }
+              }
+            }}
+            draggable={true}
+            onDragStart={(e) => {
+              setDraggedIndex(index)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'move'
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              if (draggedIndex !== null && draggedIndex !== index) {
+                reorderTab(draggedIndex, index)
+              }
+              setDraggedIndex(null)
+            }}
+            onDragEnd={() => {
+              setDraggedIndex(null)
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '6px 12px',
+              background: isActive ? 'var(--bg-primary)' : isSelected ? 'var(--bg-secondary)' : 'transparent',
+              borderTopLeftRadius: 'var(--radius-sm)',
+              borderTopRightRadius: 'var(--radius-sm)',
+              borderTop: isActive ? '2px solid var(--text-primary)' : '1px solid transparent',
+              borderLeft: isActive ? '1px solid var(--border-default)' : '1px solid transparent',
+              borderRight: isActive ? '1px solid var(--border-default)' : '1px solid transparent',
+              color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+              fontSize: '12px',
+              fontFamily: 'var(--font-mono)',
+              cursor: 'pointer',
+              userSelect: 'none',
+              minWidth: '80px',
+              maxWidth: '160px',
+              height: '32px',
+              boxSizing: 'border-box',
+              marginBottom: isActive ? '-1px' : '0', // Overlap bottom border
+              zIndex: isActive ? 10 : 1
+            }}
+          >
+            {editingIndex === index ? (
+              <input
+                autoFocus
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={() => {
+                  renameTab(index, editName)
+                  setEditingIndex(null)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    renameTab(index, editName)
+                    setEditingIndex(null)
+                  } else if (e.key === 'Escape') {
+                    setEditingIndex(null)
+                  }
+                }}
+                style={{
+                  flex: 1,
+                  background: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '2px 4px',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  outline: 'none',
+                  minWidth: '50px',
+                  width: '100%',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  if (!actualSelection.has(tab.id)) {
+                    setSelectedTabIds(new Set([tab.id]))
+                    switchTab(index)
+                  }
+                  setContextMenu({ x: e.clientX, y: e.clientY, tabId: tab.id })
+                }}
+                onDoubleClick={(e) => {
+                  e.preventDefault()
+                  setEditingIndex(index)
+                  setEditName(tab.name || tabLabel(tab))
+                }}
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  flex: 1
+                }}
+              >
+              {tab.name || tabLabel(tab)}
+              </span>
+            )}
+            {isDirty && (
+              <span
+                title="Unsaved changes"
+                style={{
+                  width: '7px',
+                  height: '7px',
+                  borderRadius: '50%',
+                  background: 'currentColor',
+                  flexShrink: 0,
+                  opacity: 0.8,
+                }}
+              />
+            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                requestClose(index)
+              }}
+              title="Close tab"
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                opacity: isActive ? 0.7 : 0.3,
+                padding: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '50%'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-secondary)'
+                e.currentTarget.style.opacity = '1'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent'
+                e.currentTarget.style.opacity = isActive ? '0.7' : '0.3'
+              }}
+            >
+              ✕
+            </button>
+          </div>
+        )
+      })}
+      </div>
+
+      {contextMenu && (
+        <div style={{ position: 'fixed', top: contextMenu.y, left: contextMenu.x, zIndex: 1000, background: 'var(--chrome-bg)', border: '1px solid var(--border-default)', borderRadius: '4px', padding: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)', width: '220px' }}>
+          <ContextMenuItem label="Insert..." onClick={() => file.handleNew()} />
+          <ContextMenuItem label="Delete" onClick={() => {
+              const indices = tabs.map((t, i) => actualSelection.has(t.id) ? i : -1).filter(i => i !== -1)
+              closeMultipleTabs(indices)
+              setSelectedTabIds(new Set())
+          }} />
+          <ContextMenuItem label="Rename" onClick={() => {
+              const idx = tabs.findIndex(t => t.id === contextMenu.tabId)
+              if (idx !== -1) {
+                setEditingIndex(idx)
+                setEditName(tabs[idx].name || tabLabel(tabs[idx]))
+              }
+          }} />
+          <ContextMenuItem label="Duplicate" onClick={() => {
+              const indices = tabs.map((t, i) => actualSelection.has(t.id) ? i : -1).filter(i => i !== -1)
+              duplicateTabs(indices)
+          }} />
+          <hr style={{ borderColor: 'var(--border-default)', margin: '4px 0' }} />
+          <ContextMenuItem label="Select All Tabs" onClick={() => {
+              setSelectedTabIds(new Set(tabs.map(t => t.id)))
+          }} />
+          <ContextMenuItem label={`Select All ${getWorkspaceName(tabs.find(t => t.id === contextMenu.tabId)?.type)} Tabs`} onClick={() => {
+              const clickedWorkspace = getWorkspaceName(tabs.find(t => t.id === contextMenu.tabId)?.type)
+              const sameTypeIds = tabs.filter(t => getWorkspaceName(t.type) === clickedWorkspace).map(t => t.id)
+              setSelectedTabIds(new Set(sameTypeIds))
+          }} />
+        </div>
+      )}
+
+      {/* Add New Tab Button */}
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }} ref={addBtnRef}>
+        <button
+          onClick={() => setShowAddMenu(!showAddMenu)}
+          title="New Tab"
+          style={{
+            background: showAddMenu ? 'var(--bg-secondary)' : 'transparent',
+            border: 'none',
+            color: showAddMenu ? 'var(--text-primary)' : 'var(--text-secondary)',
+            fontSize: '16px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '32px',
+            borderRadius: '4px'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = showAddMenu ? 'var(--text-primary)' : 'var(--text-secondary)'}
+        >
+          +
+        </button>
+        
+        {showAddMenu && (
+          <div style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '4px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            zIndex: 1000,
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: '200px',
+            overflow: 'hidden'
+          }}>
+            {[
+              { type: 'DFA', label: 'Machine Workspace' },
+              { type: 'CFG', label: 'Grammar Laboratory' },
+              { type: 'CFG_PARSER', label: 'Parser Studio' },
+              { type: 'REG', label: 'Regex Laboratory' }
+            ].map(item => (
+              <button
+                key={item.type}
+                onClick={() => { addTab(item.type as any); setShowAddMenu(false); }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--text-primary)',
+                  padding: '10px 16px',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  fontSize: '0.85rem',
+                  fontFamily: 'var(--font-sans)'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ flex: 1 }} />
+      
+      {/* Theme + Help */}
+      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+        <button 
+          title={theme === 'dark' ? 'Light theme' : 'Dark theme'} 
+          onClick={toggleTheme}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          <ThemeIcon />
+        </button>
+        <button 
+          title="Help & keyboard shortcuts (F1)" 
+          onClick={() => useUIStore.getState().openModal('help')}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-primary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+        >
+          <HelpIcon />
+        </button>
+      </div>
+
+      {/* Unsaved-changes confirmation dialog */}
+      {pendingCloseIndex !== null && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 3000,
+          }}
+          onClick={handleCancel}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '24px',
+              width: '420px',
+              maxWidth: '90vw',
+              fontFamily: 'var(--font-mono)',
+              color: 'var(--text-primary)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px' }}>
+              Unsaved changes
+            </div>
+            <div style={{
+              fontSize: '13px',
+              lineHeight: 1.5,
+              color: 'var(--text-secondary)',
+              marginBottom: '24px',
+            }}>
+              "{pendingTabName}" has unsaved changes. Do you want to save before closing?
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+              <button
+                onClick={handleCancel}
+                disabled={isSaving}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  padding: '6px 14px',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCloseWithoutSaving}
+                disabled={isSaving}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-strong)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 600,
+                  padding: '6px 14px',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                Don't Save
+              </button>
+              <button
+                onClick={handleSaveAndClose}
+                disabled={isSaving}
+                style={{
+                  background: 'var(--text-primary)',
+                  border: '1px solid var(--text-primary)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--bg-primary)',
+                  fontSize: '12px',
+                  fontFamily: 'var(--font-mono)',
+                  fontWeight: 700,
+                  padding: '6px 14px',
+                  cursor: isSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isSaving ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

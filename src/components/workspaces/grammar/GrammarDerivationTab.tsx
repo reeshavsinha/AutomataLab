@@ -1,0 +1,146 @@
+import React, { useState } from 'react';
+import { useGrammarStore } from '@/store/grammarStore';
+import { BacktrackingSimulation } from '@/engines/parser/backtracking';
+import { SyntaxTreeNode } from '@/engines/parser/model';
+import { LL1Simulation } from '@/engines/parser/ll1Simulation';
+import { tokenizeGrammarString } from '@/engines/grammar/parser';
+
+export function GrammarDerivationTab() {
+  const { cfg } = useGrammarStore();
+  const [inputStr, setInputStr] = useState('');
+  const [leftmost, setLeftmost] = useState<string[][]>([]);
+  const [rightmost, setRightmost] = useState<string[][]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+
+  const handleParse = () => {
+    setError(null);
+    setLeftmost([]);
+    setRightmost([]);
+    
+    if (!inputStr.trim() && inputStr !== '') {
+        return;
+    }
+
+    const tokens = inputStr.trim() ? tokenizeGrammarString(inputStr) : [];
+    const sim = new BacktrackingSimulation(cfg);
+    sim.initialize(tokens);
+    sim.step();
+    
+    if (sim.status === 'accepted' && sim.tree) {
+      generateDerivations(sim.tree);
+    } else {
+      setError(sim.errorMsg || 'Failed to parse input.');
+    }
+  };
+
+  const generateDerivations = (tree: SyntaxTreeNode) => {
+    // Leftmost
+    const leftSteps: string[][] = [[tree.symbol]];
+    let currentLeft = [tree];
+    
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const nextLeft: SyntaxTreeNode[] = [];
+      let expanded = false;
+      
+      for (const node of currentLeft) {
+        if (!expanded && node.children && node.children.length > 0) {
+          nextLeft.push(...node.children);
+          expanded = true;
+          changed = true;
+        } else {
+          nextLeft.push(node);
+        }
+      }
+      
+      if (changed) {
+        currentLeft = nextLeft;
+        leftSteps.push(currentLeft.map(n => n.symbol).filter(s => s !== 'ε'));
+      }
+    }
+    setLeftmost(leftSteps);
+
+    // Rightmost
+    const rightSteps: string[][] = [[tree.symbol]];
+    let currentRight = [tree];
+    
+    changed = true;
+    while (changed) {
+      changed = false;
+      const nextRight: SyntaxTreeNode[] = [];
+      let expanded = false;
+      
+      for (let i = currentRight.length - 1; i >= 0; i--) {
+        const node = currentRight[i];
+        if (!expanded && node.children && node.children.length > 0) {
+          nextRight.unshift(...node.children);
+          expanded = true;
+          changed = true;
+        } else {
+          nextRight.unshift(node);
+        }
+      }
+      
+      if (changed) {
+        currentRight = nextRight;
+        rightSteps.push(currentRight.map(n => n.symbol).filter(s => s !== 'ε'));
+      }
+    }
+    setRightmost(rightSteps);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16 }}>
+      <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Derivations</h3>
+      
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <input 
+          type="text"
+          value={inputStr}
+          onChange={e => setInputStr(e.target.value)}
+          placeholder="Enter string to parse..."
+          style={{ flex: 1, padding: '6px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
+        />
+        <button 
+          onClick={handleParse}
+          style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+        >
+          Parse
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ color: '#ef4444', marginBottom: 16, fontSize: '0.85rem' }}>{error}</div>
+      )}
+
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {leftmost.length > 0 && (
+          <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 8 }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Leftmost Derivation</h4>
+            {leftmost.map((step, i) => (
+              <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', marginBottom: 4 }}>
+                {i > 0 && <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>⇒</span>}
+                {step.length === 0 ? 'ε' : step.join(' ')}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {rightmost.length > 0 && (
+          <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 8 }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Rightmost Derivation</h4>
+            {rightmost.map((step, i) => (
+              <div key={i} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem', marginBottom: 4 }}>
+                {i > 0 && <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>⇒</span>}
+                {step.length === 0 ? 'ε' : step.join(' ')}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
