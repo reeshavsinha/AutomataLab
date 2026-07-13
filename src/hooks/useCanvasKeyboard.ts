@@ -30,7 +30,8 @@ export function useCanvasKeyboard({
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
       const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
-      if (isInput) return
+      const hasSelection = window.getSelection()?.toString().length
+      if (isInput || hasSelection) return
 
       const isMac = navigator.userAgent.toLowerCase().includes('mac')
       const isCtrl = isMac ? e.metaKey : e.ctrlKey

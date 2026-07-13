@@ -75,7 +75,7 @@ interface MachineStore {
 
 /** A tab is "pristine" when it has no diagram content yet (safe to reuse on open). */
 export function isPristineTab(m: MachineDefinition): boolean {
-  if (m.type === 'CFG' || m.type === 'CSG' || m.type === 'REG') {
+  if (m.type === 'CFG' || m.type === 'CSG') {
     return !m.grammarText || m.grammarText.trim().length === 0
   }
   if (m.type === 'CFG_PARSER') {
@@ -84,15 +84,28 @@ export function isPristineTab(m: MachineDefinition): boolean {
   return m.states.length === 0 && m.transitions.length === 0
 }
 
-const createDefaultMachine = (type?: MachineType): MachineDefinition => {
-  const name = type === 'CFG_PARSER' ? 'Untitled Parser'
-    : type === 'REG' ? 'Untitled Regex'
-    : (type === 'CFG' || type === 'CSG') ? 'Untitled Grammar'
-    : 'Untitled Machine'
+const createDefaultMachine = (type?: MachineType, tabs: MachineDefinition[] = []): MachineDefinition => {
+  const actualType = type ?? 'DFA';
+  const isParser = actualType === 'CFG_PARSER';
+  const isGrammar = actualType === 'CFG' || actualType === 'CSG';
+
+  let count = 1;
+  if (isParser) {
+    count = tabs.filter(t => t.type === 'CFG_PARSER').length + 1;
+  } else if (isGrammar) {
+    count = tabs.filter(t => t.type === 'CFG' || t.type === 'CSG').length + 1;
+  } else {
+    count = tabs.filter(t => t.type !== 'CFG_PARSER' && t.type !== 'CFG' && t.type !== 'CSG').length + 1;
+  }
+
+  const name = isParser ? `Parser ${count}`
+    : isGrammar ? `Grammar ${count}`
+    : `Machine ${count}`;
+
   return {
     id: generateId('machine'),
     name,
-    type: type ?? 'DFA',
+    type: actualType,
     language: '',
     states: [],
     transitions: [],
@@ -143,12 +156,14 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     addTab: (type?: MachineType) => {
       useUIStore.getState().clearSelection();
-      const newMachine = createDefaultMachine(type)
-      set((s) => ({
-        tabs: [...s.tabs, newMachine],
-        activeTabIndex: s.tabs.length,
-        machine: newMachine
-      }))
+      set((s) => {
+        const newMachine = createDefaultMachine(type, s.tabs);
+        return {
+          tabs: [...s.tabs, newMachine],
+          activeTabIndex: s.tabs.length,
+          machine: newMachine
+        };
+      });
     },
 
     switchTab: (index) => {
@@ -601,7 +616,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     resetMachine: () => set((s) => {
       const prevId = s.tabs[s.activeTabIndex]?.id
-      const freshMachine = createDefaultMachine()
+      const freshMachine = createDefaultMachine(undefined, s.tabs)
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = freshMachine
       const tabPaths = { ...s.tabPaths }

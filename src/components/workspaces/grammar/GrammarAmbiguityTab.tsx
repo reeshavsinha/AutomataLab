@@ -68,7 +68,7 @@ export function GrammarAmbiguityTab() {
       let counterexample = '';
 
       for (const str of samples) {
-        const tokens = str === 'ε' ? [] : tokenizeGrammarString(str);
+        const tokens = str === 'ε' ? [] : tokenizeGrammarString(str, cfg.nonterminals, cfg.terminals);
         
         let parseCount = 0;
         let opsCount = 0;

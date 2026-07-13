@@ -8,6 +8,8 @@ interface WorkspaceShellProps {
   header?: ReactNode; // Replaces TabBar if needed, though TabBar is standard
   toolbar?: ReactNode;
   sidebarLeft?: ReactNode;
+  sidebarLeftCollapsed?: boolean;
+  onSidebarLeftCollapseChange?: (collapsed: boolean) => void;
   content: ReactNode;
   sidebarRight?: ReactNode;
   sidebarRightCollapsed?: boolean;
@@ -28,6 +30,8 @@ export function WorkspaceShell({
   header = <TabBar />,
   toolbar,
   sidebarLeft,
+  sidebarLeftCollapsed = false,
+  onSidebarLeftCollapseChange,
   content,
   sidebarRight,
   sidebarRightCollapsed = false,
@@ -37,33 +41,47 @@ export function WorkspaceShell({
   autoSaveId,
   defaultLayout = [20, 55, 25]
 }: WorkspaceShellProps) {
-  const { layout, onLayoutChange } = usePanelLayout(autoSaveId || 'workspace-shell-default', {
-    left: defaultLayout[0],
-    content: defaultLayout[1],
-    right: defaultLayout[2]
-  });
+  const { layout, onLayoutChange } = usePanelLayout(autoSaveId || 'workspace-shell-default', defaultLayout);
 
   const rightPanelRef = React.useRef<PanelImperativeHandle>(null);
-  const lastSizeRef = React.useRef<number>(25);
+  const leftPanelRef = React.useRef<PanelImperativeHandle>(null);
+  const lastRightSizeRef = React.useRef<number>(25);
+  const lastLeftSizeRef = React.useRef<number>(20);
 
   React.useEffect(() => {
     if (rightPanelRef.current) {
       if (sidebarRightCollapsed) {
         // Only save size if it wasn't already collapsed
-        const currentSize = rightPanelRef.current.getSize().asPercentage ?? rightPanelRef.current.getSize(); // fallback if library version differs
+        const currentSize = rightPanelRef.current.getSize().asPercentage ?? rightPanelRef.current.getSize();
         if ((currentSize as number) > 10) {
-          lastSizeRef.current = currentSize as number;
+          lastRightSizeRef.current = currentSize as number;
         }
       } else {
-        // Wait a tick for minSize/maxSize DOM updates to apply before resizing back
         setTimeout(() => {
           if (rightPanelRef.current) {
-            rightPanelRef.current.resize(lastSizeRef.current);
+            rightPanelRef.current.resize(lastRightSizeRef.current);
           }
         }, 0);
       }
     }
   }, [sidebarRightCollapsed]);
+
+  React.useEffect(() => {
+    if (leftPanelRef.current) {
+      if (sidebarLeftCollapsed) {
+        const currentSize = leftPanelRef.current.getSize().asPercentage ?? leftPanelRef.current.getSize();
+        if ((currentSize as number) > 10) {
+          lastLeftSizeRef.current = currentSize as number;
+        }
+      } else {
+        setTimeout(() => {
+          if (leftPanelRef.current) {
+            leftPanelRef.current.resize(lastLeftSizeRef.current);
+          }
+        }, 0);
+      }
+    }
+  }, [sidebarLeftCollapsed]);
 
   return (
     <div className={`workspace-shell-container ${className}`}>
@@ -74,15 +92,23 @@ export function WorkspaceShell({
       <div className="workspace-shell-main">
         <PanelGroup
           orientation="horizontal"
-          onLayoutChange={autoSaveId ? onLayoutChange : undefined}
-          defaultLayout={layout}
+          onLayoutChange={autoSaveId ? onLayoutChange as any : undefined}
+          defaultLayout={layout as any}
         >
           {sidebarLeft && (
             <>
-              <Panel id="left" defaultSize="20" minSize="25" className="workspace-shell-sidebar workspace-shell-sidebar-left">
+              <Panel
+                panelRef={leftPanelRef}
+                collapsible={false}
+                collapsedSize="2"
+                id="left"
+                defaultSize="20"
+                minSize={sidebarLeftCollapsed ? "2" : "25"}
+                maxSize={sidebarLeftCollapsed ? "2" : undefined}
+                className="workspace-shell-sidebar workspace-shell-sidebar-left">
                 {sidebarLeft}
               </Panel>
-              <ResizeHandle />
+              <ResizeHandle disabled={sidebarLeftCollapsed} />
             </>
           )}
 

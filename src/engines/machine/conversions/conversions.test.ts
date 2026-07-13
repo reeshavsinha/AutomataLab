@@ -15,7 +15,8 @@ import { enfaToNfa } from './epsilonElimination'
 import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
-import { cfgToPda, parseGrammar } from './cfgToPda'
+import { cfgToPda } from './cfgToPda'
+import { parseGrammarText } from '../../grammar/parser'
 import { dfaToRegex } from './dfaToRegex'
 import { pdaToCfg } from './pdaToCfg'
 
@@ -258,9 +259,9 @@ describe('regexToNfa (Thompson construction)', () => {
 
 describe('cfgToPda', () => {
   it('parses a grammar', () => {
-    const g = parseGrammar('S -> a S b | ε')
-    expect(g.start).toBe('S')
-    expect(g.terminals).toEqual(['a', 'b'])
+    const g = parseGrammarText('S -> a S b | ε')
+    expect(g.startSymbol).toBe('S')
+    expect(Array.from(g.terminals)).toEqual(['a', 'b'])
     expect(g.productions).toHaveLength(2)
   })
 
@@ -289,9 +290,9 @@ describe('cfgToPda', () => {
   })
 
   it('rejects a malformed grammar', () => {
-    expect(() => parseGrammar('x -> a')).toThrow()
-    expect(() => parseGrammar('no arrow here')).toThrow()
-    expect(() => parseGrammar('# only a comment')).toThrow()
+    expect(() => parseGrammarText('x -> a')).toThrow()
+    expect(() => parseGrammarText('no arrow here')).toThrow()
+    expect(() => parseGrammarText('# only a comment')).toThrow()
   })
 })
 

@@ -12,6 +12,8 @@ import { tokenizeGrammarString } from '@/engines/grammar/parser';
 import { CYKSimulation } from '@/engines/parser/cyk';
 import { EarleySimulation } from '@/engines/parser/earley';
 import { BacktrackingSimulation } from '@/engines/parser/backtracking';
+import { ParserMetadata, ParserPresentation } from '../engines/parser/model';
+import { CFG } from '../engines/grammar/types';
 import { ParserModel, ParserEngine } from '@/engines/parser/model';
 import { ParserBuilder } from '@/engines/parser/builder';
 import { ParsingSession } from '@/engines/parser/session';
@@ -67,11 +69,25 @@ interface ParserSimulationState {
   exitPreviewMode: () => void;
 }
 
+export const getFallbackSimulationInfo = (algorithm: string): { metadata: ParserMetadata, presentation: ParserPresentation } | null => {
+  const dummyCfg: CFG = { terminals: new Set(), nonterminals: new Set(), productions: [], startSymbol: '' };
+  try {
+    if (algorithm === 'LL1') { const s = new LL1Simulation(dummyCfg, null as any); return { metadata: s.metadata, presentation: s.presentation }; }
+    if (algorithm.includes('LR')) { const s = new LRSimulation(dummyCfg, null as any); return { metadata: s.metadata, presentation: s.presentation }; }
+    if (algorithm === 'CYK') { const s = new CYKSimulation(dummyCfg); return { metadata: s.metadata, presentation: s.presentation }; }
+    if (algorithm === 'EARLEY') { const s = new EarleySimulation(dummyCfg); return { metadata: s.metadata, presentation: s.presentation }; }
+    if (algorithm === 'BACKTRACKING') { const s = new BacktrackingSimulation(dummyCfg); return { metadata: s.metadata, presentation: s.presentation }; }
+  } catch (e) {
+    return null;
+  }
+  return null;
+};
+
 export const useParserStore = create<ParserSimulationState>((set, get) => ({
   model: null,
   setModel: (model) => set({ model }),
-    buildDiagnostics: null,
-    setBuildDiagnostics: (d) => set({ buildDiagnostics: d }),
+  buildDiagnostics: null,
+  setBuildDiagnostics: (d) => set({ buildDiagnostics: d }),
   session: null,
   algorithm: 'LL1',
   setAlgorithm: (alg) => {
@@ -79,14 +95,16 @@ export const useParserStore = create<ParserSimulationState>((set, get) => ({
       const tabs = [...s.tabs];
       const active = tabs[s.activeTabIndex];
       if (active && active.type === 'CFG_PARSER') {
-        tabs[s.activeTabIndex] = { ...active, parserAlgorithm: alg };
+        tabs[s.activeTabIndex] = { ...active, parserAlgorithm: alg, activeViewMode: 'table', parserLayoutCache: undefined };
       }
       return { tabs, machine: tabs[s.activeTabIndex], dirtyTabs: { ...s.dirtyTabs, [active.id]: true } };
     });
     get().setAlgorithmWithoutSync(alg);
-    get().initializeSim(true);
   },
-  setAlgorithmWithoutSync: (alg) => set({ algorithm: alg, simulation: null, currentStep: 0, maxStep: 0, isPlaying: false }),
+  setAlgorithmWithoutSync: (alg) => {
+    if (get().algorithm === alg) return;
+    set({ algorithm: alg, simulation: null, currentStep: 0, maxStep: 0, isPlaying: false });
+  },
   rawInput: '',
   tokens: [],
   simulation: null,
@@ -96,7 +114,7 @@ export const useParserStore = create<ParserSimulationState>((set, get) => ({
   playSpeed: 1,
 
   setIsPlaying: (playing) => set({ isPlaying: playing }),
-  setPlaySpeed: (speed) => set({ playSpeed: speed }),
+  setPlaySpeed: (speed: number) => set({ playSpeed: speed }),
 
   setRawInput: (input: string) => {
     useMachineStore.setState((s) => {
@@ -112,6 +130,7 @@ export const useParserStore = create<ParserSimulationState>((set, get) => ({
   },
 
   setRawInputWithoutSync: (input: string) => {
+    if (get().rawInput === input) return;
     const { cfg } = useGrammarStore.getState();
     const terminals = cfg ? cfg.terminals : new Set<string>();
     
@@ -262,12 +281,21 @@ export const useActiveSimulationState = () => {
 
 useGrammarStore.subscribe((state, prevState) => {
   if (state.cfg !== prevState.cfg) {
+    useMachineStore.setState((s) => {
+      const tabs = [...s.tabs];
+      const active = tabs[s.activeTabIndex];
+      if (active && active.type === 'CFG_PARSER') {
+        tabs[s.activeTabIndex] = { ...active, parserLayoutCache: undefined };
+      }
+      return { tabs, machine: tabs[s.activeTabIndex] };
+    });
+
     if (state.cfg && state.cfg.productions.length > 0) {
       const buildResult = ParserBuilder.build(state.cfg);
       if (buildResult.model) {
         useParserStore.getState().setModel(buildResult.model);
         useParserStore.getState().setBuildDiagnostics(null);
-        useParserStore.getState().initializeSim(true);
+        useParserStore.getState().resetSim();
       } else {
         useParserStore.getState().setModel(null);
         useParserStore.getState().setBuildDiagnostics(buildResult.diagnostics || 'Unknown build error');

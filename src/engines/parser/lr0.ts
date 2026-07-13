@@ -39,17 +39,27 @@ const setContains = (set: LR0Item[], item: LR0Item) => set.some(i => itemsEqual(
 export const formatItem = (item: LR0Item, cfg: CFG): string => {
   const p = cfg.productions[item.prodIndex];
   const rhs = [...p.rhs];
+  let base = '';
   if (rhs.length === 1 && rhs[0] === EPSILON) {
     // If epsilon production, dot is always at end conceptually, but represented as length 1
-    return `${p.lhs} -> .`;
+    base = `${p.lhs} -> .`;
+  } else {
+    rhs.splice(item.dot, 0, '.');
+    base = `${p.lhs} -> ${rhs.join(' ')}`;
   }
-  rhs.splice(item.dot, 0, '.');
-  return `${p.lhs} -> ${rhs.join(' ')}`;
+
+  const lr1Item = item as any;
+  if (lr1Item.lookaheads && lr1Item.lookaheads.size > 0) {
+    const la = Array.from(lr1Item.lookaheads).join('/');
+    base += ` , ${la}`;
+  }
+
+  return base;
 };
 
 export function generateLR0Table(cfg: CFG): LR0Table {
-  // 1. Augment Grammar: S' -> S
-  const startPrime = cfg.startSymbol + "'";
+  // 1. Augment Grammar: START -> S
+  const startPrime = 'START';
   const augmentedProds = [
     { lhs: startPrime, rhs: [cfg.startSymbol] },
     ...cfg.productions

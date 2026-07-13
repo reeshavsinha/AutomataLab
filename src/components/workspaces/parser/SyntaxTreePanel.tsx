@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
-import { ReactFlow, Background, MiniMap, Controls, Node, Edge, useNodesState, useEdgesState, Position, MarkerType, ReactFlowInstance } from '@xyflow/react';
+import { ReactFlow, Background, MiniMap, Controls, ControlButton, Node, Edge, useNodesState, useEdgesState, Position, MarkerType, ReactFlowInstance } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { RefreshCw } from 'lucide-react';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
 import { SyntaxTreeNode } from '@/engines/parser/model';
 import { EPSILON } from '@/engines/grammar/types';
@@ -137,6 +138,7 @@ export function SyntaxTreePanel() {
   const simulation = useActiveSimulationState();
   const treeSnapshot = simulation?.tree ?? null;
   const [rfInstance, setRfInstance] = React.useState<ReactFlowInstance | null>(null);
+  const [layoutSeed, setLayoutSeed] = React.useState(0);
   
   // Extract floating roots from stack for LR bottom-up progressive rendering
   const stackRoots = !treeSnapshot && simulation && 'stack' in simulation 
@@ -157,7 +159,7 @@ export function SyntaxTreePanel() {
       setNodes([]);
       setEdges([]);
     }
-  }, [treeSnapshot, stackRoots.length, currentStep]); // Also update on step change for progressive rendering
+  }, [treeSnapshot, stackRoots.length, currentStep, layoutSeed]); // Also update on step change for progressive rendering
 
   useEffect(() => {
     if (rfInstance && isPlaying) {
@@ -178,19 +180,21 @@ export function SyntaxTreePanel() {
       top: 0, left: 0, right: 0, bottom: 0
     }}>
       {nodes.length > 0 ? (
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onInit={setRfInstance}
-          fitView
-          minZoom={0.2}
-          maxZoom={4}
-          nodesDraggable={true}
-          translateExtent={[[-2000, -2000], [4000, 4000]]}
-          proOptions={{ hideAttribution: true }}
-        >
+        <>
+          <ReactFlow
+            className="syntax-tree-viewer"
+            nodes={nodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onInit={setRfInstance}
+            fitView
+            minZoom={0.2}
+            maxZoom={4}
+            nodesDraggable={true}
+            translateExtent={[[-1000, -1000], [2000, 2000]]}
+            proOptions={{ hideAttribution: true }}
+          >
           <Background
             color="var(--border-subtle)"
             gap={20}
@@ -208,8 +212,13 @@ export function SyntaxTreePanel() {
           />
           <Controls
             style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)' }}
-          />
+          >
+            <ControlButton onClick={() => setLayoutSeed(s => s + 1)} title="Reset Layout">
+              <RefreshCw size={14} color="currentColor" />
+            </ControlButton>
+          </Controls>
         </ReactFlow>
+        </>
       ) : (
         <div style={{
           display: 'flex',

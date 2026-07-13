@@ -3,6 +3,7 @@ import { useParserStore, useActiveSimulationState, useLR0Table, useSLR1Table, us
 import { formatItem } from '@/engines/parser/lr0';
 
 export function ClosureGotoPanel() {
+  const [selectedStateId, setSelectedStateId] = React.useState<number | null>(null);
   const { algorithm } = useParserStore();
   const simulation = useActiveSimulationState();
   const lr0Table = useLR0Table();
@@ -31,20 +32,21 @@ export function ClosureGotoPanel() {
     );
   }
 
-  // Get current state from stack
-  let currentStateId = 0;
+  let stackStateId = 0;
   for (let i = simulation.stack.length - 1; i >= 0; i--) {
     if (typeof simulation.stack[i] === 'number') {
-      currentStateId = simulation.stack[i] as number;
+      stackStateId = simulation.stack[i] as number;
       break;
     }
   }
 
-  const state = activeTable.states.find(s => s.id === currentStateId);
+  const activeStateId = selectedStateId !== null ? selectedStateId : stackStateId;
+
+  const state = activeTable.states.find(s => s.id === activeStateId);
   if (!state) return null;
 
-  const gotos = activeTable.gotoTable.get(currentStateId);
-  const actions = activeTable.actionTable.get(currentStateId);
+  const gotos = activeTable.gotoTable.get(activeStateId);
+  const actions = activeTable.actionTable.get(activeStateId);
 
   // Collect all transitions (shifts and gotos)
   const transitions: { symbol: string, to: number }[] = [];
@@ -78,7 +80,8 @@ export function ClosureGotoPanel() {
         flexShrink: 0,
         height: '28px',
         display: 'flex',
-        alignItems: 'center'
+        alignItems: 'center',
+        gap: '8px'
       }}>
         <span style={{
           fontSize: '0.68rem',
@@ -87,7 +90,35 @@ export function ClosureGotoPanel() {
           letterSpacing: '0.08em',
           fontFamily: 'var(--font-mono)'
         }}>
-          STATE {currentStateId} CLOSURE & GOTO
+          STATE
+        </span>
+        <select 
+          value={selectedStateId === null ? 'auto' : selectedStateId}
+          onChange={(e) => setSelectedStateId(e.target.value === 'auto' ? null : parseInt(e.target.value))}
+          style={{
+            background: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '3px',
+            fontSize: '0.7rem',
+            padding: '2px 4px',
+            fontFamily: 'var(--font-mono)',
+            outline: 'none'
+          }}
+        >
+          <option value="auto">Auto ({stackStateId})</option>
+          {activeTable.states.map(s => (
+            <option key={s.id} value={s.id}>{s.id}</option>
+          ))}
+        </select>
+        <span style={{
+          fontSize: '0.68rem',
+          fontWeight: 700,
+          color: 'var(--text-muted)',
+          letterSpacing: '0.08em',
+          fontFamily: 'var(--font-mono)'
+        }}>
+          CLOSURE & GOTO
         </span>
       </div>
 

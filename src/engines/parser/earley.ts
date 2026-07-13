@@ -48,6 +48,9 @@ export class EarleySimulation implements ParserEngine {
   private validTrees: SyntaxTreeNode[] = [];
   public history: ParserHistoryEntry[] = [];
   
+  private extractOperations = 0;
+  private maxExtractOperations = 50000;
+  
   constructor(cfg: CFG) {
     this.cfg = cfg;
   }
@@ -67,7 +70,7 @@ export class EarleySimulation implements ParserEngine {
     
     if (startSymbol) {
       this.stateSets[0].push({
-        lhs: "S'",
+        lhs: "START",
         rhs: [startSymbol],
         dot: 0,
         origin: 0
@@ -133,7 +136,7 @@ export class EarleySimulation implements ParserEngine {
     const item = currentSet[this.currentItemIndex];
     this.currentItemIndex++;
 
-    const isCompleted = item.dot >= item.rhs.length || item.rhs[0] === 'ε' || item.rhs[0] === 'I';
+    const isCompleted = item.dot >= item.rhs.length || item.rhs[0] === 'ε';
     
     const formattedItem = `${item.lhs} → ${item.rhs.slice(0, item.dot).join(' ')} • ${item.rhs.slice(item.dot).join(' ')} (Origin: ${item.origin})`;
     let actionStr = '';
@@ -150,6 +153,21 @@ export class EarleySimulation implements ParserEngine {
           `Predicted productions for '${nextSymbol}' and added them to State Set ${this.currentSetIndex}.`
         ];
         this.predict(nextSymbol, this.currentSetIndex);
+        
+        // Nullability Fix: if nextSymbol was already completed in this set (originating here)
+        const completed = currentSet.filter(i => 
+          i.lhs === nextSymbol && 
+          i.origin === this.currentSetIndex && 
+          (i.dot >= i.rhs.length || i.rhs[0] === 'ε')
+        );
+        for (const c of completed) {
+          this.addItem(this.currentSetIndex, {
+            lhs: item.lhs,
+            rhs: item.rhs,
+            dot: item.dot + 1,
+            origin: item.origin
+          });
+        }
       } else {
         actionStr = `Scan: ${nextSymbol}`;
         expl = [
@@ -227,7 +245,7 @@ export class EarleySimulation implements ParserEngine {
   private checkAcceptance() {
     const finalSet = this.stateSets[this.input.length];
     const finalItems = finalSet.filter(item => 
-      item.lhs === "S'" && item.dot === item.rhs.length && item.origin === 0
+      item.lhs === "START" && item.dot === item.rhs.length && item.origin === 0
     );
     
     if (finalItems.length > 0) {
@@ -251,10 +269,16 @@ export class EarleySimulation implements ParserEngine {
     }
   }
 
+  private memoBuild: Map<string, SyntaxTreeNode[] | 'IN_PROGRESS'> = new Map();
+  private memoPaths: Map<string, SyntaxTreeNode[][] | 'IN_PROGRESS'> = new Map();
+
   private extractTrees() {
+    this.extractOperations = 0;
+    this.memoBuild.clear();
+    this.memoPaths.clear();
     // Backwards recursive search to construct parse trees
     const finalSet = this.stateSets[this.input.length];
-    const acceptItems = finalSet.filter(item => item.lhs === "S'" && item.dot === item.rhs.length && item.origin === 0);
+    const acceptItems = finalSet.filter(item => item.lhs === "START" && item.dot === item.rhs.length && item.origin === 0);
     
     for (const acc of acceptItems) {
       const trees = this.buildTrees(acc, this.input.length);
@@ -262,44 +286,69 @@ export class EarleySimulation implements ParserEngine {
     }
     
     if (this.validTrees.length > 0) {
-      this.tree = this.validTrees[0].children[0]; // Strip S' root
+      this.tree = this.validTrees[0].children[0]; // Strip START root
       this.totalParses = this.validTrees.length;
       this.isAmbiguous = this.totalParses > 1;
+    } else {
+      this.status = 'rejected';
+      this.errorMsg = 'Parse accepted, but tree extraction aborted due to extreme ambiguity/cycles.';
     }
+    console.log("Extract Operations used:", this.extractOperations);
   }
 
   private buildTrees(item: EarleyItem, endPos: number): SyntaxTreeNode[] {
-    const results: SyntaxTreeNode[] = [];
+    this.extractOperations++;
+    if (this.extractOperations > this.maxExtractOperations) return [];
     
-    if (item.rhs[0] === 'ε' || item.rhs[0] === 'I') {
-      return [{
+    const memoKey = `${item.lhs}->${item.rhs.join(',')}:${item.origin}-${endPos}`;
+    const cached = this.memoBuild.get(memoKey);
+    if (cached === 'IN_PROGRESS') return [];
+    if (cached) return cached;
+    
+    this.memoBuild.set(memoKey, 'IN_PROGRESS');
+    
+    let results: SyntaxTreeNode[] = [];
+    
+    if (item.rhs[0] === 'ε') {
+      results = [{
         id: Math.random().toString(),
         symbol: item.lhs,
         children: [{ id: Math.random().toString(), symbol: 'ε', children: [], isMatched: true }]
       }];
+    } else {
+      // Find paths of children that match item.rhs and span from item.origin to endPos
+      const paths = this.findChildrenPaths(item.rhs, item.rhs.length, item.origin, endPos);
+      
+      for (const children of paths) {
+        results.push({
+          id: Math.random().toString(),
+          symbol: item.lhs,
+          children: children
+        });
+        if (results.length > 50) break; // Limit ambiguity explosion
+      }
     }
     
-    // Find paths of children that match item.rhs and span from item.origin to endPos
-    const paths = this.findChildrenPaths(item.rhs, item.rhs.length, item.origin, endPos);
-    
-    for (const children of paths) {
-      results.push({
-        id: Math.random().toString(),
-        symbol: item.lhs,
-        children: children
-      });
-      if (results.length > 50) break; // Limit ambiguity explosion
-    }
-    
+    this.memoBuild.set(memoKey, results);
     return results;
   }
 
   private findChildrenPaths(rhs: string[], k: number, startPos: number, endPos: number): SyntaxTreeNode[][] {
+    this.extractOperations++;
+    if (this.extractOperations > this.maxExtractOperations) return [];
+
     if (k === 0) {
       if (startPos === endPos) return [[]];
       return [];
     }
     
+    const memoKey = `${rhs.join(',')}:${k}:${startPos}-${endPos}`;
+    const cached = this.memoPaths.get(memoKey);
+    if (cached === 'IN_PROGRESS') return [];
+    if (cached) return cached;
+    
+    this.memoPaths.set(memoKey, 'IN_PROGRESS');
+
     const paths: SyntaxTreeNode[][] = [];
     const symbol = rhs[k - 1];
     
@@ -313,23 +362,33 @@ export class EarleySimulation implements ParserEngine {
     } else if (this.cfg.nonterminals.has(symbol)) {
       for (let mid = startPos; mid <= endPos; mid++) {
         const set = this.stateSets[endPos];
-        const subItems = set.filter(i => i.lhs === symbol && i.dot === i.rhs.length && i.origin === mid);
+        const subItems = set.filter(i => 
+          i.lhs === symbol && 
+          (i.dot === i.rhs.length || i.rhs[0] === 'ε') && 
+          i.origin === mid
+        );
         
         for (const subItem of subItems) {
+          const prefixPaths = this.findChildrenPaths(rhs, k - 1, startPos, mid);
+          if (prefixPaths.length === 0) continue;
+
           const subTrees = this.buildTrees(subItem, endPos);
           if (subTrees.length === 0) continue;
           
-          const prefixPaths = this.findChildrenPaths(rhs, k - 1, startPos, mid);
           for (const prefix of prefixPaths) {
             for (const st of subTrees) {
               paths.push([...prefix, st]);
-              if (paths.length > 50) return paths;
+              if (paths.length > 50) break;
             }
+            if (paths.length > 50) break;
           }
+          if (paths.length > 50) break;
         }
+        if (paths.length > 50) break;
       }
     }
     
+    this.memoPaths.set(memoKey, paths);
     return paths;
   }
   

@@ -15,10 +15,10 @@ export interface LayoutConfig {
 }
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
-  horizontalSpacing: 180,
-  verticalSpacing: 80,
+  horizontalSpacing: 210,
+  verticalSpacing: 110,
   statePadding: 15,
-  routingClearance: 10,
+  routingClearance: 25,
   laneSpacing: 8,
   labelMargin: 5,
   cornerRadius: 8,

@@ -1,76 +1,154 @@
-// src/engines/grammar/parser.ts
+import { CFG, Production, EPSILON, GrammarSymbol } from './types';
 
-import { CFG, Production, EPSILON } from './types';
-
-export function isNonterminal(sym: string): boolean {
-  // Enforced rule: Non-terminals are exactly ONE uppercase letter.
-  return /^[A-Z]$/.test(sym);
+export function isNonterminal(sym: GrammarSymbol): boolean {
+  return /^[A-Z][A-Za-z0-9_']*$/.test(sym);
 }
 
-// Tokenizes a string (LHS or RHS) completely ignoring whitespace,
-// extracting single-letter NTs, contiguous terminals, and symbols.
-export function tokenizeGrammarString(str: string): string[] {
-  const tokens: string[] = [];
-  // Match groups:
-  // 1: Epsilon variations
-  // 2: Single Uppercase Letter (Non-Terminal)
-  // 3: Contiguous lowercase letter, number, underscore (Terminal)
-  // 4: Any single other non-whitespace character (Symbol Terminal)
-  const regex = /(\\epsilon|\\e|epsilon|''|""|ε)|([A-Z])|([a-z0-9_]+)|([^A-Za-z0-9_\s])/g;
+export function isTerminal(sym: GrammarSymbol): boolean {
+  if (sym === EPSILON) return false;
+  return !isNonterminal(sym);
+}
+
+export function tokenizeGrammarString(str: string, declaredNonterminals: Set<string>, declaredTerminals?: Set<string>): GrammarSymbol[] {
+  const tokens: GrammarSymbol[] = [];
+  const nts = Array.from(declaredNonterminals).sort((a, b) => b.length - a.length);
+  const ts = declaredTerminals ? Array.from(declaredTerminals).sort((a, b) => b.length - a.length) : [];
   
-  let match;
-  while ((match = regex.exec(str)) !== null) {
-    if (match[1]) {
-      tokens.push(EPSILON);
-    } else {
-      tokens.push(match[0]);
+  let i = 0;
+  while (i < str.length) {
+    if (/^\s$/.test(str[i])) {
+      i++;
+      continue;
     }
+    
+    const epsMatch = str.slice(i).match(/^(\\epsilon|\\e|epsilon|eps|''|""|ε)/i);
+    if (epsMatch) {
+      tokens.push(EPSILON);
+      i += epsMatch[0].length;
+      continue;
+    }
+    
+    let matchedNt = false;
+    for (const nt of nts) {
+      if (str.startsWith(nt, i)) {
+        tokens.push(nt);
+        i += nt.length;
+        matchedNt = true;
+        break;
+      }
+    }
+    if (matchedNt) continue;
+    
+    let matchedT = false;
+    for (const t of ts) {
+      if (str.startsWith(t, i)) {
+        tokens.push(t);
+        i += t.length;
+        matchedT = true;
+        break;
+      }
+    }
+    if (matchedT) continue;
+    
+    // If it didn't match a declared nonterminal, check if it's a single uppercase letter
+    if (/^[A-Z]$/.test(str[i])) {
+      // We also want to support people typing 'S1' without spaces if S1 is undeclared?
+      // No, if S1 is undeclared, it becomes 'S', '1' (which is terminal 1). This is fine.
+      tokens.push(str[i]);
+      i++;
+      continue;
+    }
+    
+    const opMatch = str.slice(i).match(/^(<=|>=|==|!=|&&|\|\|)/);
+    if (opMatch) {
+      tokens.push(opMatch[0]);
+      i += opMatch[0].length;
+      continue;
+    }
+    
+    // Check for multi-character terminal (lowercase only, no uppercase)
+    const termMatch = str.slice(i).match(/^([a-z][a-z0-9_]*)/);
+    if (termMatch) {
+      tokens.push(termMatch[0]);
+      i += termMatch[0].length;
+      continue;
+    }
+    
+    // Otherwise, it's a single character terminal
+    tokens.push(str[i]);
+    i++;
   }
+  
   return tokens;
 }
 
 export function parseGrammarText(text: string): CFG {
   const lines = text.split('\n');
+  const declaredNonterminals = new Set<string>();
+  
+  for (const line of lines) {
+    let ruleLine = line.trim().replace(/^\d+:\s*/, '');
+    if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
+    const parts = ruleLine.split(/->|=>|:/);
+    if (parts.length >= 2) {
+      // Extract the first token that looks like a generalized nonterminal
+      const lhsMatch = parts[0].match(/([A-Z][A-Za-z0-9_']*)/);
+      if (lhsMatch) {
+        declaredNonterminals.add(lhsMatch[1]);
+      }
+    }
+  }
+
   const productions: Production[] = [];
   const nonterminals = new Set<string>();
   const terminals = new Set<string>();
   let startSymbol: string | null = null;
   const seenProductions = new Set<string>();
+  let lastLhs: string | null = null;
 
   for (const line of lines) {
     let ruleLine = line.trim();
     if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
 
-    // Remove any leading production numbers (e.g., "0: E -> E + T" becomes "E -> E + T")
     ruleLine = ruleLine.replace(/^\d+:\s*/, '');
-
-    // Split by -> or => or :
     const parts = ruleLine.split(/->|=>|:/);
-    if (parts.length < 2) throw new Error('Invalid grammar file: malformed production ' + line);
-
-    // LHS is the first token found before the arrow
-    const lhsTokens = tokenizeGrammarString(parts[0]);
-    if (lhsTokens.length === 0 || lhsTokens.length > 1 || !isNonterminal(lhsTokens[0])) {
-      throw new Error('Invalid grammar file: LHS must be a single nonterminal in ' + line);
-    }
     
-    const lhs = lhsTokens[0]; 
+    let lhs: string;
+    let rhsPart: string;
+
+    if (parts.length < 2) {
+      if (lastLhs) {
+        lhs = lastLhs;
+        rhsPart = ruleLine.replace(/^\|/, '').trim();
+      } else {
+        throw new Error('Invalid grammar file: malformed production ' + line);
+      }
+    } else {
+      const lhsTokens = tokenizeGrammarString(parts[0], declaredNonterminals);
+      if (lhsTokens.length === 0 || lhsTokens.length > 1 || !isNonterminal(lhsTokens[0])) {
+        throw new Error('Invalid grammar file: LHS must be a single nonterminal in ' + line);
+      }
+      lhs = lhsTokens[0];
+      rhsPart = parts.slice(1).join('->').trim();
+      lastLhs = lhs;
+    }
     
     nonterminals.add(lhs);
-    if (!startSymbol) {
-      startSymbol = lhs;
+    if (!startSymbol) startSymbol = lhs;
+
+    let alternatives = rhsPart.split('|').map(s => s.trim());
+    const validAlts = alternatives.filter(a => a.length > 0);
+    if (validAlts.length === 0) {
+      alternatives = [''];
+    } else {
+      alternatives = validAlts;
     }
 
-    const rhsPart = parts.slice(1).join('->').trim();
-    if (!rhsPart) throw new Error('Invalid grammar file: missing RHS in ' + line);
-    const alternatives = rhsPart.split('|');
-
     for (const alt of alternatives) {
-      const symbols = tokenizeGrammarString(alt);
+      const symbols = tokenizeGrammarString(alt, declaredNonterminals);
       const rhs: string[] = [];
 
       if (symbols.length === 0) {
-        // Empty RHS is treated as Epsilon
         rhs.push(EPSILON);
       } else {
         for (const sym of symbols) {
@@ -102,13 +180,8 @@ export function parseGrammarText(text: string): CFG {
     throw new Error('Invalid grammar file: missing start symbol');
   }
 
-  // Phase 2 Validation: Check for undefined non-terminals (used in RHS but no LHS)
-  const lhsSet = new Set(productions.map(p => p.lhs));
-  for (const nt of nonterminals) {
-    if (!lhsSet.has(nt)) {
-      throw new Error('Invalid grammar file: undefined nonterminal ' + nt);
-    }
-  }
+  // We removed undefined nonterminal checks here so it doesn't break live typing sync.
+  // These are now handled in diagnostics.ts instead.
 
   return {
     nonterminals,

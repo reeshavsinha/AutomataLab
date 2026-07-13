@@ -1,7 +1,9 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { useLL1Table, useLR0Table, useSLR1Table, useCLR1Table, useLALR1Table, useParserStore, useActiveSimulationState } from '@/store/parserStore';
+import { useLL1Table, useLR0Table, useSLR1Table, useCLR1Table, useLALR1Table, useParserStore, useActiveSimulationState, getFallbackSimulationInfo } from '@/store/parserStore';
 import { useTraceabilityStore } from '@/store/traceabilityStore';
+import { useMachineStore } from '@/store/machineStore';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useGrammarStore } from '@/store/grammarStore';
 import { LR0Table } from '@/engines/parser/lr0';
 import { AutomatonViewerPanel } from './AutomatonViewerPanel';
 import { ConflictInspectorPanel } from './ConflictInspectorPanel';
@@ -37,8 +39,21 @@ const TD_STYLE: React.CSSProperties = {
   height: '28px'
 };
 
-export function ParseTablePanel() {
+export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
   const { algorithm, setAlgorithm } = useParserStore();
+  const machine = useMachineStore(s => s.machine);
+  const viewMode = machine?.activeViewMode || 'table';
+  const setViewMode = (mode: 'table' | 'automaton') => {
+    useMachineStore.setState(s => {
+      if (!s.machine) return s;
+      const tabs = [...s.tabs];
+      const active = tabs[s.activeTabIndex];
+      if (active && active.id === s.machine.id) {
+        tabs[s.activeTabIndex] = { ...active, activeViewMode: mode };
+      }
+      return { tabs, machine: tabs[s.activeTabIndex], dirtyTabs: { ...s.dirtyTabs, [s.machine.id]: true } };
+    });
+  };
   const simulation = useActiveSimulationState();
   const { focusedProductionIndex, setFocusedParseAction, focusedItemSetId, setFocusedItemSet } = useTraceabilityStore();
   const ll1Table = useLL1Table();
@@ -47,7 +62,6 @@ export function ParseTablePanel() {
   const clr1Table = useCLR1Table();
   const lalr1Table = useLALR1Table();
 
-  const [viewMode, setViewMode] = useState<'table' | 'automaton'>('table');
   const [filterQuery, setFilterQuery] = useState('');
 
   const getActiveTable = (): LR0Table | null => {
@@ -58,6 +72,10 @@ export function ParseTablePanel() {
     return null;
   };
   const activeTable = getActiveTable();
+
+  const fallbackInfo = useMemo(() => getFallbackSimulationInfo(algorithm), [algorithm]);
+  const presentation = simulation?.presentation || fallbackInfo?.presentation;
+  const metadata = simulation?.metadata || fallbackInfo?.metadata;
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -452,7 +470,7 @@ export function ParseTablePanel() {
           >
             Parse Table
           </button>
-          {simulation?.presentation?.automatonVisible && (
+          {presentation?.automatonVisible && (
             <button
               onClick={() => setViewMode('automaton')}
               style={{
@@ -473,30 +491,61 @@ export function ParseTablePanel() {
         </div>
 
         {/* Metadata chips */}
-        {simulation?.metadata && (
+        {metadata && (
           <div style={{
             display: 'flex', gap: '16px', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
             alignItems: 'center'
           }}>
-            <span title={simulation.metadata.educationalDescription}>
-              Complexity: <b style={{color: 'var(--text-primary)'}}>{simulation.metadata.complexity}</b>
+            <span title={metadata.educationalDescription}>
+              Complexity: <b style={{color: 'var(--text-primary)'}}>{metadata.complexity}</b>
             </span>
-            <span title="Deterministic">Det: <b style={{color: 'var(--text-primary)'}}>{simulation.metadata.deterministic ? 'Yes' : 'No'}</b></span>
-            <span title="Requires CNF">CNF: <b style={{color: 'var(--text-primary)'}}>{simulation.metadata.requiresCNF ? 'Yes' : 'No'}</b></span>
-            <span title="Supports Ambiguity">Ambiguity: <b style={{color: 'var(--text-primary)'}}>{simulation.metadata.supportsAmbiguity ? 'Yes' : 'No'}</b></span>
+            <span title="Deterministic">Det: <b style={{color: 'var(--text-primary)'}}>{metadata.deterministic ? 'Yes' : 'No'}</b></span>
+            <span title="Requires CNF">CNF: <b style={{color: 'var(--text-primary)'}}>{metadata.requiresCNF ? 'Yes' : 'No'}</b></span>
+            <span title="Supports Ambiguity">Ambiguity: <b style={{color: 'var(--text-primary)'}}>{metadata.supportsAmbiguity ? 'Yes' : 'No'}</b></span>
           </div>
         )}
 
-        {getHasConflict() && (
-          <span style={{
-            color: 'var(--text-danger)',
-            fontSize: '0.72rem',
-            fontWeight: 700,
-            fontFamily: 'var(--font-mono)'
+        {['LR0', 'SLR1', 'CLR1', 'LALR1'].includes(algorithm) && getActiveTable() && (
+          <div style={{
+            background: 'rgba(59, 130, 246, 0.1)',
+            border: '1px solid var(--blue-500)',
+            color: 'var(--blue-400)',
+            padding: '2px 8px',
+            borderRadius: '4px',
+            fontSize: '0.65rem',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            whiteSpace: 'nowrap'
           }}>
-            ⚠ Conflict
-          </span>
+            Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span>
+          </div>
         )}
+
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          {getHasConflict() && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '4px',
+              color: 'var(--danger)', fontSize: '0.68rem', fontWeight: 600,
+              padding: '2px 8px', background: 'rgba(239,68,68,0.1)', borderRadius: '4px',
+              fontFamily: 'var(--font-mono)'
+            }}>
+              <span style={{ fontSize: '0.85rem' }}>⚠</span> Conflicts Detected
+            </div>
+          )}
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              title="Collapse Panel"
+              style={{
+                marginLeft: '8px', padding: '2px 8px', background: 'transparent', border: '1px solid var(--border-subtle)',
+                borderRadius: '3px', cursor: 'pointer', color: 'var(--text-muted)',
+                fontSize: '14px', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              ⌃
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Main content */}

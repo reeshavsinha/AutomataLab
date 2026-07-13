@@ -36,13 +36,9 @@ export function TimelinePanel() {
     exitPreviewMode
   } = useParserStore();
 
-  const timelineRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const status = simulation?.status ?? 'idle';
   const isDone = status === 'accepted' || status === 'rejected' || status === 'error';
-  const history = simulation?.history ?? [];
-
-  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
 
   // Auto-play interval
   useEffect(() => {
@@ -75,6 +71,9 @@ export function TimelinePanel() {
   // Click outside to exit preview mode
   useEffect(() => {
     const handleGlobalClick = (e: MouseEvent) => {
+      const target = e.target as Element;
+      if (target.closest('[data-prevent-preview-exit="true"]')) return;
+
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         if (currentStep < maxStep) {
           exitPreviewMode();
@@ -94,46 +93,10 @@ export function TimelinePanel() {
     };
   }, [currentStep, maxStep, exitPreviewMode]);
 
-  // Auto-scroll timeline to active step
-  useEffect(() => {
-    if (timelineRef.current) {
-      const active = timelineRef.current.querySelector('[data-active="true"]') as HTMLElement;
-      if (active) {
-        active.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      } else {
-        // scroll to bottom
-        timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
-      }
-    }
-  }, [currentStep, history.length]);
-
-  const toggleExpand = (e: React.MouseEvent, step: number) => {
-    e.stopPropagation();
-    if (e.ctrlKey || e.metaKey) {
-      const isExpanded = !!expandedItems[step];
-      const next = { ...expandedItems };
-      history.forEach(h => {
-        next[h.step] = !isExpanded;
-      });
-      setExpandedItems(next);
-    } else {
-      setExpandedItems(prev => ({ ...prev, [step]: !prev[step] }));
-    }
-  };
-
-  const handleRowClick = (e: React.MouseEvent, step: number) => {
-    if (e.ctrlKey || e.metaKey) {
-      toggleExpand(e, step);
-    } else {
-      seekToStep(step);
-    }
-  };
-
   const statusColor =
     status === 'accepted' ? '#4ade80' :
     status === 'error' || status === 'rejected' ? '#f87171' :
     '#fb923c';
-
   const statusLabel =
     status === 'idle' ? '' :
     status === 'running' ? 'Running' :
@@ -147,93 +110,6 @@ export function TimelinePanel() {
       display: 'flex',
       flexDirection: 'column'
     }}>
-      {/* Row 1: Interactive Timeline List */}
-      {history.length > 0 && (
-        <div
-          ref={timelineRef}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            maxHeight: '180px',
-            overflowY: 'auto',
-            borderBottom: '1px solid var(--border-subtle)',
-            background: 'var(--bg-secondary)',
-            scrollbarWidth: 'thin'
-          }}
-        >
-          {history.map((entry) => {
-            const isActive = entry.step === currentStep;
-            const isExpanded = !!expandedItems[entry.step];
-            
-            return (
-              <div
-                key={entry.step}
-                data-active={isActive}
-                onClick={(e) => handleRowClick(e, entry.step)}
-                title={entry.explanation.join(' ')}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  padding: '6px 12px',
-                  borderBottom: '1px solid rgba(255,255,255,0.02)',
-                  background: isActive ? 'rgba(96,165,250,0.1)' : 'transparent',
-                  borderLeft: isActive ? '2px solid var(--blue-400)' : '2px solid transparent',
-                  cursor: 'pointer',
-                  fontFamily: 'var(--font-mono)',
-                  fontSize: '0.72rem',
-                  color: isActive ? 'var(--blue-300)' : 'var(--text-primary)',
-                  transition: 'background 0.1s'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button
-                    onClick={(e) => toggleExpand(e, entry.step)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--text-muted)',
-                      cursor: 'pointer',
-                      padding: 0,
-                      width: '16px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    {isExpanded ? '[-]' : '[+]'}
-                  </button>
-                  <span style={{ fontWeight: isActive ? 700 : 400, minWidth: '50px' }}>
-                    Step {entry.step}
-                  </span>
-                  <span style={{ color: isActive ? 'var(--blue-200)' : 'var(--text-secondary)' }}>
-                    {entry.actionTitle}
-                  </span>
-                </div>
-                
-                {isExpanded && (
-                  <div style={{
-                    marginTop: '6px',
-                    marginLeft: '24px',
-                    padding: '8px',
-                    background: 'rgba(0,0,0,0.2)',
-                    borderRadius: '4px',
-                    color: 'var(--text-muted)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px'
-                  }}>
-                    {entry.explanation.map((line, idx) => (
-                      <div key={idx}>• {line}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {/* Row 2: Transport controls */}
       <div style={{
         display: 'flex',

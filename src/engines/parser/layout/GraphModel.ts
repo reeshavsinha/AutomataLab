@@ -18,17 +18,24 @@ export class GraphModel {
       });
     }
 
-    // 2. Extract edges
+    // 2. Extract edges and merge parallel transitions
+    const edgeMap = new Map<string, AutomatonEdge>();
+
     // GOTO Transitions
     for (const [stateId, transitions] of table.gotoTable.entries()) {
       for (const [symbol, targetState] of transitions.entries()) {
         if (targetState !== -1) {
-          edges.push({
-            id: `goto-${stateId}-${symbol}-${targetState}`,
-            source: stateId.toString(),
-            target: targetState.toString(),
-            label: symbol
-          });
+          const key = `${stateId}-${targetState}`;
+          if (!edgeMap.has(key)) {
+            edgeMap.set(key, {
+              id: `edge-${key}`,
+              source: stateId.toString(),
+              target: targetState.toString(),
+              label: symbol
+            });
+          } else {
+            edgeMap.get(key)!.label += `, ${symbol}`;
+          }
         }
       }
     }
@@ -38,16 +45,26 @@ export class GraphModel {
       for (const [symbol, actions] of symbolActions.entries()) {
         for (const action of actions) {
           if (action.type === 'Shift' && action.target !== undefined) {
-            edges.push({
-              id: `shift-${stateId}-${symbol}-${action.target}`,
-              source: stateId.toString(),
-              target: action.target.toString(),
-              label: symbol
-            });
+            const key = `${stateId}-${action.target}`;
+            if (!edgeMap.has(key)) {
+              edgeMap.set(key, {
+                id: `edge-${key}`,
+                source: stateId.toString(),
+                target: action.target.toString(),
+                label: symbol
+              });
+            } else {
+              const edge = edgeMap.get(key)!;
+              if (!edge.label.split(', ').includes(symbol)) {
+                edge.label += `, ${symbol}`;
+              }
+            }
           }
         }
       }
     }
+
+    edges.push(...Array.from(edgeMap.values()));
 
     // 3. Run BFS for Layering and Edge Classification
     const depthMap = new Map<string, number>();

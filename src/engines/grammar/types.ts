@@ -4,15 +4,16 @@ export const EPSILON = 'ε';
 export const EOF_SYMBOL = '$';
 
 export type SymbolType = 'terminal' | 'nonterminal';
+export type GrammarSymbol = string;
 
-export interface GrammarSymbol {
+export interface GrammarSymbolInfo {
   name: string;
   type: SymbolType;
 }
 
 export interface Production {
-  lhs: string; // Must be a nonterminal
-  rhs: string[]; // Array of symbol names (terminal or nonterminal)
+  lhs: GrammarSymbol; // Must be a nonterminal
+  rhs: GrammarSymbol[]; // Array of symbol names (terminal or nonterminal)
 }
 
 export interface CFG {

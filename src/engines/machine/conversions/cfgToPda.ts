@@ -14,74 +14,12 @@
 import type { ConversionResult, ConversionStep } from './types'
 import { MachineBuilder } from './helpers'
 
-interface Production {
-  lhs: string
-  rhs: string[]
-}
-
-interface Grammar {
-  start: string
-  productions: Production[]
-  nonterminals: string[]
-  terminals: string[]
-}
-
-const ARROW = /\s*(?:->|→|::=|=>)\s*/
-const EPSILON_TOKENS = new Set(['', 'ε', 'λ', 'eps', 'epsilon', 'lambda'])
-
-function isNonterminal(ch: string): boolean {
-  return /^[A-Z]$/.test(ch)
-}
-
-export function parseGrammar(text: string): Grammar {
-  const productions: Production[] = []
-  const nonterminals = new Set<string>()
-  const terminals = new Set<string>()
-
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (line === '' || line.startsWith('#')) continue
-
-    const parts = line.split(ARROW)
-    if (parts.length < 2) {
-      throw new Error(`Line "${line}" is missing a "->" (use e.g. S -> a S b | ε).`)
-    }
-    const lhs = parts[0].trim()
-    if (!isNonterminal(lhs)) {
-      throw new Error(`Left-hand side "${lhs}" must be a single uppercase nonterminal (A–Z).`)
-    }
-    nonterminals.add(lhs)
-
-    const rhs = parts.slice(1).join(' ')
-    for (const alt of rhs.split('|')) {
-      const stripped = alt.replace(/\s+/g, '')
-      if (EPSILON_TOKENS.has(stripped)) {
-        productions.push({ lhs, rhs: [] })
-        continue
-      }
-      const symbols = [...stripped]
-      for (const sym of symbols) {
-        if (isNonterminal(sym)) nonterminals.add(sym)
-        else terminals.add(sym)
-      }
-      productions.push({ lhs, rhs: symbols })
-    }
-  }
-
-  if (productions.length === 0) {
-    throw new Error('Enter at least one production, e.g. S -> a S b | ε')
-  }
-
-  return {
-    start: productions[0].lhs,
-    productions,
-    nonterminals: [...nonterminals].sort(),
-    terminals: [...terminals].sort(),
-  }
-}
+import { parseGrammarText } from '../../grammar/parser'
+import type { CFG } from '../../grammar/types'
+import { EPSILON } from '../../grammar/types'
 
 /** Pick a single-char bottom-of-stack marker that doesn't clash with a grammar symbol. */
-function pickMarker(g: Grammar): string {
+function pickMarker(g: CFG): string {
   const used = new Set([...g.nonterminals, ...g.terminals])
   for (const cand of ['Z', '$', '#', '⊥', '◊', '§', '@']) {
     if (!used.has(cand)) return cand
@@ -90,7 +28,7 @@ function pickMarker(g: Grammar): string {
 }
 
 export function cfgToPda(text: string): ConversionResult {
-  const grammar = parseGrammar(text)
+  const grammar = parseGrammarText(text)
   const marker = pickMarker(grammar)
   const builder = new MachineBuilder()
   const steps: ConversionStep[] = []
@@ -103,12 +41,12 @@ export function cfgToPda(text: string): ConversionResult {
   const tInit = builder.addTransition(qStart, qLoop, {
     read: '',
     pop: '',
-    push: grammar.start + marker,
+    push: grammar.startSymbol + ',' + marker,
   })
   steps.push({
     title: 'Set up the PDA',
     detail:
-      `Push the grammar's start symbol ${grammar.start} on top of a bottom marker ${marker}. ` +
+      `Push the grammar's start symbol ${grammar.startSymbol} on top of a bottom marker ${marker}. ` +
       `All work happens at q_loop; q_accept is reached only when the stack is empty.`,
     addedStateIds: [qStart, qLoop, qAccept],
     addedTransitionIds: [tInit],
@@ -116,13 +54,15 @@ export function cfgToPda(text: string): ConversionResult {
 
   // One self-loop per production: pop the LHS, push the RHS (leftmost on top).
   for (const p of grammar.productions) {
-    const pushStr = p.rhs.join('')
+    // Join with commas to explicitly preserve multi-character symbols
+    // when NPDAEngine pushes them onto the stack.
+    const pushStr = p.rhs.join(',')
     const t = builder.addTransition(qLoop, qLoop, {
       read: '',
       pop: p.lhs,
       push: pushStr,
     })
-    const rhsDisplay = p.rhs.length === 0 ? 'ε' : p.rhs.join('')
+    const rhsDisplay = p.rhs.length === 0 ? 'ε' : p.rhs.join(' ')
     steps.push({
       title: `Rule ${p.lhs} → ${rhsDisplay}`,
       detail:
@@ -135,7 +75,7 @@ export function cfgToPda(text: string): ConversionResult {
 
   // Match each terminal against the stack top.
   const matchIds: string[] = []
-  for (const a of grammar.terminals) {
+  for (const a of Array.from(grammar.terminals)) {
     matchIds.push(
       builder.addTransition(qLoop, qLoop, { read: a, pop: a, push: '' })
     )
@@ -145,7 +85,7 @@ export function cfgToPda(text: string): ConversionResult {
       title: 'Match terminals',
       detail:
         `For each terminal, read it from the input while popping the matching symbol off the stack: ` +
-        `${grammar.terminals.map((a) => `(${a}, ${a} → ε)`).join(', ')}.`,
+        `${Array.from(grammar.terminals).map((a) => `(${a}, ${a} → ε)`).join(', ')}.`,
       addedStateIds: [],
       addedTransitionIds: matchIds,
     })
@@ -168,17 +108,17 @@ export function cfgToPda(text: string): ConversionResult {
   const result = builder.build({
     name: 'CFG → PDA',
     type: 'NPDA',
-    language: `L(G), start symbol ${grammar.start}`,
-    alphabet: grammar.terminals,
-    stackAlphabet: [...grammar.nonterminals, ...grammar.terminals, marker],
+    language: `L(G), start symbol ${grammar.startSymbol}`,
+    alphabet: Array.from(grammar.terminals),
+    stackAlphabet: [...Array.from(grammar.nonterminals), ...Array.from(grammar.terminals), marker],
   })
 
   return {
     kind: 'cfg-to-pda',
     result,
     summary: [
-      `${grammar.productions.length} production(s), start symbol ${grammar.start}.`,
-      `Σ = {${grammar.terminals.join(', ')}}, Γ = {${[...grammar.nonterminals, ...grammar.terminals, marker].join(', ')}}.`,
+      `${grammar.productions.length} production(s), start symbol ${grammar.startSymbol}.`,
+      `Σ = {${Array.from(grammar.terminals).join(', ')}}, Γ = {${[...Array.from(grammar.nonterminals), ...Array.from(grammar.terminals), marker].join(', ')}}.`,
     ],
     steps,
   }

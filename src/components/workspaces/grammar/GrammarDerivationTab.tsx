@@ -1,37 +1,64 @@
 import React, { useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
-import { BacktrackingSimulation } from '@/engines/parser/backtracking';
+import { EarleySimulation } from '@/engines/parser/earley';
 import { SyntaxTreeNode } from '@/engines/parser/model';
 import { LL1Simulation } from '@/engines/parser/ll1Simulation';
 import { tokenizeGrammarString } from '@/engines/grammar/parser';
 
 export function GrammarDerivationTab() {
-  const { cfg } = useGrammarStore();
-  const [inputStr, setInputStr] = useState('');
+  const { cfg, derivationInput, setDerivationInput } = useGrammarStore();
+  const [inputStr, setInputStr] = useState(derivationInput);
   const [leftmost, setLeftmost] = useState<string[][]>([]);
   const [rightmost, setRightmost] = useState<string[][]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+  React.useEffect(() => {
+    if (!cfg) {
+      setLeftmost([]);
+      setRightmost([]);
+      setError(null);
+      return;
+    }
 
-  const handleParse = () => {
-    setError(null);
-    setLeftmost([]);
-    setRightmost([]);
-    
-    if (!inputStr.trim() && inputStr !== '') {
+    if (!derivationInput.trim() && derivationInput !== '') {
+        setLeftmost([]);
+        setRightmost([]);
+        setError(null);
         return;
     }
 
-    const tokens = inputStr.trim() ? tokenizeGrammarString(inputStr) : [];
-    const sim = new BacktrackingSimulation(cfg);
-    sim.initialize(tokens);
-    sim.step();
-    
-    if (sim.status === 'accepted' && sim.tree) {
-      generateDerivations(sim.tree);
-    } else {
-      setError(sim.errorMsg || 'Failed to parse input.');
+    try {
+      const tokens = derivationInput.trim() ? tokenizeGrammarString(derivationInput, cfg.nonterminals, cfg.terminals) : [];
+      const sim = new EarleySimulation(cfg);
+      sim.initialize(tokens);
+      while (sim.status === 'running') {
+        sim.step();
+      }
+      
+      if (sim.status === 'accepted' && sim.tree) {
+        generateDerivations(sim.tree);
+        setError(null);
+      } else {
+        setError(sim.errorMsg || 'Failed to parse input.');
+        setLeftmost([]);
+        setRightmost([]);
+      }
+    } catch (e: any) {
+      setError(e.message || 'Error during parsing');
+      setLeftmost([]);
+      setRightmost([]);
+    }
+  }, [cfg, derivationInput]);
+
+  if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+
+  const handleParse = () => {
+    setDerivationInput(inputStr);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleParse();
     }
   };
 
@@ -73,6 +100,7 @@ export function GrammarDerivationTab() {
       const nextRight: SyntaxTreeNode[] = [];
       let expanded = false;
       
+      // Expand rightmost non-terminal
       for (let i = currentRight.length - 1; i >= 0; i--) {
         const node = currentRight[i];
         if (!expanded && node.children && node.children.length > 0) {
@@ -101,6 +129,7 @@ export function GrammarDerivationTab() {
           type="text"
           value={inputStr}
           onChange={e => setInputStr(e.target.value)}
+          onKeyDown={handleKeyDown}
           placeholder="Enter string to parse..."
           style={{ flex: 1, padding: '6px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
         />

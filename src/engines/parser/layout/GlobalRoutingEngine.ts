@@ -36,24 +36,27 @@ export class GlobalRoutingEngine {
     for (const e of edgesToRoute) {
       const isExtended = e.classification === 'Cross' || e.classification === 'Back' || e.classification === 'Self';
 
-      if (!config.showExtended && isExtended) {
-        const sourceNode = layout.nodes.find(n => n.id === e.source)!;
-        const stubIndex = stubCounts.get(e.source) || 0;
-        stubCounts.set(e.source, stubIndex + 1);
+      if (e.classification === 'Cross' || e.classification === 'Back') {
+        if (!config.showExtended) {
+          const sourceNode = layout.nodes.find(n => n.id === e.source)!;
+          const stubIndex = stubCounts.get(e.source) || 0;
+          stubCounts.set(e.source, stubIndex + 1);
 
-        const sx = sourceNode.x + sourceNode.width;
-        const sy = sourceNode.y + sourceNode.height / 2 + (stubIndex * 20) - 20;
-        const ex = sx + 50;
-        
-        routedEdges.push({
-          ...e,
-          label: `${e.label} ➔ State ${e.target}`,
-          polyline: [{ x: sx, y: sy }, { x: ex, y: sy }],
-          labelX: sx + 25,
-          labelY: sy - 10,
-          isStub: true
-        });
-        continue;
+          const sx = sourceNode.x + sourceNode.width;
+          const sy = sourceNode.y + sourceNode.height / 2 + (stubIndex * 20) - 20;
+          const ex = sx + 50;
+          
+          routedEdges.push({
+            ...e,
+            label: `${e.label} ➔ State ${e.target}`,
+            polyline: [{ x: sx, y: sy }, { x: ex, y: sy }],
+            labelX: sx + 25,
+            labelY: sy - 10,
+            isStub: true
+          });
+          continue;
+        }
+        // If showExtended is true, we fall through to route it orthogonally!
       }
 
       if (e.classification === 'Self') {
@@ -67,11 +70,10 @@ export class GlobalRoutingEngine {
         continue;
       }
 
-      const sourceNode = layout.nodes.find(n => n.id === e.source);
-      const targetNode = layout.nodes.find(n => n.id === e.target);
-      if (!sourceNode || !targetNode) {
-        continue;
-      }
+      const sourceNode = layout.nodes.find(n => n.id === e.source)!;
+      const targetNode = layout.nodes.find(n => n.id === e.target)!;
+      
+      const gridRouter = new OrthogonalGridRouter(layout.nodes, config.routingClearance, sourceNode, targetNode);
 
       const route = this.selectOptimalRoute(sourceNode, targetNode, e.classification, gridRouter, segmentUsage, config);
       
@@ -115,8 +117,8 @@ export class GlobalRoutingEngine {
     segmentUsage: Map<string, number>,
     config: LayoutConfig
   ): { path: GridVertex[], sourceBorder: Point, targetBorder: Point } | null {
-    const sourceCandidates = this.generateCandidates(sourceNode, config.routingClearance, true, targetNode);
-    const targetCandidates = this.generateCandidates(targetNode, config.routingClearance, false, sourceNode);
+    const sourceCandidates = this.generateCandidates(sourceNode, config.routingClearance, true, targetNode, classification);
+    const targetCandidates = this.generateCandidates(targetNode, config.routingClearance, false, sourceNode, classification);
 
     // Multi-source A* to Multi-target
     const openSet: number[] = [];
@@ -126,8 +128,8 @@ export class GlobalRoutingEngine {
     for (const sc of sourceCandidates) {
       const v = gridRouter.getClosestVertex(sc.clearance.x, sc.clearance.y);
       if (v) {
-        // Discount score
-        const startG = -sc.score * 10; 
+        // Penalty score for suboptimal anchors
+        const startG = sc.score * 5; 
         if (!nodes.has(v.id) || startG < nodes.get(v.id)!.g) {
           nodes.set(v.id, { idx: v.id, g: startG, h: 0, f: startG, parent: null });
           if (!openSet.includes(v.id)) openSet.push(v.id);
@@ -252,29 +254,36 @@ export class GlobalRoutingEngine {
   ): Point[] {
     const rawPolyline: Point[] = [sourceBorder];
     
-    for (let i = 0; i < path.length; i++) {
-      let pt: Point = { x: path[i].x, y: path[i].y };
+    if (path.length > 0) {
+      rawPolyline.push({ x: path[0].x, y: path[0].y });
+    }
+    
+    for (let i = 0; i < path.length - 1; i++) {
+      const p1 = path[i];
+      const p2 = path[i+1];
+      const segKey = this.getSegmentKey(p1, p2);
+      const uses = segmentUsage.get(segKey) || 1;
       
-      // Apply lane offsets based on usage to prevent overlap
-      if (i > 0 && i < path.length - 1) {
-        const prev = path[i-1];
-        const next = path[i+1];
-        const segKey = this.getSegmentKey(prev, path[i]);
-        const uses = segmentUsage.get(segKey) || 1;
-        
-        if (uses > 1) {
-          // Use lane index. We ideally want deterministic stable routing.
-          // For now, we'll shift by laneSpacing * uses
-          const offset = Math.ceil(uses / 2) * config.laneSpacing * (uses % 2 === 0 ? 1 : -1);
-          
-          if (prev.x === pt.x) { // Vertical segment
-            pt.x += offset;
-          } else if (prev.y === pt.y) { // Horizontal segment
-            pt.y += offset;
-          }
+      let pt1 = { x: p1.x, y: p1.y };
+      let pt2 = { x: p2.x, y: p2.y };
+
+      if (uses > 1) {
+        const offset = Math.ceil(uses / 2) * config.laneSpacing * (uses % 2 === 0 ? 1 : -1);
+        if (p1.x === p2.x) { // Vertical segment
+          pt1.x += offset;
+          pt2.x += offset;
+        } else if (p1.y === p2.y) { // Horizontal segment
+          pt1.y += offset;
+          pt2.y += offset;
         }
       }
-      rawPolyline.push(pt);
+      
+      rawPolyline.push(pt1);
+      rawPolyline.push(pt2);
+    }
+    
+    if (path.length > 0) {
+      rawPolyline.push({ x: path[path.length - 1].x, y: path[path.length - 1].y });
     }
     rawPolyline.push(targetBorder);
 
@@ -325,37 +334,56 @@ export class GlobalRoutingEngine {
 
 
 
-  private generateCandidates(node: LayoutNode, clearance: number, isSource: boolean, otherNode: LayoutNode): CandidateAnchor[] {
+  private generateCandidates(node: LayoutNode, clearance: number, isSource: boolean, otherNode: LayoutNode, classification: EdgeClassification | undefined): CandidateAnchor[] {
     const w = node.width;
     const h = node.height;
     const x = node.x;
     const y = node.y;
 
+    const isNormal = classification === 'Tree' || classification === 'Forward' || !classification;
+
+    let rightClearance = clearance;
+    let leftClearance = clearance;
+    let topClearance = clearance;
+    let bottomClearance = clearance;
+
+    if (otherNode) {
+      if (otherNode.x > x + w) rightClearance = Math.min(clearance, Math.max(5, (otherNode.x - (x + w)) / 2));
+      if (otherNode.x + otherNode.width < x) leftClearance = Math.min(clearance, Math.max(5, (x - (otherNode.x + otherNode.width)) / 2));
+      if (otherNode.y > y + h) bottomClearance = Math.min(clearance, Math.max(5, (otherNode.y - (y + h)) / 2));
+      if (otherNode.y + otherNode.height < y) topClearance = Math.min(clearance, Math.max(5, (y - (otherNode.y + otherNode.height)) / 2));
+    }
+
+    if (isNormal) {
+      if (isSource) {
+        return [{ border: { x: x + w, y: y + h * 0.5 }, clearance: { x: x + w + rightClearance, y: y + h * 0.5 }, side: 'right', score: 0 }];
+      } else {
+        return [{ border: { x: x, y: y + h * 0.5 }, clearance: { x: x - leftClearance, y: y + h * 0.5 }, side: 'left', score: 0 }];
+      }
+    }
+
     const candidates: CandidateAnchor[] = [
-      { border: { x: x + w * 0.25, y: y }, clearance: { x: x + w * 0.25, y: y - clearance }, side: 'top', score: 0 },
-      { border: { x: x + w * 0.5, y: y }, clearance: { x: x + w * 0.5, y: y - clearance }, side: 'top', score: 0 },
-      { border: { x: x + w * 0.75, y: y }, clearance: { x: x + w * 0.75, y: y - clearance }, side: 'top', score: 0 },
-      { border: { x: x + w, y: y + h * 0.25 }, clearance: { x: x + w + clearance, y: y + h * 0.25 }, side: 'right', score: 0 },
-      { border: { x: x + w, y: y + h * 0.5 }, clearance: { x: x + w + clearance, y: y + h * 0.5 }, side: 'right', score: 0 },
-      { border: { x: x + w, y: y + h * 0.75 }, clearance: { x: x + w + clearance, y: y + h * 0.75 }, side: 'right', score: 0 },
-      { border: { x: x + w * 0.75, y: y + h }, clearance: { x: x + w * 0.75, y: y + h + clearance }, side: 'bottom', score: 0 },
-      { border: { x: x + w * 0.5, y: y + h }, clearance: { x: x + w * 0.5, y: y + h + clearance }, side: 'bottom', score: 0 },
-      { border: { x: x + w * 0.25, y: y + h }, clearance: { x: x + w * 0.25, y: y + h + clearance }, side: 'bottom', score: 0 },
-      { border: { x: x, y: y + h * 0.75 }, clearance: { x: x - clearance, y: y + h * 0.75 }, side: 'left', score: 0 },
-      { border: { x: x, y: y + h * 0.5 }, clearance: { x: x - clearance, y: y + h * 0.5 }, side: 'left', score: 0 },
-      { border: { x: x, y: y + h * 0.25 }, clearance: { x: x - clearance, y: y + h * 0.25 }, side: 'left', score: 0 },
+      { border: { x: x + w * 0.25, y: y }, clearance: { x: x + w * 0.25, y: y - topClearance }, side: 'top', score: 0 },
+      { border: { x: x + w * 0.5, y: y }, clearance: { x: x + w * 0.5, y: y - topClearance }, side: 'top', score: 0 },
+      { border: { x: x + w * 0.75, y: y }, clearance: { x: x + w * 0.75, y: y - topClearance }, side: 'top', score: 0 },
+      { border: { x: x + w, y: y + h * 0.25 }, clearance: { x: x + w + rightClearance, y: y + h * 0.25 }, side: 'right', score: 0 },
+      { border: { x: x + w, y: y + h * 0.5 }, clearance: { x: x + w + rightClearance, y: y + h * 0.5 }, side: 'right', score: 0 },
+      { border: { x: x + w, y: y + h * 0.75 }, clearance: { x: x + w + rightClearance, y: y + h * 0.75 }, side: 'right', score: 0 },
+      { border: { x: x + w * 0.75, y: y + h }, clearance: { x: x + w * 0.75, y: y + h + bottomClearance }, side: 'bottom', score: 0 },
+      { border: { x: x + w * 0.5, y: y + h }, clearance: { x: x + w * 0.5, y: y + h + bottomClearance }, side: 'bottom', score: 0 },
+      { border: { x: x + w * 0.25, y: y + h }, clearance: { x: x + w * 0.25, y: y + h + bottomClearance }, side: 'bottom', score: 0 },
+      { border: { x: x, y: y + h * 0.75 }, clearance: { x: x - leftClearance, y: y + h * 0.75 }, side: 'left', score: 0 },
+      { border: { x: x, y: y + h * 0.5 }, clearance: { x: x - leftClearance, y: y + h * 0.5 }, side: 'left', score: 0 },
+      { border: { x: x, y: y + h * 0.25 }, clearance: { x: x - leftClearance, y: y + h * 0.25 }, side: 'left', score: 0 },
     ];
 
-    for (const c of candidates) {
-      if (isSource) {
-        if (c.side === 'right') c.score += 50;
-        if (otherNode.x > node.x && c.side === 'right') c.score += 20;
-        if (otherNode.x < node.x && c.side === 'left') c.score += 20;
-      } else {
-        if (c.side === 'left') c.score += 50;
-        if (otherNode.x < node.x && c.side === 'left') c.score += 20;
-        if (otherNode.x > node.x && c.side === 'right') c.score += 20;
+    if (otherNode) {
+      for (const c of candidates) {
+        const dx = c.border.x - (otherNode.x + otherNode.width / 2);
+        const dy = c.border.y - (otherNode.y + otherNode.height / 2);
+        c.score = Math.sqrt(dx*dx + dy*dy);
       }
+      candidates.sort((a, b) => a.score - b.score);
     }
 
     return candidates;

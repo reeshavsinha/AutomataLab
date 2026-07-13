@@ -96,13 +96,14 @@ export default function Dialog({ onClose, children, label, labelledBy, cardStyle
     >
       <div
         ref={cardRef}
+        className="selectable-text"
         role="dialog"
         aria-modal="true"
         aria-label={labelledBy ? undefined : label}
         aria-labelledby={labelledBy}
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        style={{ outline: 'none', ...cardStyle }}
+        style={{ outline: 'none', userSelect: 'text', WebkitUserSelect: 'text', ...cardStyle }}
       >
         {children}
       </div>

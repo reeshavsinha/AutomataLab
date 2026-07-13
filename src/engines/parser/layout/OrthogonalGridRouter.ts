@@ -27,16 +27,17 @@ export class OrthogonalGridRouter {
   public minY: number = 0;
   public maxY: number = 0;
 
-  constructor(nodes: LayoutNode[], clearance: number) {
+  constructor(nodes: LayoutNode[], clearance: number, sourceNode?: LayoutNode, targetNode?: LayoutNode) {
     this.clearance = clearance;
     
-    // 1. Inflate obstacles
-    this.obstacles = nodes.map(n => ({
-      x: n.x - clearance,
-      y: n.y - clearance,
-      w: n.width + 2 * clearance,
-      h: n.height + 2 * clearance
-    }));
+    // 1. Inflate and quantize obstacles to 10px grid to prevent micro-fluttering during drag
+    this.obstacles = nodes.map(n => {
+      const x1 = Math.round((n.x - clearance) / 10) * 10;
+      const y1 = Math.round((n.y - clearance) / 10) * 10;
+      const x2 = Math.round((n.x + n.width + clearance) / 10) * 10;
+      const y2 = Math.round((n.y + n.height + clearance) / 10) * 10;
+      return { x: x1, y: y1, w: x2 - x1, h: y2 - y1 };
+    });
 
     // Calculate global bounds for peripheral routing
     this.minX = Infinity;
@@ -53,27 +54,40 @@ export class OrthogonalGridRouter {
     const xSet = new Set<number>();
     const ySet = new Set<number>();
 
-    // Peripheral lines
-    xSet.add(this.minX - clearance * 2);
-    xSet.add(this.maxX + clearance * 2);
-    ySet.add(this.minY - clearance * 2);
-    ySet.add(this.maxY + clearance * 2);
+    // 2. Build a STATIC uniform grid. This mathematically prevents grid shifting when unrelated nodes move.
+    const gridSize = 20;
+    const startX = Math.floor((this.minX - clearance * 2) / gridSize) * gridSize;
+    const startY = Math.floor((this.minY - clearance * 2) / gridSize) * gridSize;
+    const endX = Math.ceil((this.maxX + clearance * 2) / gridSize) * gridSize;
+    const endY = Math.ceil((this.maxY + clearance * 2) / gridSize) * gridSize;
 
-    for (const obs of this.obstacles) {
-      xSet.add(obs.x);
-      xSet.add(obs.x + obs.w);
-      ySet.add(obs.y);
-      ySet.add(obs.y + obs.h);
-      
-      // Also add center lines for anchoring
-      xSet.add(obs.x + obs.w / 2);
-      ySet.add(obs.y + obs.h / 2);
+    for (let x = startX; x <= endX; x += gridSize) xSet.add(x);
+    for (let y = startY; y <= endY; y += gridSize) ySet.add(y);
 
-      // Add quarter lines for more anchor options
-      xSet.add(obs.x + obs.w * 0.25);
-      xSet.add(obs.x + obs.w * 0.75);
-      ySet.add(obs.y + obs.h * 0.25);
-      ySet.add(obs.y + obs.h * 0.75);
+    // 3. Inject exact anchor coordinates ONLY for the source and target nodes so the edges connect perfectly.
+    if (sourceNode) {
+      xSet.add(Math.round(sourceNode.x));
+      xSet.add(Math.round(sourceNode.x + sourceNode.width * 0.25));
+      xSet.add(Math.round(sourceNode.x + sourceNode.width * 0.5));
+      xSet.add(Math.round(sourceNode.x + sourceNode.width * 0.75));
+      xSet.add(Math.round(sourceNode.x + sourceNode.width));
+      ySet.add(Math.round(sourceNode.y));
+      ySet.add(Math.round(sourceNode.y + sourceNode.height * 0.25));
+      ySet.add(Math.round(sourceNode.y + sourceNode.height * 0.5));
+      ySet.add(Math.round(sourceNode.y + sourceNode.height * 0.75));
+      ySet.add(Math.round(sourceNode.y + sourceNode.height));
+    }
+    if (targetNode) {
+      xSet.add(Math.round(targetNode.x));
+      xSet.add(Math.round(targetNode.x + targetNode.width * 0.25));
+      xSet.add(Math.round(targetNode.x + targetNode.width * 0.5));
+      xSet.add(Math.round(targetNode.x + targetNode.width * 0.75));
+      xSet.add(Math.round(targetNode.x + targetNode.width));
+      ySet.add(Math.round(targetNode.y));
+      ySet.add(Math.round(targetNode.y + targetNode.height * 0.25));
+      ySet.add(Math.round(targetNode.y + targetNode.height * 0.5));
+      ySet.add(Math.round(targetNode.y + targetNode.height * 0.75));
+      ySet.add(Math.round(targetNode.y + targetNode.height));
     }
 
     this.xLines = Array.from(xSet).sort((a, b) => a - b);

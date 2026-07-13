@@ -1,6 +1,8 @@
 import React from 'react';
 import { useActiveSimulationState } from '@/store/parserStore';
 import { TimelineStyle } from '@/engines/parser/model';
+import { TimelineHistory } from './TimelineHistory';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 
 export function StackViewerPanel() {
   const simulation = useActiveSimulationState();
@@ -9,18 +11,27 @@ export function StackViewerPanel() {
 
   if (stack.length === 0) {
     return (
-      <div style={{
-        height: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'var(--text-muted)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: '0.8rem',
-        background: 'var(--bg-primary)'
-      }}>
-        Stack is empty
-      </div>
+      <PanelGroup orientation="vertical" style={{ height: '100%', flex: 1 }}>
+        <Panel id="stack-top" minSize={20} defaultSize={50} style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--text-muted)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.8rem',
+          background: 'var(--bg-primary)'
+        }}>
+          Stack is empty
+        </Panel>
+        
+        <PanelResizeHandle className="workspace-resize-handle">
+          <div className="workspace-resize-handle-inner" />
+        </PanelResizeHandle>
+        
+        <Panel id="stack-bottom" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+          <TimelineHistory />
+        </Panel>
+      </PanelGroup>
     );
   }
 
@@ -108,68 +119,71 @@ export function StackViewerPanel() {
   };
 
   return (
-    <div style={{
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'var(--bg-primary)',
-      borderLeft: '1px solid var(--border-subtle)',
-      overflow: 'hidden'
-    }}>
-      {/* Header */}
-      <div style={{
-        padding: '4px 8px',
-        background: 'var(--bg-secondary)',
-        borderBottom: '1px solid var(--border-subtle)',
-        flexShrink: 0,
-        height: '28px',
-        display: 'flex',
-        alignItems: 'center'
-      }}>
-        <span style={{
-          fontSize: '0.68rem',
-          fontWeight: 700,
-          color: 'var(--text-muted)',
-          letterSpacing: '0.08em',
-          fontFamily: 'var(--font-mono)'
+    <PanelGroup orientation="vertical" style={{ height: '100%', flex: 1 }}>
+      <Panel id="stack-content" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Header */}
+        <div style={{
+          padding: '4px 8px',
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border-subtle)',
+          flexShrink: 0,
+          height: '28px',
+          display: 'flex',
+          alignItems: 'center'
         }}>
-          RUNTIME STACK
-        </span>
-      </div>
+          <span style={{
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            color: 'var(--text-muted)',
+            letterSpacing: '0.08em',
+            fontFamily: 'var(--font-mono)'
+          }}>
+            RUNTIME STACK
+          </span>
+        </div>
 
-      {/* Content */}
-      <div style={{
-        flex: 1,
-        overflow: 'auto',
-        display: 'flex',
-        flexDirection: 'column'
-      }}>
-        {timelineStyle === TimelineStyle.LR ? (
-          <>
-            <div style={{
-              display: 'flex',
-              height: '24px',
-              background: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border-subtle)',
-              fontFamily: 'var(--font-mono)',
-              fontSize: '0.65rem',
-              color: 'var(--text-muted)',
-              fontWeight: 700,
-              letterSpacing: '0.05em'
-            }}>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-subtle)' }}>
-                SYMBOL
+        {/* Content */}
+        <div style={{
+          flex: 1,
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          {timelineStyle === TimelineStyle.LR ? (
+            <>
+              <div style={{
+                display: 'flex',
+                height: '24px',
+                background: 'var(--bg-secondary)',
+                borderBottom: '1px solid var(--border-subtle)',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.65rem',
+                color: 'var(--text-muted)',
+                fontWeight: 700,
+                letterSpacing: '0.05em'
+              }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRight: '1px solid var(--border-subtle)' }}>
+                  SYMBOL
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  STATE
+                </div>
               </div>
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                STATE
-              </div>
-            </div>
-            {renderLRStack()}
-          </>
-        ) : (
-          renderFlatStack()
-        )}
-      </div>
-    </div>
+              {renderLRStack()}
+            </>
+          ) : (
+            renderFlatStack()
+          )}
+        </div>
+      </Panel>
+
+      <PanelResizeHandle className="workspace-resize-handle">
+        <div className="workspace-resize-handle-inner" />
+      </PanelResizeHandle>
+      
+      <Panel id="timeline-history" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+        <TimelineHistory />
+      </Panel>
+    </PanelGroup>
   );
 }

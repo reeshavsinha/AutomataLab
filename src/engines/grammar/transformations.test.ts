@@ -8,7 +8,7 @@ import { eliminateDirectLeftRecursion, leftFactor, removeUnreachable, formatCFGT
 describe('Grammar Diagnostics & Transformations', () => {
   it('detects and eliminates direct left recursion', () => {
     // E -> E + T | T
-    const cfg = parseGrammarText(`E -> E + T | T`);
+    const cfg = parseGrammarText(`E -> E + T | T\nT -> a`);
     const diags = runDiagnostics(cfg);
     
     expect(diags.length).toBe(1);
@@ -19,10 +19,10 @@ describe('Grammar Diagnostics & Transformations', () => {
     const text = formatCFGToString(newCfg);
     
     // Expected output:
-    // E -> T Eprime
-    // Eprime -> + T Eprime | \epsilon
-    expect(text).toContain('E -> T Eprime');
-    expect(text).toContain('Eprime -> + T Eprime | \\epsilon');
+    // E -> T E'
+    // E' -> + T E' | \epsilon
+    expect(text).toContain("E -> T E'");
+    expect(text).toContain("E' -> + T E' | \\epsilon");
     
     // Check that diagnostics are clear now
     const newDiags = runDiagnostics(newCfg);

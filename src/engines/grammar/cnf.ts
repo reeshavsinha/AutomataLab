@@ -1,9 +1,11 @@
 import { CFG, Production, EPSILON } from './types';
+import { generateUniqueNonterminal } from './utils';
 
-// Step 1: Add new start symbol S0 -> S
+// Step 1: Add new start symbol S0 -> S (if missing)
 function addStartSymbol(cfg: CFG): CFG {
   if (!cfg.startSymbol) return cfg;
-  const newStart = 'S0';
+  // Always add a new start symbol to guarantee it doesn't appear on RHS
+  const newStart = generateUniqueNonterminal(cfg, 'S', '0');
   const newCfg: CFG = {
     startSymbol: newStart,
     nonterminals: new Set(cfg.nonterminals),
@@ -20,6 +22,7 @@ function removeEpsilonProductions(cfg: CFG): CFG {
   const nullables = new Set<string>();
   let changed = true;
 
+  // Find all nullable nonterminals
   while (changed) {
     changed = false;
     for (const p of cfg.productions) {
@@ -33,27 +36,39 @@ function removeEpsilonProductions(cfg: CFG): CFG {
   }
 
   const newProductions: Production[] = [];
-  
+  const addedProds = new Set<string>();
+
+  const addUnique = (p: Production) => {
+    const key = `${p.lhs}->${p.rhs.join(',')}`;
+    if (!addedProds.has(key)) {
+      addedProds.add(key);
+      newProductions.push(p);
+    }
+  };
+
   for (const p of cfg.productions) {
     if (p.rhs.length === 1 && p.rhs[0] === EPSILON) {
       if (p.lhs === cfg.startSymbol) {
-        newProductions.push(p); // Keep epsilon only for start symbol if needed
+        addUnique(p); // Start symbol can derive epsilon
       }
       continue;
     }
-    
-    // Generate all combinations for nullable symbols
+
     const nullableIndices: number[] = [];
     for (let i = 0; i < p.rhs.length; i++) {
       if (nullables.has(p.rhs[i])) nullableIndices.push(i);
     }
-    
+
     const numCombos = 1 << nullableIndices.length;
+    if (numCombos > 10000) {
+      throw new Error("Grammar is too complex for CNF conversion (too many nullable symbols in RHS).");
+    }
     for (let i = 0; i < numCombos; i++) {
       const rhs: string[] = [];
       let nullIdx = 0;
       for (let j = 0; j < p.rhs.length; j++) {
         if (nullableIndices.includes(j)) {
+          // If the bit is NOT set, keep the symbol
           if ((i & (1 << nullIdx)) === 0) {
             rhs.push(p.rhs[j]);
           }
@@ -62,12 +77,9 @@ function removeEpsilonProductions(cfg: CFG): CFG {
           rhs.push(p.rhs[j]);
         }
       }
-      
+
       if (rhs.length > 0) {
-        // avoid adding duplicates
-        if (!newProductions.some(existing => existing.lhs === p.lhs && existing.rhs.join('') === rhs.join(''))) {
-          newProductions.push({ lhs: p.lhs, rhs });
-        }
+        addUnique({ lhs: p.lhs, rhs });
       }
     }
   }
@@ -77,9 +89,7 @@ function removeEpsilonProductions(cfg: CFG): CFG {
 
 // Step 3: Remove Unit productions (A -> B)
 function removeUnitProductions(cfg: CFG): CFG {
-  const newProductions: Production[] = [];
   const unitPairs = new Set<string>(); // "A,B"
-  
   for (const nt of cfg.nonterminals) {
     unitPairs.add(`${nt},${nt}`);
   }
@@ -91,7 +101,7 @@ function removeUnitProductions(cfg: CFG): CFG {
       if (p.rhs.length === 1 && cfg.nonterminals.has(p.rhs[0])) {
         const a = p.lhs;
         const b = p.rhs[0];
-        
+        // If A -> B, then for any X where X ->* A, we add X ->* B
         for (const nt of cfg.nonterminals) {
           if (unitPairs.has(`${nt},${a}`) && !unitPairs.has(`${nt},${b}`)) {
             unitPairs.add(`${nt},${b}`);
@@ -102,13 +112,24 @@ function removeUnitProductions(cfg: CFG): CFG {
     }
   }
 
+  const newProductions: Production[] = [];
+  const addedProds = new Set<string>();
+
+  const addUnique = (p: Production) => {
+    const key = `${p.lhs}->${p.rhs.join(',')}`;
+    if (!addedProds.has(key)) {
+      addedProds.add(key);
+      newProductions.push(p);
+    }
+  };
+
   for (const pair of unitPairs) {
     const [a, b] = pair.split(',');
     for (const p of cfg.productions) {
-      if (p.lhs === b && !(p.rhs.length === 1 && cfg.nonterminals.has(p.rhs[0]))) {
-        if (!newProductions.some(existing => existing.lhs === a && existing.rhs.join('') === p.rhs.join(''))) {
-          newProductions.push({ lhs: a, rhs: [...p.rhs] });
-        }
+      if (p.lhs === b) {
+        // Skip unit productions
+        if (p.rhs.length === 1 && cfg.nonterminals.has(p.rhs[0])) continue;
+        addUnique({ lhs: a, rhs: [...p.rhs] });
       }
     }
   }
@@ -116,15 +137,71 @@ function removeUnitProductions(cfg: CFG): CFG {
   return { ...cfg, productions: newProductions };
 }
 
-// Step 4: Convert to CNF (A -> BC or A -> a)
-function enforceCNF(cfg: CFG): CFG {
+// Step 4: Remove Useless Symbols
+function removeUselessSymbols(cfg: CFG): CFG {
+  // 1. Find generating symbols (derive terminal strings)
+  const generating = new Set<string>();
+  for (const t of cfg.terminals) generating.add(t);
+  
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const p of cfg.productions) {
+      if (!generating.has(p.lhs)) {
+        if (p.rhs.every(sym => generating.has(sym) || sym === EPSILON)) {
+          generating.add(p.lhs);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  // Filter out productions with non-generating symbols
+  let prods = cfg.productions.filter(p => 
+    generating.has(p.lhs) && p.rhs.every(sym => generating.has(sym) || sym === EPSILON)
+  );
+
+  // 2. Find reachable symbols from Start Symbol
+  const reachable = new Set<string>();
+  if (cfg.startSymbol && generating.has(cfg.startSymbol)) {
+    reachable.add(cfg.startSymbol);
+  }
+
+  changed = true;
+  while (changed) {
+    changed = false;
+    for (const p of prods) {
+      if (reachable.has(p.lhs)) {
+        for (const sym of p.rhs) {
+          if (!reachable.has(sym) && sym !== EPSILON) {
+            reachable.add(sym);
+            changed = true;
+          }
+        }
+      }
+    }
+  }
+
+  prods = prods.filter(p => reachable.has(p.lhs));
+
+  return {
+    ...cfg,
+    nonterminals: new Set([...cfg.nonterminals].filter(nt => reachable.has(nt))),
+    terminals: new Set([...cfg.terminals].filter(t => reachable.has(t))),
+    productions: prods
+  };
+}
+
+// Step 5: Binarize (Isolate terminals, limit body length <= 2)
+function binarizeCNF(cfg: CFG): CFG {
   const newCfg: CFG = { ...cfg, productions: [], nonterminals: new Set(cfg.nonterminals) };
-  let newVarCounter = 1;
+  let varCounter = 1;
   const termMap = new Map<string, string>(); // 'a' -> 'U_a'
 
   const getTermVar = (t: string) => {
     if (termMap.has(t)) return termMap.get(t)!;
-    const newNt = `U_${t}`;
+    const sanitizedT = t.replace(/[^A-Za-z0-9_]/g, 'term');
+    const newNt = generateUniqueNonterminal(newCfg, `U_${sanitizedT}`, '');
     termMap.set(t, newNt);
     newCfg.nonterminals.add(newNt);
     newCfg.productions.push({ lhs: newNt, rhs: [t] });
@@ -132,23 +209,25 @@ function enforceCNF(cfg: CFG): CFG {
   };
 
   for (const p of cfg.productions) {
+    // Keep S -> epsilon
     if (p.rhs.length === 1 && p.rhs[0] === EPSILON && p.lhs === cfg.startSymbol) {
       newCfg.productions.push(p);
       continue;
     }
-
+    // Keep A -> a
     if (p.rhs.length === 1 && cfg.terminals.has(p.rhs[0])) {
       newCfg.productions.push(p);
       continue;
     }
 
-    // Replace terminals with variables
+    // Isolate terminals in RHS (replace 'a' with 'U_a')
     let currentRhs = p.rhs.map(sym => cfg.terminals.has(sym) ? getTermVar(sym) : sym);
 
+    // Split long productions A -> X1 X2 ... Xn into binary
     while (currentRhs.length > 2) {
       const v1 = currentRhs[0];
       const v2 = currentRhs[1];
-      const newNt = `V_${newVarCounter++}`;
+      const newNt = generateUniqueNonterminal(newCfg, 'V', `_${varCounter++}`);
       newCfg.nonterminals.add(newNt);
       newCfg.productions.push({ lhs: newNt, rhs: [v1, v2] });
       currentRhs = [newNt, ...currentRhs.slice(2)];
@@ -164,6 +243,7 @@ export function convertToCNF(cfg: CFG): CFG {
   let res = addStartSymbol(cfg);
   res = removeEpsilonProductions(res);
   res = removeUnitProductions(res);
-  res = enforceCNF(res);
+  res = removeUselessSymbols(res);
+  res = binarizeCNF(res);
   return res;
 }

@@ -84,7 +84,7 @@ export default function Toolbar() {
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
   const isPlainTM = machine.type === 'TM'
-  const isGraph = !['CFG', 'CSG', 'REG', 'CFG_PARSER'].includes(machine.type)
+  const isGraph = !['CFG', 'CSG', 'CFG_PARSER'].includes(machine.type)
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [alphaFocused, setAlphaFocused] = useState(false)
@@ -181,12 +181,17 @@ export default function Toolbar() {
         </>
       )}
 
-      {!isDemoMode && isGraph && (
+      {!isDemoMode && (
         <>
-          {/* Analyze / Convert / export */}
-          <TbBtn title="Analyze (Reachability, Emptiness, Equivalence)" onClick={() => openModal('analysis')}><AnalyzeIcon /></TbBtn>
-          <TbBtn title="Convert / transform (NFA→DFA, minimize, Regex→NFA, CFG→PDA…)" onClick={() => openModal('convert')}><ConvertIcon /></TbBtn>
-          <TbBtn title="Export (diagram, δ-table, trace, tree)" onClick={() => openModal('export')}><ExportIcon /></TbBtn>
+          {/* Analyze / Convert */}
+          {isGraph && (
+            <>
+              <TbBtn title="Analyze (Reachability, Emptiness, Equivalence)" onClick={() => openModal('analysis')}><AnalyzeIcon /></TbBtn>
+              <TbBtn title="Convert / transform (NFA→DFA, minimize, Regex→NFA, CFG→PDA…)" onClick={() => openModal('convert')}><ConvertIcon /></TbBtn>
+            </>
+          )}
+          {/* Export available for Graph and Grammar/Parser */}
+          <TbBtn title="Export (diagram, δ-table, trace, tree, zipped)" onClick={() => openModal('export')}><ExportIcon /></TbBtn>
         </>
       )}
 

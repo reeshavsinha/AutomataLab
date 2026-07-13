@@ -10,8 +10,8 @@ const itemsEqual = (a: LR0Item, b: LR0Item) => a.prodIndex === b.prodIndex && a.
 const setContains = (set: LR0Item[], item: LR0Item) => set.some(i => itemsEqual(i, item));
 
 export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR0Table {
-  // 1. Augment Grammar: S' -> S
-  const startPrime = cfg.startSymbol + "'";
+  // 1. Augment Grammar: START -> S
+  const startPrime = 'START';
   const augmentedProds = [
     { lhs: startPrime, rhs: [cfg.startSymbol] },
     ...cfg.productions

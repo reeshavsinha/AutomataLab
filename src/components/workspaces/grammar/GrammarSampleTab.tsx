@@ -5,8 +5,8 @@ import { Production } from '@/engines/grammar/types';
 export function GrammarSampleTab() {
   const { cfg } = useGrammarStore();
   const [samples, setSamples] = useState<string[]>([]);
-  const [maxLength, setMaxLength] = useState(5);
-  const [maxSteps, setMaxSteps] = useState(1000);
+  const [maxLengthStr, setMaxLengthStr] = useState('5');
+  const [maxStepsStr, setMaxStepsStr] = useState('1000');
   const [isGenerating, setIsGenerating] = useState(false);
 
   if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
@@ -15,6 +15,9 @@ export function GrammarSampleTab() {
     if (!cfg || !cfg.startSymbol) return;
     setIsGenerating(true);
     setSamples([]);
+
+    const maxLength = Math.max(1, Number(maxLengthStr) || 1);
+    const maxSteps = Math.max(10, Number(maxStepsStr) || 10);
 
     // Simple Breadth-First generation
     setTimeout(() => {
@@ -27,23 +30,27 @@ export function GrammarSampleTab() {
 
       const queue: QueueItem[] = [{ form: [cfg.startSymbol!], steps: 0 }];
       let iterations = 0;
+      let qIndex = 0;
 
-      while (queue.length > 0 && iterations < maxSteps && generated.size < 50) {
+      while (qIndex < queue.length && iterations < maxSteps && generated.size < 500) {
         iterations++;
-        const current = queue.shift()!;
+        const current = queue[qIndex++];
+        
+        // Prevent explosive queue growth that causes memory/CPU freezes
+        if (queue.length - qIndex > 50000) {
+           break;
+        }
         
         // If entirely terminals, add to generated
         if (current.form.every(sym => cfg.terminals.has(sym) || sym === 'ε')) {
-          const str = current.form.filter(s => s !== 'ε').join('');
-          if (str.length <= maxLength) {
+          const numSymbols = current.form.filter(s => s !== 'ε').length;
+          if (numSymbols <= maxLength) {
+            const str = current.form.filter(s => s !== 'ε').join('');
             generated.add(str === '' ? 'ε' : str);
           }
           continue;
         }
 
-        // If length exceeds max length and no epsilons are possible (rough heuristic), skip
-        // For accurate sampling we just limit based on steps
-        
         // Find the first non-terminal (Leftmost derivation)
         const ntIndex = current.form.findIndex(sym => cfg.nonterminals.has(sym));
         if (ntIndex === -1) continue;
@@ -57,7 +64,7 @@ export function GrammarSampleTab() {
           
           // Rough length check to prevent explosion
           const numTerminals = nextForm.filter(sym => cfg.terminals.has(sym)).length;
-          if (numTerminals <= maxLength && current.steps < 20) {
+          if (numTerminals <= maxLength && current.steps < 100) {
             queue.push({ form: nextForm, steps: current.steps + 1 });
           }
         }
@@ -76,23 +83,41 @@ export function GrammarSampleTab() {
         <div>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Max Length</label>
           <input 
-            type="number" 
-            value={maxLength} 
-            onChange={e => setMaxLength(Number(e.target.value))}
-            style={{ width: 80, padding: 4 }}
-            min={1}
-            max={20}
+            type="text" 
+            value={maxLengthStr} 
+            onChange={e => setMaxLengthStr(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={() => {
+              if (maxLengthStr === '') setMaxLengthStr('0');
+            }}
+            style={{ 
+              width: 80, 
+              padding: '4px 8px', 
+              border: '1px solid var(--border-color, #555)', 
+              borderRadius: 4, 
+              background: 'var(--bg-tertiary, #2a2a2a)', 
+              color: 'var(--text-primary)' 
+            }}
           />
         </div>
         <div>
           <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Search Steps</label>
           <input 
-            type="number" 
-            value={maxSteps} 
-            onChange={e => setMaxSteps(Number(e.target.value))}
-            style={{ width: 100, padding: 4 }}
+            type="text" 
+            value={maxStepsStr} 
+            onChange={e => setMaxStepsStr(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={() => {
+              if (maxStepsStr === '') setMaxStepsStr('0');
+            }}
+            style={{ 
+              width: 100, 
+              padding: '4px 8px', 
+              border: '1px solid var(--border-color, #555)', 
+              borderRadius: 4, 
+              background: 'var(--bg-tertiary, #2a2a2a)', 
+              color: 'var(--text-primary)' 
+            }}
             min={10}
-            max={10000}
+            max={100000}
           />
         </div>
         <button 

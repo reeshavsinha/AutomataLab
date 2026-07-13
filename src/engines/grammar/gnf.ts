@@ -1,90 +1,39 @@
 import { CFG, Production, EPSILON } from './types';
 import { convertToCNF } from './cnf';
+import { generateUniqueNonterminal } from './utils';
 
-// Greibach Normal Form requires A -> a\alpha
-// A simplified approach:
-// 1. Convert to CNF first.
-// 2. Eliminate left recursion and perform substitution (standard algorithm).
-export function convertToGNF(cfg: CFG): CFG {
-  let cnf = convertToCNF(cfg);
-
-  // In CNF, we have A -> BC and A -> a
-  // We need to order non-terminals A1, A2, ..., An
-  const nts = Array.from(cnf.nonterminals);
-  
-  // Create a map to quickly look up productions by LHS
-  const getProds = (A: string) => cnf.productions.filter(p => p.lhs === A);
-  const replaceProds = (A: string, newProds: Production[]) => {
-    cnf.productions = cnf.productions.filter(p => p.lhs !== A).concat(newProds);
-  };
-
-  // Step 1: For i = 1 to n, ensure A_i -> A_j ... implies j > i
-  for (let i = 0; i < nts.length; i++) {
-    const Ai = nts[i];
-
-    for (let j = 0; j < i; j++) {
-      const Aj = nts[j];
-      
-      // If Ai -> Aj \gamma
-      let changed = false;
-      let newAiProds: Production[] = [];
-      const aiProds = getProds(Ai);
-
-      for (const p of aiProds) {
-        if (p.rhs.length > 0 && p.rhs[0] === Aj) {
-          changed = true;
-          const gamma = p.rhs.slice(1);
-          // Substitute Aj -> \delta_1 | \delta_2 ...
-          const ajProds = getProds(Aj);
-          for (const ajP of ajProds) {
-            newAiProds.push({ lhs: Ai, rhs: [...ajP.rhs, ...gamma] });
-          }
-        } else {
-          newAiProds.push(p);
-        }
-      }
-      
-      if (changed) replaceProds(Ai, newAiProds);
+// Helper: Substitutes A -> B alpha with A -> beta_1 alpha | beta_2 alpha ...
+// Returns a completely new array of productions, preventing mutation bugs via flatMap.
+function substituteLeadingVariable(
+  productions: Production[],
+  targetLhs: string,
+  targetLeadingSymbol: string,
+  replacementProductions: Production[]
+): Production[] {
+  return productions.flatMap(p => {
+    // Only substitute if the production matches targetLhs and starts with targetLeadingSymbol
+    if (p.lhs === targetLhs && p.rhs.length > 0 && p.rhs[0] === targetLeadingSymbol) {
+      const alpha = p.rhs.slice(1);
+      return replacementProductions.map(repl => ({
+        lhs: targetLhs,
+        rhs: [...repl.rhs, ...alpha]
+      }));
     }
-
-    // Eliminate direct left recursion on Ai
-    cnf = eliminateDirectLeftRecursionGNF(cnf, Ai);
-  }
-
-  // Step 2: Backward substitution
-  // Ensure every RHS starts with a terminal
-  for (let i = nts.length - 1; i >= 0; i--) {
-    const Ai = nts[i];
-    let changed = false;
-    let newAiProds: Production[] = [];
-    const aiProds = getProds(Ai);
-
-    for (const p of aiProds) {
-      if (p.rhs.length > 0 && cnf.nonterminals.has(p.rhs[0])) {
-        changed = true;
-        const Aj = p.rhs[0];
-        const gamma = p.rhs.slice(1);
-        const ajProds = getProds(Aj);
-        for (const ajP of ajProds) {
-          newAiProds.push({ lhs: Ai, rhs: [...ajP.rhs, ...gamma] });
-        }
-      } else {
-        newAiProds.push(p);
-      }
-    }
-    if (changed) replaceProds(Ai, newAiProds);
-  }
-
-  return cnf;
+    return [p];
+  });
 }
 
-// GNF specific direct left recursion elimination (produces B -> \beta Z, Z -> \alpha Z | \alpha)
-function eliminateDirectLeftRecursionGNF(cfg: CFG, nt: string): CFG {
+// Eliminate direct left recursion for a specific nonterminal and introduce a Z variable.
+function eliminateDirectLeftRecursionGNF(
+  productions: Production[],
+  nt: string,
+  newZ: string
+): Production[] {
   const alphas: string[][] = [];
   const betas: string[][] = [];
   const otherProds: Production[] = [];
 
-  for (const p of cfg.productions) {
+  for (const p of productions) {
     if (p.lhs === nt) {
       if (p.rhs.length > 0 && p.rhs[0] === nt) {
         alphas.push(p.rhs.slice(1));
@@ -96,23 +45,101 @@ function eliminateDirectLeftRecursionGNF(cfg: CFG, nt: string): CFG {
     }
   }
 
-  if (alphas.length === 0) return cfg;
+  if (alphas.length === 0) return productions;
 
-  const Z = nt + '_Z';
-  cfg.nonterminals.add(Z);
+  const newProds: Production[] = [...otherProds];
 
-  const newProds: Production[] = [];
-
+  // A -> beta | beta Z
   for (const beta of betas) {
     newProds.push({ lhs: nt, rhs: [...beta] });
-    newProds.push({ lhs: nt, rhs: [...beta, Z] });
+    newProds.push({ lhs: nt, rhs: [...beta, newZ] });
   }
 
+  // Z -> alpha | alpha Z
   for (const alpha of alphas) {
-    newProds.push({ lhs: Z, rhs: [...alpha] });
-    newProds.push({ lhs: Z, rhs: [...alpha, Z] });
+    newProds.push({ lhs: newZ, rhs: [...alpha] });
+    newProds.push({ lhs: newZ, rhs: [...alpha, newZ] });
   }
 
-  cfg.productions = [...otherProds, ...newProds];
-  return cfg;
+  return newProds;
+}
+
+export function convertToGNF(cfg: CFG): CFG {
+  const gnf = convertToCNF(cfg);
+  
+  // Exclude start symbol epsilon rule from standard loop processing
+  const startEpsilon = gnf.productions.find(
+    p => p.lhs === gnf.startSymbol && p.rhs.length === 1 && p.rhs[0] === EPSILON
+  );
+  let productions = gnf.productions.filter(p => p !== startEpsilon);
+
+  // Top-Down Indexing Pass
+  const nts = Array.from(gnf.nonterminals).filter(n => {
+    // Filter out isolated nonterminals with no productions if any, but array order serves as indexing
+    return productions.some(p => p.lhs === n);
+  });
+  
+  const zVars: string[] = [];
+  let zCounter = 1;
+
+  // Forward Elimination Loop
+  for (let i = 0; i < nts.length; i++) {
+    const Ai = nts[i];
+
+    for (let j = 0; j < i; j++) {
+      const Aj = nts[j];
+      const ajProds = productions.filter(p => p.lhs === Aj);
+      productions = substituteLeadingVariable(productions, Ai, Aj, ajProds);
+    }
+
+    // Eliminate direct left recursion
+    const newZ = generateUniqueNonterminal(gnf, 'Z', `_${zCounter++}`);
+    const originalLength = productions.length;
+    productions = eliminateDirectLeftRecursionGNF(productions, Ai, newZ);
+    if (productions.length !== originalLength) {
+      gnf.nonterminals.add(newZ);
+      zVars.push(newZ);
+    }
+    if (productions.length > 2000) {
+      throw new Error("Grammar is too complex for GNF conversion.");
+    }
+  }
+
+  // Backward Substitution Loop
+  for (let i = nts.length - 1; i >= 0; i--) {
+    const Ai = nts[i];
+    for (let j = i + 1; j < nts.length; j++) {
+      const Aj = nts[j];
+      const ajProds = productions.filter(p => p.lhs === Aj);
+      productions = substituteLeadingVariable(productions, Ai, Aj, ajProds);
+    }
+  }
+
+  // Final Z-Variable Pass
+  // Since Z variables might start with another non-terminal that requires substitution,
+  // we iteratively resolve any Z variable production that doesn't start with a terminal.
+  let changed = true;
+  let iterations = 0;
+  while (changed && iterations < 1000) {
+    changed = false;
+    iterations++;
+    for (const z of zVars) {
+      const zProds = productions.filter(p => p.lhs === z);
+      for (const p of zProds) {
+        if (p.rhs.length > 0 && gnf.nonterminals.has(p.rhs[0])) {
+          const leadingNt = p.rhs[0];
+          const leadingProds = productions.filter(lp => lp.lhs === leadingNt);
+          productions = substituteLeadingVariable(productions, z, leadingNt, leadingProds);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  if (startEpsilon) {
+    productions.unshift(startEpsilon);
+  }
+
+  gnf.productions = productions;
+  return gnf;
 }

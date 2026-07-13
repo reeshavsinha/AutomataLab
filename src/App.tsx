@@ -7,10 +7,10 @@ import WorkspaceHub from './components/layout/WorkspaceHub';
 import { MachineWorkspace } from './components/workspaces/MachineWorkspace';
 import { GrammarWorkspace } from './components/workspaces/GrammarWorkspace';
 import { ParserWorkspace } from './components/workspaces/ParserWorkspace';
-import { RegexWorkspace } from './components/workspaces/RegexWorkspace';
 
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
+import { useSimulationStore } from '@/store/simulationStore'
 import { useCommandStore } from '@/store/commandStore'
 import MenuBar from '@/components/layout/MenuBar'
 import ToastContainer from '@/components/layout/ToastContainer'
@@ -24,35 +24,40 @@ import BatchRunnerModal from '@/components/controls/BatchRunnerModal'
 import AnalysisModal from '@/components/analysis/AnalysisModal'
 import { useGrammarStore } from '@/store/grammarStore'
 import { useParserStore } from '@/store/parserStore'
-import InputContextMenu from '@/components/common/InputContextMenu'
 
 const isSimulatorDeployment = import.meta.env.VITE_SIMULATOR_MODE === 'true';
 
 function TabSyncListener() {
   const machine = useMachineStore((s) => s.machine);
 
-  const prevMachineId = useRef<string | null>(null);
+  const lastParserTabId = useRef<string | null>(null);
+  const lastMachineTabId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!machine) return;
     
-    // If we literally switched tabs, force reset the parser simulation
-    if (prevMachineId.current !== machine.id) {
-      if (machine.type === 'CFG_PARSER') {
+    const isAutomaton = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA'].includes(machine.type);
+    
+    if (machine.type === 'CFG_PARSER') {
+      if (lastParserTabId.current !== machine.id) {
         useParserStore.getState().resetSim();
+        lastParserTabId.current = machine.id;
       }
-      prevMachineId.current = machine.id;
+    } else if (isAutomaton) {
+      if (lastMachineTabId.current !== machine.id) {
+        useSimulationStore.getState().resetSimulation();
+        lastMachineTabId.current = machine.id;
+      }
     }
 
     // When the active tab changes (or undo/redo alters the active tab),
     // sync the tab's grammar and parser state into the global stores.
-    if (machine.type === 'CFG' || machine.type === 'CSG' || machine.type === 'REG' || machine.type === 'CFG_PARSER') {
+    if (machine.type === 'CFG' || machine.type === 'CSG' || machine.type === 'CFG_PARSER') {
       useGrammarStore.getState().setRawTextWithoutSync(machine.grammarText || '');
     }
     if (machine.type === 'CFG_PARSER') {
       useParserStore.getState().setAlgorithmWithoutSync(machine.parserAlgorithm || 'LL1');
       useParserStore.getState().setRawInputWithoutSync(machine.parserInput || '');
-      useParserStore.getState().initializeSim(true);
     }
   }, [machine?.id, machine?.grammarText, machine?.parserAlgorithm, machine?.parserInput, machine?.type]);
 
@@ -94,7 +99,7 @@ export default function App() {
   useEffect(() => {
     if (!route || route === '#' || route === '#/') return;
     const state = useMachineStore.getState();
-    if (route === '#/machine' || route === '#/grammar' || route === '#/parser' || route === '#/regex') {
+    if (route === '#/machine' || route === '#/grammar' || route === '#/parser') {
       if (state.machine && state.tabRoutes[state.machine.id] !== route) {
         useMachineStore.setState((s) => ({
           tabRoutes: { ...s.tabRoutes, [state.machine!.id]: route }
@@ -156,15 +161,12 @@ export default function App() {
 
     const isParser = activeMachineType === 'CFG_PARSER';
     const isGrammar = activeMachineType === 'CFG' || activeMachineType === 'CSG';
-    const isRegex = activeMachineType === 'REG';
     const isMachine = activeMachineType === 'DFA' || activeMachineType === 'NFA' || activeMachineType === 'ENFA' || activeMachineType === 'DPDA' || activeMachineType === 'NPDA' || activeMachineType === 'TM' || activeMachineType === 'LBA';
 
     if (isParser && route !== '#/parser') {
       window.location.hash = '#/parser';
     } else if (isGrammar && route !== '#/grammar') {
       window.location.hash = preferredRoute === '#/grammar' ? '#/grammar' : '#/grammar';
-    } else if (isRegex && route !== '#/regex') {
-      window.location.hash = '#/regex';
     } else if (isMachine && route !== '#/machine') {
       window.location.hash = '#/machine';
     } else if (!activeMachineType && route !== '' && route !== '#/') {
@@ -186,8 +188,6 @@ export default function App() {
     content = <ErrorBoundary key={machineId} fallbackName="Machine Workspace"><MachineWorkspace /></ErrorBoundary>;
   } else if (route === '#/grammar') {
     content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace"><GrammarWorkspace /></ErrorBoundary>;
-  } else if (route === '#/regex') {
-    content = <ErrorBoundary key={machineId} fallbackName="Regex Workspace"><RegexWorkspace /></ErrorBoundary>;
   } else if (route === '#/parser') {
     content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace"><ParserWorkspace /></ErrorBoundary>;
   } else {
@@ -214,7 +214,6 @@ export default function App() {
       <ToastContainer />
       <UpdateBanner />
       <UnsavedChangesGuard />
-      <InputContextMenu />
 
       {/* Modals */}
       {activeModal === 'help' && <HelpModal onClose={closeModal} />}

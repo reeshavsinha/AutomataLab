@@ -1,6 +1,7 @@
 import React from 'react';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
 import { EarleySimulation } from '@/engines/parser/earley';
+import { useGrammarStore } from '@/store/grammarStore';
 
 export function EarleySetsPanel() {
   const simulation = useActiveSimulationState();
@@ -13,6 +14,22 @@ export function EarleySetsPanel() {
     <div style={{ padding: 16, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Earley State Sets</h3>
       
+      <div style={{
+        background: 'rgba(59, 130, 246, 0.1)',
+        border: '1px solid var(--blue-500)',
+        color: 'var(--blue-400)',
+        padding: '2px 8px',
+        borderRadius: '4px',
+        fontSize: '0.65rem',
+        fontFamily: 'var(--font-mono)',
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        marginBottom: '16px',
+        alignSelf: 'flex-start'
+      }}>
+        Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span>
+      </div>
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {simulation.stateSets.map((set, setIdx) => {
           const isCurrentSet = setIdx === simulation.currentSetIndex;

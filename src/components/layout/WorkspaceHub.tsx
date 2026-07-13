@@ -30,14 +30,6 @@ const cards = [
     number: "3",
   },
   {
-    title: "Regex Laboratory",
-    description: "Build, parse, and minimize regular expressions. Visualize Thompson and Subset constructions.",
-    hash: "#/regex",
-    type: "REG",
-    enabled: true,
-    number: "4",
-  },
-  {
     title: "Open File",
     description: "Import AutomataLab JSON or JFLAP (.jff) files to continue your work.",
     hash: "open",
@@ -79,11 +71,6 @@ export default function WorkspaceHub() {
       const isParser = machine && machine.type === 'CFG_PARSER';
       if (!isParser) {
         addTab('CFG_PARSER');
-      }
-    } else if (card.hash === '#/regex') {
-      const isRegex = machine && machine.type === 'REG';
-      if (!isRegex) {
-        addTab('REG');
       }
     }
 

@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Menu, MenuItem, PredefinedMenuItem } from '@tauri-apps/api/menu';
 import './index.css'
 import App from './App'
 
@@ -20,9 +21,45 @@ const renderError = (err: any) => {
 window.addEventListener('error', (e) => renderError(e.error || e.message));
 window.addEventListener('unhandledrejection', (e) => renderError(e.reason));
 
-// Completely disable the browser context menu to enforce a strict native desktop feel.
-window.addEventListener('contextmenu', (e) => {
+
+
+// Custom Context Menu Handler
+window.addEventListener('contextmenu', async (e) => {
   e.preventDefault();
+  
+  const target = e.target as HTMLElement;
+  const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+  const hasSelection = window.getSelection()?.toString().length;
+  
+  if (isInput || hasSelection) {
+    try {
+      const menu = await Menu.new({
+        items: [
+          await PredefinedMenuItem.new({ item: 'Undo', text: 'Undo' }),
+          await PredefinedMenuItem.new({ item: 'Separator' }),
+          await PredefinedMenuItem.new({ item: 'Cut', text: 'Cut' }),
+          await PredefinedMenuItem.new({ item: 'Copy', text: 'Copy' }),
+          await PredefinedMenuItem.new({ item: 'Paste', text: 'Paste' }),
+          await MenuItem.new({ 
+            text: 'Paste as plain text', 
+            action: async () => {
+              try {
+                const text = await navigator.clipboard.readText();
+                document.execCommand('insertText', false, text);
+              } catch (err) {
+                console.error('Failed to paste as plain text:', err);
+              }
+            }
+          }),
+          await PredefinedMenuItem.new({ item: 'Separator' }),
+          await PredefinedMenuItem.new({ item: 'SelectAll', text: 'Select all' }),
+        ]
+      });
+      await menu.popup();
+    } catch (err) {
+      console.error('Failed to show native context menu:', err);
+    }
+  }
 }, { capture: true });
 
 // Prevent common browser keyboard shortcuts (Print, Find, DevTools)

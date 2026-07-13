@@ -277,9 +277,14 @@ export class NPDAEngine implements Automaton, TreeProvider {
       stack.pop() // _applicable guarantees the top equals `pop`
     }
     if (!isEpsilon(push)) {
-      // Push so the FIRST char of `push` ends up on top of the stack.
-      for (let i = push.length - 1; i >= 0; i--) {
-        stack.push(push[i])
+      // Support comma-delimited multi-character stack symbols (e.g., from CFG conversion)
+      // Fallback to character-by-character for backward compatibility with older PDAs.
+      const pushSymbols = push.includes(',') ? push.split(',') : push.split('');
+      // Push so the FIRST symbol of `push` ends up on top of the stack.
+      for (let i = pushSymbols.length - 1; i >= 0; i--) {
+        if (pushSymbols[i]) {
+          stack.push(pushSymbols[i])
+        }
       }
     }
     const consumes = !isEpsilon(read)

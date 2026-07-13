@@ -23,7 +23,6 @@ export default function WorkspaceSwitcher() {
     if (newRoute.startsWith('#/machine')) targetType = 'DFA'; // DFA, NFA, eNFA, PDA, TM
     if (newRoute.startsWith('#/grammar')) targetType = 'CFG';
     if (newRoute.startsWith('#/parser')) targetType = 'CFG_PARSER';
-    if (newRoute.startsWith('#/regex')) targetType = 'REG';
 
     // To be perfectly robust, we can just switch the route.
     // The App.tsx 'Anti-Trap' will handle tab switching or creation if necessary!

@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 
-export type WorkspaceType = 'machine' | 'grammar' | 'parser' | 'regex';
+export type WorkspaceType = 'machine' | 'grammar' | 'parser';
 
 export interface HistoryStack<T = any> {
   past: T[];

@@ -18,7 +18,6 @@ import { pdaToCfg } from './pdaToCfg'
 
 export type { ConversionKind, ConversionMeta, ConversionResult, ConversionStep, ConversionMode } from './types'
 export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda, dfaToRegex, pdaToCfg }
-export { parseGrammar } from './cfgToPda'
 
 export const CONVERSIONS: ConversionMeta[] = [
   {

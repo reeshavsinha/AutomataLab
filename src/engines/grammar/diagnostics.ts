@@ -14,6 +14,34 @@ export interface GrammarDiagnostic {
 export function runDiagnostics(cfg: CFG): GrammarDiagnostic[] {
   const diagnostics: GrammarDiagnostic[] = [];
 
+  // 0. Undefined Nonterminals & Suspicious Terminals
+  const lhsSet = new Set(cfg.productions.map(p => p.lhs));
+  for (const nt of cfg.nonterminals) {
+    if (!lhsSet.has(nt)) {
+      let msg = 'Undefined nonterminal ' + nt;
+      if (nt.length > 1) {
+        msg += `. Did you forget spaces? (e.g., '${nt.split('').join(' ')}')`;
+      }
+      diagnostics.push({
+        type: 'error',
+        nonterminal: nt,
+        message: msg,
+        productions: []
+      });
+    }
+  }
+
+  for (const t of cfg.terminals) {
+    if (t.length > 1 && /[A-Z]/.test(t)) {
+      diagnostics.push({
+        type: 'error',
+        nonterminal: '',
+        message: `Suspicious terminal '${t}' contains uppercase letters. Did you forget spaces? (e.g., '${t.split('').join(' ')}')`,
+        productions: []
+      });
+    }
+  }
+
   // 1. Direct Left Recursion
   for (const nt of cfg.nonterminals) {
     const ntProds = cfg.productions.filter(p => p.lhs === nt);

@@ -3,6 +3,7 @@
 import { CFG, Production, EPSILON } from './types';
 export { convertToCNF } from './cnf';
 export { convertToGNF } from './gnf';
+import { generateUniqueNonterminal } from './utils';
 
 // Convert CFG back to string format
 export function formatCFGToString(cfg: CFG): string {
@@ -59,7 +60,7 @@ export function eliminateDirectLeftRecursion(cfg: CFG, nt: string): CFG {
 
   if (alphas.length === 0) return cfg; // No direct left recursion
 
-  const newNt = nt + 'prime';
+  const newNt = generateUniqueNonterminal(newCfg, nt, "'");
   newCfg.nonterminals.add(newNt);
 
   // If no betas, we implicitly have an empty beta (epsilon)
@@ -108,11 +109,9 @@ export function leftFactor(cfg: CFG, nt: string): CFG {
 
   newCfg.productions.push(...otherProds);
 
-  let newNtCounter = 1;
-
   for (const [firstSym, remainders] of prefixes.entries()) {
     if (remainders.length > 1) {
-      const newNt = nt + newNtCounter++;
+      const newNt = generateUniqueNonterminal(newCfg, nt, "1");
       newCfg.nonterminals.add(newNt);
 
       // A -> alpha A'

@@ -8,7 +8,7 @@ import { GeometryBuilder } from './GeometryBuilder';
 import { DEFAULT_LAYOUT_CONFIG } from './types';
 
 self.onmessage = (e: MessageEvent) => {
-  const { table, configOverrides } = e.data;
+  const { table, configOverrides, widthMap } = e.data;
   
   if (!table) return;
 
@@ -16,22 +16,14 @@ self.onmessage = (e: MessageEvent) => {
 
   try {
     // 1. Graph Construction
-    const graph = GraphModel.extractGraph(table, (id) => 120); // Dummy width estimator
+    const graph = GraphModel.extractGraph(table, (id) => widthMap?.[id] || 120);
 
     // 2. Layout
     const layoutStrategy = new LRLayeredStrategy();
     const layoutResult = layoutStrategy.layout(graph, config);
 
-    // 3. Routing
-    const routingEngine = new GlobalRoutingEngine();
-    const routingResult = routingEngine.route(layoutResult, graph.edges, config);
-
-    // 4. Geometry
-    const geometryBuilder = new GeometryBuilder();
-    const geometryResult = geometryBuilder.build(routingResult, config.cornerRadius);
-
-    // Return the final payload
-    self.postMessage({ type: 'SUCCESS', nodes: layoutResult.nodes, edges: geometryResult.edges });
+    // 3. Return the final payload without custom SVG routing (let React Flow handle it natively)
+    self.postMessage({ type: 'SUCCESS', nodes: layoutResult.nodes, edges: graph.edges });
   } catch (error: any) {
     self.postMessage({ type: 'ERROR', error: error.message });
   }

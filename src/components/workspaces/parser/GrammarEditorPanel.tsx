@@ -7,7 +7,6 @@ import { ChevronRight, ChevronDown } from 'lucide-react';
 interface EditorContentProps {
   mode: 'grouped' | 'flat';
   value: string;
-  ghostText?: string;
   lastEdited: 'grouped' | 'flat';
   setRawText: (val: string) => void;
   setLastEdited: (val: 'grouped' | 'flat') => void;
@@ -18,7 +17,6 @@ interface EditorContentProps {
 const EditorContent = ({ 
   mode, 
   value, 
-  ghostText,
   lastEdited,
   setRawText,
   setLastEdited,
@@ -32,6 +30,34 @@ const EditorContent = ({
 
   const lines = value.split('\n');
   const currentLineIndex = value.slice(0, cursorPos).split('\n').length - 1;
+  const currentLineText = lines[currentLineIndex] || '';
+
+  const getGhostText = (lineText: string, mode: 'grouped' | 'flat', isFirstLine: boolean) => {
+    if (lineText.length === 0) {
+      if (isFirstLine) return 'S -> ';
+      return '';
+    }
+    if (mode === 'flat') {
+      if (lineText.match(/^[A-Z][A-Za-z0-9_']*$/)) return ' -> ';
+      return '';
+    }
+    // Grouped mode
+    if (lineText.match(/^\s+/)) {
+      if (!lineText.trim().endsWith('|') && lineText.trim().length > 0) {
+        return ' | ';
+      }
+      return '';
+    }
+    if (!lineText.includes('->') && !lineText.endsWith('|')) {
+      if (lineText.match(/^[A-Z][A-Za-z0-9_']*$/)) return ' -> ';
+      return '';
+    } else if (lineText.includes('->') && !lineText.trim().endsWith('|')) {
+      return ' | ';
+    }
+    return '';
+  };
+
+  const ghostText = getGhostText(currentLineText, mode, lines.length === 1 && currentLineIndex === 0);
 
   useEffect(() => {
     const ta = taRef.current;
@@ -56,23 +82,38 @@ const EditorContent = ({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const ta = e.currentTarget;
     
-    if (e.key === 'Enter' && mode === 'flat') {
-      e.preventDefault();
-      const start = ta.selectionStart;
-      const allMatches = [...value.matchAll(/^(\d+):/gm)];
-      let nextNum = 0;
-      if (allMatches.length > 0) {
-         nextNum = Math.max(...allMatches.map(m => parseInt(m[1]))) + 1;
-      } else {
-         nextNum = value.slice(0, start).split('\n').length;
+    if (e.key === 'Enter') {
+      if (mode === 'flat') {
+        return;
       }
       
-      const insertStr = `\n${nextNum}: `;
-      const newVal = value.slice(0, start) + insertStr + value.slice(ta.selectionEnd);
-      setRawText(newVal);
-      setLastEdited(mode);
-      setTimeout(() => { ta.selectionStart = ta.selectionEnd = start + insertStr.length; setCursorPos(ta.selectionStart); }, 0);
-      return;
+      const start = ta.selectionStart;
+      const currentLine = lines[currentLineIndex];
+      
+      if (currentLine.trim().endsWith('|')) {
+        e.preventDefault();
+        
+        let indentLen = 4;
+        for (let i = currentLineIndex; i >= 0; i--) {
+          const match = lines[i].match(/^(.*?->\s*)/);
+          if (match) {
+            indentLen = match[1].length;
+            break;
+          }
+        }
+        
+        const indentStr = '\n' + ' '.repeat(indentLen);
+        const newVal = value.slice(0, start) + indentStr + value.slice(ta.selectionEnd);
+        setRawText(newVal);
+        setLastEdited(mode);
+        setTimeout(() => { 
+          if (taRef.current) {
+            taRef.current.selectionStart = taRef.current.selectionEnd = start + indentStr.length; 
+            setCursorPos(taRef.current.selectionStart); 
+          }
+        }, 0);
+        return;
+      }
     }
 
     if (e.key === 'Tab') {
@@ -102,7 +143,7 @@ const EditorContent = ({
       }}>
         {lines.map((_, i) => (
           <div key={i} style={{ height: '21px', lineHeight: '21px', textAlign: 'right', paddingRight: '6px', fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            {i + 1}
+            {mode === 'flat' ? `${i + 1}:` : i + 1}
           </div>
         ))}
       </div>
@@ -132,32 +173,53 @@ const EditorContent = ({
           value={value}
           onChange={e => {
             let val = e.target.value;
+            const start = e.target.selectionStart;
+            let newStart = start;
             
             if (mode === 'flat' && val.includes('|')) {
               setFlatError("Illegal symbol '|' in Numbered Productions. Use a new line instead.");
-              val = val.replace(/\|/g, '');
+              val = val.replace(/\|/g, (match, offset) => {
+                if (offset < start) newStart -= 1;
+                return '';
+              });
             } else if (mode === 'flat') {
               setFlatError(null);
             }
 
-            val = val.replace(/\b(eps|epsilon)\b/gi, 'ε');
-            // Capitalize starting non-terminals. Accounts for Flat mode prefix (e.g. "0: e" -> "0: E")
-            val = val.replace(/(^|\n)(?:\d+:\s*)?([a-z])/g, (match, p1, p2) => match.slice(0, -1) + p2.toUpperCase());
+            val = val.replace(/\b(eps|epsilon)\b/gi, (match, p1, offset) => {
+              if (offset < start) newStart -= (match.length - 1);
+              return 'ε';
+            });
+            // Capitalize starting non-terminals. Accounts for Flat mode missing prefix
+            val = val.replace(/(^|\n)([a-z])/g, (match, p1, p2, offset) => {
+              // length doesn't change, so newStart remains the same
+              return match.slice(0, -1) + p2.toUpperCase();
+            });
             
             setRawText(val);
             setLastEdited(mode);
-            handleSelectionChange();
+            
+            if (val !== e.target.value) {
+              setTimeout(() => {
+                if (taRef.current) {
+                  taRef.current.selectionStart = taRef.current.selectionEnd = newStart;
+                  setCursorPos(newStart);
+                }
+              }, 0);
+            } else {
+              setCursorPos(start);
+            }
           }}
           onKeyUp={handleSelectionChange}
           onClick={handleSelectionChange}
           onFocus={() => {
             setFocusedProduction(null);
             if (lastEdited !== mode) {
-              const { cfg } = useGrammarStore.getState();
+              const { cfg, rawText } = useGrammarStore.getState();
               if (cfg) {
                 if (mode === 'flat') {
                   // Format lines for flat
-                  const fmtLines = cfg.productions.map((p, i) => `${i}: ${p.lhs} -> ${p.rhs.join(' ') || 'ε'}`);
+                  const fmtLines = cfg.productions.map((p, i) => `${p.lhs} -> ${p.rhs.join(' ') || 'ε'}`);
                   setRawText(fmtLines.join('\n'));
                 } else {
                   // Format lines for grouped
@@ -171,6 +233,8 @@ const EditorContent = ({
                   });
                   setRawText(fmtLines.join('\n'));
                 }
+              } else if (rawText.trim() === '') {
+                setRawText('');
               } else {
                 return; // Block switching view if there's a syntax error
               }
@@ -180,7 +244,7 @@ const EditorContent = ({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           readOnly={lastEdited !== mode}
-          placeholder={lastEdited !== mode ? 'Read only (switch view to edit)' : 'Enter grammar rules here...'}
+          placeholder={lastEdited !== mode ? (useGrammarStore.getState().rawText.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : 'Enter grammar rules here...'}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             padding: '8px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',
@@ -217,7 +281,7 @@ const AccordionHeader = ({ isOpen, onToggle, label }: { isOpen: boolean, onToggl
   );
 };
 
-export function GrammarEditorPanel() {
+export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) {
   const { rawText, setRawText, cfg } = useGrammarStore();
   const { setFocusedProduction } = useTraceabilityStore();
   
@@ -242,7 +306,7 @@ export function GrammarEditorPanel() {
 
   const getFlatFormat = () => {
     if (!cfg) return rawText;
-    const fmtLines = cfg.productions.map((p, i) => `${i}: ${p.lhs} -> ${p.rhs.join(' ') || 'ε'}`);
+    const fmtLines = cfg.productions.map((p, i) => `${p.lhs} -> ${p.rhs.join(' ') || 'ε'}`);
     return fmtLines.join('\n');
   };
 
@@ -253,29 +317,14 @@ export function GrammarEditorPanel() {
     if (cfg) {
       setSyncedGrouped(getGroupedFormat());
       setSyncedFlat(getFlatFormat());
+    } else if (rawText.trim() === '') {
+      setSyncedGrouped('');
+      setSyncedFlat('');
     }
-  }, [cfg]);
+  }, [cfg, rawText]);
 
   const groupedValue = lastEdited === 'grouped' ? rawText : syncedGrouped;
   const flatValue = lastEdited === 'flat' ? rawText : syncedFlat;
-
-  const getGhostText = (val: string, mode: 'grouped' | 'flat') => {
-    if (mode === 'flat') {
-      const lines = val.split('\n');
-      const lastLine = lines[lines.length - 1];
-      if (lastLine.match(/^\d+:\s*[A-Z]$/)) return ' -> ';
-      return '';
-    }
-    if (val.length === 0) return 'S -> ';
-    const lines = val.split('\n');
-    const lastLine = lines[lines.length - 1];
-    if (lastLine.length > 0 && !lastLine.includes('->') && !lastLine.endsWith('|')) {
-      return ' -> ';
-    } else if (lastLine.includes('->') && !lastLine.trim().endsWith('|')) {
-      return ' | ';
-    }
-    return '';
-  };
 
   return (
     <div style={{
@@ -291,16 +340,31 @@ export function GrammarEditorPanel() {
         <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.04em' }}>
           Set Grammar:
         </span>
-        <button
-          onClick={() => setRawText(rawText + 'ε')}
-          style={{
-            padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
-            borderRadius: '3px', cursor: 'pointer', color: 'var(--text-secondary)',
-            fontSize: '0.68rem', fontFamily: 'var(--font-mono)'
-          }}
-        >
-          Insert ε
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            onClick={() => setRawText(rawText + 'ε')}
+            style={{
+              padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
+              borderRadius: '3px', cursor: 'pointer', color: 'var(--text-secondary)',
+              fontSize: '0.68rem', fontFamily: 'var(--font-mono)'
+            }}
+          >
+            Insert ε
+          </button>
+          {onCollapse && (
+            <button
+              onClick={onCollapse}
+              title="Collapse Panel"
+              style={{
+                padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
+                borderRadius: '3px', cursor: 'pointer', color: 'var(--text-muted)',
+                fontSize: '14px', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+            >
+              ‹
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -309,7 +373,6 @@ export function GrammarEditorPanel() {
           <EditorContent 
             mode="grouped" 
             value={groupedValue} 
-            ghostText={getGhostText(groupedValue, 'grouped')}
             lastEdited={lastEdited}
             setRawText={setRawText}
             setLastEdited={setLastEdited}
@@ -326,7 +389,6 @@ export function GrammarEditorPanel() {
           <EditorContent 
             mode="flat" 
             value={flatValue} 
-            ghostText={getGhostText(flatValue, 'flat')}
             lastEdited={lastEdited}
             setRawText={setRawText}
             setLastEdited={setLastEdited}
@@ -347,7 +409,7 @@ export function GrammarEditorPanel() {
           ? `✗ ${flatError}` 
           : (cfg ? (
             <>✓ Valid | <span title="Production(s)">{cfg.productions.length} Prod</span> | <span title="Non-Terminal(s)">{cfg.nonterminals.size} NT</span> | <span title="Terminal(s)">{cfg.terminals.size} T</span></>
-          ) : (rawText.trim() ? '✗ Invalid CFG' : ''))}
+          ) : (rawText.trim() ? `✗ Invalid CFG: ${useGrammarStore.getState().diagnostics[0]?.message || ''}` : ''))}
       </div>
     </div>
   );

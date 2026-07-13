@@ -63,8 +63,8 @@ const getFirstSequence = (
 };
 
 export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
-  // 1. Augment Grammar: S' -> S
-  const startPrime = cfg.startSymbol + "'";
+  // 1. Augment Grammar: START -> S
+  const startPrime = 'START';
   const augmentedProds = [
     { lhs: startPrime, rhs: [cfg.startSymbol] },
     ...cfg.productions

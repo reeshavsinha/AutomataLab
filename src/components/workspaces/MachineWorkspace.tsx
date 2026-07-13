@@ -14,10 +14,7 @@ export function MachineWorkspace({ isDemoMode }: { isDemoMode?: boolean }) {
   const resetSimulation = useSimulationStore((s) => s.resetSimulation);
   const panelCollapsed = useUIStore((s) => s.panelCollapsed);
 
-  // Ensure simulation stops and cleans up when navigating away from the machine workspace
-  useEffect(() => {
-    return () => resetSimulation();
-  }, [resetSimulation]);
+  // Simulation state persistence across non-machine tabs is now handled by TabSyncListener in App.tsx.
 
   return (
     <WorkspaceShell

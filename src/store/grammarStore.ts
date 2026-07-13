@@ -17,6 +17,8 @@ interface GrammarStore {
   setRawText: (text: string) => void;
   setRawTextWithoutSync: (text: string) => void;
   applyTransformation: (transformFn: (cfg: CFG, nt: string) => CFG, nt: string) => void;
+  derivationInput: string;
+  setDerivationInput: (input: string) => void;
 }
 
 const defaultText = ``;
@@ -27,13 +29,15 @@ export const useGrammarStore = create<GrammarStore>((set, get) => {
     cfg: null,
     analysis: null,
     diagnostics: [],
+    derivationInput: '',
+    setDerivationInput: (input) => set({ derivationInput: input }),
     setRawText: (text) => {
       // Write back to the active tab in machineStore and push to history
       useMachineStore.setState((s) => {
         const tabs = [...s.tabs];
         const active = tabs[s.activeTabIndex];
         
-        if (active && (active.type === 'CFG' || active.type === 'CSG' || active.type === 'REG' || active.type === 'CFG_PARSER')) {
+        if (active && (active.type === 'CFG' || active.type === 'CSG' || active.type === 'CFG_PARSER')) {
           // Push old state to history before mutating
           useHistoryStore.getState().pushState('machine', active.id, s.machine, 'grammar-typing');
           tabs[s.activeTabIndex] = { ...active, grammarText: text };
@@ -43,6 +47,7 @@ export const useGrammarStore = create<GrammarStore>((set, get) => {
       get().setRawTextWithoutSync(text);
     },
     setRawTextWithoutSync: (text) => {
+      if (get().rawText === text && get().cfg !== null) return;
       try {
         const cfg = parseGrammarText(text);
         const analysis = analyzeGrammar(cfg);

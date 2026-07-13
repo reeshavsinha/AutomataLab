@@ -15,10 +15,7 @@ const ResizeHandle = () => (
 );
 
 export function GrammarWorkspace() {
-  const { layout, onLayoutChange } = usePanelLayout('grammar-workspace-main', {
-    editor: 40,
-    graph: 60
-  });
+  const { layout, onLayoutChange } = usePanelLayout('grammar-workspace-main', [40, 60]);
 
   return (
     <WorkspaceShell
@@ -28,7 +25,7 @@ export function GrammarWorkspace() {
         <GrammarStatusBar />
       }
       content={
-        <PanelGroup orientation="horizontal" onLayoutChange={onLayoutChange} defaultLayout={layout}>
+        <PanelGroup orientation="horizontal" onLayoutChange={onLayoutChange as any} defaultLayout={layout as any}>
           <Panel id="editor" defaultSize={40} minSize={20}>
             <GrammarEditorPanel />
           </Panel>

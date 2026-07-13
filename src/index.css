@@ -182,6 +182,12 @@ body {
   border-radius: 3px;
 }
 
+/* ── Utility to force text selection in modals/dialogs ─────────── */
+.selectable-text, .selectable-text * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
 /* ── React Flow canvas overrides ───────────────────────────── */
 .react-flow {
   background: var(--bg-primary) !important;
@@ -630,3 +636,4 @@ body {
   background-size: 9px 6px;
 }
 .tb-select:focus { border-color: var(--chrome-active-border); }
+.react-flow__controls-button .lucide, .react-flow__controls-button .lucide path { fill: none !important; } 

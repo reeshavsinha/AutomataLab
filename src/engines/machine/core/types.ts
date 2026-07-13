@@ -4,7 +4,7 @@
 // NO React imports in this file or any engine file.
 // ============================================================
 
-export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA' | 'TM' | 'LBA' | 'CFG' | 'CSG' | 'REG' | 'CFG_PARSER'
+export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA' | 'TM' | 'LBA' | 'CFG' | 'CSG' | 'CFG_PARSER'
 
 // ─── Machine definition types ────────────────────────────────
 
@@ -91,6 +91,10 @@ export interface MachineDefinition {
   parserAlgorithm?: string
   /** Parser Workspace — The raw input string to parse. */
   parserInput?: string
+  /** Parser Workspace — Cached UI coordinates for the automaton graph. */
+  parserLayoutCache?: { nodes: any[]; edges: any[] }
+  /** Parser Workspace — Active view mode (table vs automaton graph). */
+  activeViewMode?: 'table' | 'automaton'
 }
 
 // ─── Simulation types ────────────────────────────────────────

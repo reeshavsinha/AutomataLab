@@ -4,14 +4,20 @@ import { useCallback, useState } from 'react';
  * A custom hook to manually handle react-resizable-panels layout persistence
  * because `autoSaveId` was removed in v4.
  */
-export function usePanelLayout(id: string, defaultSizes: { [key: string]: number }) {
+export function usePanelLayout(id: string, defaultSizes: number[]) {
   const localStorageKey = `react-resizable-panels:${id}`;
 
-  const getSavedLayout = (): { [key: string]: number } | undefined => {
+  const getSavedLayout = (): number[] | undefined => {
     try {
       const saved = localStorage.getItem(localStorageKey);
       if (saved) {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed;
+        } else {
+          console.warn('Saved layout is not an array, discarding');
+          localStorage.removeItem(localStorageKey);
+        }
       }
     } catch (e) {
       console.warn('Failed to parse saved layout from localStorage', e);
@@ -19,10 +25,10 @@ export function usePanelLayout(id: string, defaultSizes: { [key: string]: number
     return undefined;
   };
 
-  const [layout] = useState<{ [key: string]: number }>(() => getSavedLayout() ?? defaultSizes);
+  const [layout] = useState<number[]>(() => getSavedLayout() ?? defaultSizes);
 
   const onLayoutChange = useCallback(
-    (sizes: { [key: string]: number }) => {
+    (sizes: number[]) => {
       try {
         localStorage.setItem(localStorageKey, JSON.stringify(sizes));
       } catch (e) {

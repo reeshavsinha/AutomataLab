@@ -10,15 +10,14 @@ import { ThemeIcon, HelpIcon } from '@/components/toolbar/icons'
 function tabLabel(tab: MachineDefinition): string {
   if (tab.name) return tab.name
   if (tab.type === 'CFG_PARSER') return 'Untitled Parser'
-  if (tab.type === 'REG') return 'Untitled Regex'
   if (tab.type === 'CFG' || tab.type === 'CSG') return 'Untitled Grammar'
   return 'Untitled Machine'
 }
 
 function getWorkspaceName(type: MachineType | undefined): string {
   if (type === 'CFG_PARSER') return 'Parser'
-  if (type === 'CFG' || type === 'CSG') return 'Grammar'
-  if (type === 'REG') return 'Regex'
+  if (type === 'CFG') return 'CFG'
+  if (type === 'CSG') return 'CSG'
   return 'Machine'
 }
 
@@ -400,8 +399,7 @@ export default function TabBar() {
             {[
               { type: 'DFA', label: 'Machine Workspace' },
               { type: 'CFG', label: 'Grammar Laboratory' },
-              { type: 'CFG_PARSER', label: 'Parser Studio' },
-              { type: 'REG', label: 'Regex Laboratory' }
+              { type: 'CFG_PARSER', label: 'Parser Studio' }
             ].map(item => (
               <button
                 key={item.type}

@@ -11,7 +11,7 @@ import { machineToSVG, LIGHT_COLORS, DARK_COLORS, type DiagramSvgResult } from '
 import { downloadText, fileStem } from '@/utils/exporters'
 
 /** Render the whole machine (real states + text notes) to SVG for export. */
-function renderFullSvg(machine: MachineDefinition, dark: boolean): DiagramSvgResult {
+export function renderFullSvg(machine: MachineDefinition, dark: boolean): DiagramSvgResult {
   return machineToSVG(machine, {
     colors: dark ? DARK_COLORS : LIGHT_COLORS,
     includeTextNodes: true,
