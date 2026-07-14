@@ -30,18 +30,7 @@ src-tauri/target/
 *.key.pub
 
 # Internal AI/dev context docs — never commit (cross-conversation handoff)
-internal-ref-files/project_context.md
-internal-ref-files/decisions.md
-internal-ref-files/handoff.md
-internal-ref-files/TODO.md
-internal-ref-files/prd_automata.md
-internal-ref-files/requirements_automata.md
-internal-ref-files/principles.md
-internal-ref-files/architecture.md
-internal-ref-files/review_checklist.md
-internal-ref-files/NEXT_STEPS.md
-internal-ref-files/performance.md
-internal-ref-files/security_guidelines.md
+internal-ref-files/
 
 # Local sample machines (not part of the shipped app)
 examples/
