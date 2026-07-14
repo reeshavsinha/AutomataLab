@@ -106,7 +106,7 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
                 value={newSymbols}
                 onChange={(e) => setNewSymbols(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                placeholder="a, b, ε"
+                placeholder=""
                 style={{ ...pdaInputStyle, flex: 1 }}
               />
               {isENFA && (

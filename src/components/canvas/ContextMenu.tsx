@@ -34,6 +34,7 @@ interface CanvasMenuProps {
   onClose: () => void
   onAddState: () => void
   onAddText: () => void
+  onSelectionMode?: () => void
 }
 
 interface TransitionMenuProps {
@@ -300,9 +301,7 @@ function StateContextMenu(props: StateMenuProps) {
   )
 }
 
-// ─── Canvas context menu ────────────────────────────────────────
-
-function CanvasContextMenu({ x, y, onClose, onAddState, onAddText }: CanvasMenuProps) {
+function CanvasContextMenu({ x, y, onClose, onAddState, onAddText, onSelectionMode }: CanvasMenuProps) {
   return (
     <MenuContainer x={x} y={y} onClose={onClose}>
       <MenuHeader label="Canvas" />
@@ -316,6 +315,17 @@ function CanvasContextMenu({ x, y, onClose, onAddState, onAddText }: CanvasMenuP
         icon="✎"
         onClick={() => { onAddText(); onClose() }}
       />
+      {onSelectionMode && (
+        <>
+          <MenuDivider />
+          <MenuItem
+            label="Selection Mode"
+            icon="⬚"
+            description="Switch to selection tool"
+            onClick={() => { onSelectionMode(); onClose() }}
+          />
+        </>
+      )}
     </MenuContainer>
   )
 }
@@ -375,6 +385,7 @@ interface ContextMenuProps {
   onEditStateTransitions: (stateId: string) => void
   onEditTransitionSymbols: (transitionId: string) => void
   onRenameState: (stateId: string) => void
+  onSelectionMode?: () => void
 }
 
 export default function ContextMenu(props: ContextMenuProps) {
@@ -389,6 +400,7 @@ export default function ContextMenu(props: ContextMenuProps) {
         onClose={onClose}
         onAddState={() => props.onAddState(config.canvasX, config.canvasY)}
         onAddText={() => props.onAddText(config.canvasX, config.canvasY)}
+        onSelectionMode={props.onSelectionMode}
       />
     )
   }

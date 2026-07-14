@@ -58,77 +58,98 @@ export function generateLALR1Table(cfg: CFG, analysis: GrammarAnalysisResult): L
     startItem.lookaheads.add(EOF_SYMBOL);
   }
 
-  // 3. Propagate Lookaheads iteratively until fixed point
-  let changed = true;
-  while (changed) {
-    changed = false;
+  // 3. Propagate Lookaheads iteratively using a worklist queue
+  const queue: { stateId: number, itemIdx: number }[] = [];
+  const inQueue = new Set<string>();
 
-    for (let stateId = 0; stateId < lalrStates.length; stateId++) {
-      const state = lalrStates[stateId];
-      const items = state.items;
+  const enqueue = (stateId: number, itemIdx: number) => {
+    const key = `${stateId}-${itemIdx}`;
+    if (!inQueue.has(key)) {
+      inQueue.add(key);
+      queue.push({ stateId, itemIdx });
+    }
+  };
 
-      for (const item of items) {
-        if (item.lookaheads.size === 0 && item.prodIndex !== 0) {
-          // Optimization: if no lookaheads to propagate and not generating spontaneous ones, we could skip.
-          // But wait, spontaneous lookaheads are generated regardless of the source lookahead!
-          // We must process it at least once. It's fine to process.
-        }
+  // Enqueue all items initially to trigger spontaneous lookahead generation
+  for (let s = 0; s < lalrStates.length; s++) {
+    for (let i = 0; i < lalrStates[s].items.length; i++) {
+      enqueue(s, i);
+    }
+  }
 
-        const prod = augCfg.productions[item.prodIndex];
-        if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
+  let totalPropagations = 0;
+  const startTime = Date.now();
 
-        const symbolAfterDot = prod.rhs[item.dot];
+  while (queue.length > 0) {
+    const { stateId, itemIdx } = queue.shift()!;
+    inQueue.delete(`${stateId}-${itemIdx}`);
+    totalPropagations++;
 
-        // A. GOTO Propagation
-        // If there's a transition on symbolAfterDot, lookaheads propagate to the next state's kernel item
-        const nextStateId = lr0.gotoTable.get(stateId)?.get(symbolAfterDot) ?? lr0.actionTable.get(stateId)?.get(symbolAfterDot)?.[0]?.target;
-        if (nextStateId !== undefined && nextStateId !== -1) {
-          const nextState = lalrStates[nextStateId];
-          const nextItem = nextState.items.find(i => i.prodIndex === item.prodIndex && i.dot === item.dot + 1);
-          if (nextItem) {
-            for (const la of item.lookaheads) {
-              if (!nextItem.lookaheads.has(la)) {
-                nextItem.lookaheads.add(la);
-                changed = true;
-              }
-            }
+    const state = lalrStates[stateId];
+    const item = state.items[itemIdx];
+
+    const prod = augCfg.productions[item.prodIndex];
+    if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
+
+    const symbolAfterDot = prod.rhs[item.dot];
+
+    // A. GOTO Propagation
+    const nextStateId = lr0.gotoTable.get(stateId)?.get(symbolAfterDot) ?? lr0.actionTable.get(stateId)?.get(symbolAfterDot)?.[0]?.target;
+    if (nextStateId !== undefined && nextStateId !== -1) {
+      const nextState = lalrStates[nextStateId];
+      const nextItemIdx = nextState.items.findIndex(i => i.prodIndex === item.prodIndex && i.dot === item.dot + 1);
+      if (nextItemIdx !== -1) {
+        const nextItem = nextState.items[nextItemIdx];
+        let added = false;
+        for (const la of item.lookaheads) {
+          if (!nextItem.lookaheads.has(la)) {
+            nextItem.lookaheads.add(la);
+            added = true;
           }
         }
+        if (added) enqueue(nextStateId, nextItemIdx);
+      }
+    }
 
-        // B. CLOSURE Propagation
-        // If symbolAfterDot is a NonTerminal, we compute spontaneous lookaheads and propagation links to its closure
-        if (augCfg.nonterminals.has(symbolAfterDot)) {
-          const beta = prod.rhs.slice(item.dot + 1);
-          const { firsts, derivesEpsilon } = getFirstSequence(beta, analysis.firstSets, augCfg);
+    // B. CLOSURE Propagation
+    if (augCfg.nonterminals.has(symbolAfterDot)) {
+      const beta = prod.rhs.slice(item.dot + 1);
+      const { firsts, derivesEpsilon } = getFirstSequence(beta, analysis.firstSets, augCfg);
 
-          for (let pIndex = 0; pIndex < augCfg.productions.length; pIndex++) {
-            if (augCfg.productions[pIndex].lhs === symbolAfterDot) {
-              const closureItem = items.find(i => i.prodIndex === pIndex && i.dot === 0);
-              if (closureItem) {
-                // Spontaneous Lookaheads from FIRST(beta)
-                for (const f of firsts) {
-                  if (!closureItem.lookaheads.has(f)) {
-                    closureItem.lookaheads.add(f);
-                    changed = true;
-                  }
-                }
+      for (let pIndex = 0; pIndex < augCfg.productions.length; pIndex++) {
+        if (augCfg.productions[pIndex].lhs === symbolAfterDot) {
+          const closureItemIdx = state.items.findIndex(i => i.prodIndex === pIndex && i.dot === 0);
+          if (closureItemIdx !== -1) {
+            const closureItem = state.items[closureItemIdx];
+            let added = false;
+            
+            // Spontaneous Lookaheads
+            for (const f of firsts) {
+              if (!closureItem.lookaheads.has(f)) {
+                closureItem.lookaheads.add(f);
+                added = true;
+              }
+            }
 
-                // Propagated Lookaheads if beta derives EPSILON
-                if (derivesEpsilon) {
-                  for (const la of item.lookaheads) {
-                    if (!closureItem.lookaheads.has(la)) {
-                      closureItem.lookaheads.add(la);
-                      changed = true;
-                    }
-                  }
+            // Propagated Lookaheads
+            if (derivesEpsilon) {
+              for (const la of item.lookaheads) {
+                if (!closureItem.lookaheads.has(la)) {
+                  closureItem.lookaheads.add(la);
+                  added = true;
                 }
               }
             }
+
+            if (added) enqueue(stateId, closureItemIdx);
           }
         }
       }
     }
   }
+
+  const generationTime = Date.now() - startTime;
+  console.log(`[LALR1 Generation] Propagations: ${totalPropagations}, Time: ${generationTime}ms`);
 
   // 4. Build Action and Goto Tables based on the populated lookaheads
   const actionTable = new Map<number, Map<string, ActionEntry[]>>();

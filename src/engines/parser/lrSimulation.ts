@@ -119,15 +119,24 @@ export class LRSimulation implements ParserEngine {
     }
     
     if (actionCell.length > 1) {
+      const hasShift = actionCell.some(a => a.type === 'Shift');
+      const reduceCount = actionCell.filter(a => a.type === 'Reduce').length;
+      let conflictType = 'Conflict';
+      if (hasShift && reduceCount > 0) {
+        conflictType = 'Shift/Reduce conflict';
+      } else if (reduceCount > 1) {
+        conflictType = 'Reduce/Reduce conflict';
+      }
+
       this.status = 'error';
-      this.errorMsg = `Parse Error: Conflict detected at State ${currentState} on terminal '${currentToken}'`;
+      this.errorMsg = `Parse Error: ${conflictType} in State ${currentState} on terminal '${currentToken}'`;
       this.history.push({
         step: this.history.length,
         actionTitle: 'Conflict Error',
         explanation: [
           `Current parser state: ${currentState}`,
           `Lookahead symbol: ${currentToken}`,
-          `ACTION[${currentState}, '${currentToken}'] contains multiple conflicting actions.`,
+          `ACTION[${currentState}, '${currentToken}'] contains multiple conflicting actions: ${actionCell.map(a => a.type === 'Shift' ? 'Shift ' + a.target : 'Reduce by P' + a.target).join(', ')}.`,
           `Parsing halted.`
         ],
         snapshot: this.takeSnapshot()

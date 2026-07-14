@@ -25,7 +25,7 @@ export function AutomatonViewerPanel() {
   
   const initialMachineId = useRef(machine?.id).current;
   
-  const setAutomatonState = React.useCallback((machineId: string, state: { nodes: any[], edges: any[] }) => {
+  const setAutomatonState = React.useCallback((machineId: string, state: { algorithm: string, nodes: any[], edges: any[] }) => {
     useMachineStore.setState(s => {
       const tabs = [...s.tabs];
       const index = tabs.findIndex(t => t.id === machineId);
@@ -41,8 +41,8 @@ export function AutomatonViewerPanel() {
   const slr1Table = useSLR1Table();
   const clr1Table = useCLR1Table();
   const lalr1Table = useLALR1Table();
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(automatonState?.nodes || []);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(automatonState?.edges || []);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>(automatonState?.algorithm === algorithm ? automatonState.nodes : []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(automatonState?.algorithm === algorithm ? automatonState.edges : []);
   const [isLayingOut, setIsLayingOut] = useState(false);
   const [showExtended, setShowExtended] = useState(true);
   const [layoutSeed, setLayoutSeed] = useState(0);
@@ -89,8 +89,8 @@ export function AutomatonViewerPanel() {
       return;
     }
 
-    if (automatonState && automatonState.nodes.length > 0) {
-      return; // Already have cached layout for this active model
+    if (automatonState && automatonState.algorithm === algorithm && automatonState.nodes.length > 0) {
+      return; // Already have cached layout for this active model and algorithm
     }
 
     // Safety guard for massive grammars
@@ -250,7 +250,7 @@ export function AutomatonViewerPanel() {
     worker.postMessage({ table, configOverrides: { showExtended }, widthMap });
 
     return () => worker.terminate();
-  }, [table, showExtended, layoutSeed, automatonState, setNodes, setEdges, setIsLayingOut]);
+  }, [table, algorithm, showExtended, layoutSeed, automatonState, setNodes, setEdges, setIsLayingOut]);
 
   // Sync state to store on unmount
   const nodesRef = useRef(nodes);
@@ -263,7 +263,7 @@ export function AutomatonViewerPanel() {
   useEffect(() => {
     return () => {
       if (initialMachineId) {
-        setAutomatonState(initialMachineId, { nodes: nodesRef.current, edges: edgesRef.current });
+        setAutomatonState(initialMachineId, { algorithm, nodes: nodesRef.current, edges: edgesRef.current });
       }
     };
   }, [setAutomatonState, initialMachineId]);
@@ -417,7 +417,7 @@ export function AutomatonViewerPanel() {
         edgeTypes={edgeTypes}
         fitView
         minZoom={0.1}
-        translateExtent={[[-1000, -1000], [2000, 2000]]}
+        translateExtent={[[-10000, -10000], [10000, 10000]]}
         proOptions={{ hideAttribution: true }}
       >
         <Background color="var(--border-subtle)" gap={16} />

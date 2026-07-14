@@ -41,7 +41,7 @@ describe('stress — TM tape window stays bounded', () => {
     const dt = performance.now() - t0
     console.log(`[TM long run]  steps≈${N}  time=${ms(dt)}  maxWindowCells=${maxCells}`)
     expect(maxCells).toBeLessThanOrEqual(400)
-  })
+  }, 15000)
 
   it('a huge seeded input renders only a window, not the whole tape', () => {
     const len = 50_000

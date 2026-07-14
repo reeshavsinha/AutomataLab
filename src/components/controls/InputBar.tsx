@@ -6,6 +6,7 @@ import { useRef, useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
+import { useCommandStore } from '@/store/commandStore'
 import { isTMType } from '@/engines/machine/core/utils'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 
@@ -16,6 +17,7 @@ export default function InputBar() {
     useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
   const openModal = useUIStore((s) => s.openModal)
+  const sim = useCommandStore((s) => s.sim)
   const isTM = isTMType(machineType)
 
   const isIdle = status === 'idle'
@@ -28,6 +30,12 @@ export default function InputBar() {
       useSimulationStore.getState().resetSimulation()
     }
     setInputString(value)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      sim?.play()
+    }
   }
 
   // Engines fold the just-read symbol into `consumedInput` AND report it again as
@@ -75,8 +83,9 @@ export default function InputBar() {
             type="text"
             value={inputString}
             onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
             disabled={status === 'running'}
-            placeholder={isTM ? 'Enter initial tape contents (e.g. 0011)' : 'Enter input string (e.g. aabb)'}
+            placeholder={isTM ? 'Enter initial tape contents' : 'Enter input string'}
             style={{
               flex: 1,
               padding: '2px 8px',
@@ -93,17 +102,15 @@ export default function InputBar() {
             onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
             onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
           />
-          {!isTM && (
-            <div style={{ position: 'absolute', right: '4px' }}>
-              <EpsilonInserter
-                targetRef={inputRef}
-                open={epsOpen}
-                setOpen={setEpsOpen}
-                onInsert={handleInputChange}
-                size="sm"
-              />
-            </div>
-          )}
+          <div style={{ position: 'absolute', right: '4px' }}>
+            <EpsilonInserter
+              targetRef={inputRef}
+              open={epsOpen}
+              setOpen={setEpsOpen}
+              onInsert={handleInputChange}
+              size="sm"
+            />
+          </div>
         </div>
 
         {!isTM && isIdle && (
@@ -132,14 +139,14 @@ export default function InputBar() {
       }}>
         <span style={{
           fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em',
-          color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: '92px', flexShrink: 0
+          color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: '92px', marginRight: '8px', flexShrink: 0
         }}>
           INPUT BUFFER
         </span>
 
         {isIdle ? (
           <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.77rem' }}>
-            {inputString ? 'Press Play (Space) or Step (Right Arrow) to begin' : ''}
+            {inputString ? 'Press Enter/Space to start' : ''}
           </span>
         ) : isTM ? (
           <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.77rem' }}>

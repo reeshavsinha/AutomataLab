@@ -58,6 +58,7 @@ export class NPDAEngine implements Automaton, TreeProvider {
   private history: HistoryEntry[] = []
   private stepGuard: number = 0
   private branchSeq: number = 0
+  private visitedConfigs = new Set<string>()
   /** Signature of the previous frontier — detects no-progress fixpoints. */
   private prevSig: string = ''
   /** Every branch ever created, in creation order — powers the computation tree. */
@@ -121,15 +122,14 @@ export class NPDAEngine implements Automaton, TreeProvider {
     const children: Configuration[] = []
     const childReads: string[] = []
     const usedTransitionIds: string[] = []
-    const seen = new Set<string>()
     let overflow = false
     outer: for (const config of prevFrontier) {
       for (const t of this._applicable(config)) {
         const { child, readSym } = this._apply(config, t)
         if (child.stack.length > MAX_STACK_DEPTH) continue
         const key = this._key(child)
-        if (seen.has(key)) continue // collapse identical branches reached this step
-        seen.add(key)
+        if (this.visitedConfigs.has(key)) continue // collapse identical branches across the entire run
+        this.visitedConfigs.add(key)
         children.push(child)
         // Record only branches that survive dedup, and only until the tree-node
         // cap is reached. `children` (the live frontier) is always kept intact,
@@ -205,6 +205,7 @@ export class NPDAEngine implements Automaton, TreeProvider {
     this.branchSeq = 0
     this.prevSig = ''
     this.treeNodes = []
+    this.visitedConfigs.clear()
   }
 
   getCurrentConfigurations(): Configuration[] {
@@ -259,9 +260,10 @@ export class NPDAEngine implements Automaton, TreeProvider {
       if (t.from !== config.stateId) return false
       const read = t.read ?? ''
       const pop = t.pop ?? ''
+      const readTokens = Array.from(read)
       const readOk =
         isEpsilon(read) ||
-        (config.inputIndex < this.inputChars.length && this.inputChars[config.inputIndex] === read)
+        (config.inputIndex + readTokens.length <= this.inputChars.length && this.inputChars.slice(config.inputIndex, config.inputIndex + readTokens.length).join('') === read)
       const popOk = isEpsilon(pop) || (top !== null && top === pop)
       return readOk && popOk
     })
@@ -277,9 +279,15 @@ export class NPDAEngine implements Automaton, TreeProvider {
       stack.pop() // _applicable guarantees the top equals `pop`
     }
     if (!isEpsilon(push)) {
-      // Support comma-delimited multi-character stack symbols (e.g., from CFG conversion)
-      // Fallback to character-by-character for backward compatibility with older PDAs.
-      const pushSymbols = push.includes(',') ? push.split(',') : push.split('');
+      const gamma = this.definition.stackAlphabet ?? []
+      let pushSymbols: string[]
+      if (push.includes(',')) {
+        pushSymbols = push.split(',')
+      } else if (gamma.includes(push)) {
+        pushSymbols = [push]
+      } else {
+        pushSymbols = Array.from(push)
+      }
       // Push so the FIRST symbol of `push` ends up on top of the stack.
       for (let i = pushSymbols.length - 1; i >= 0; i--) {
         if (pushSymbols[i]) {
@@ -288,7 +296,7 @@ export class NPDAEngine implements Automaton, TreeProvider {
       }
     }
     const consumes = !isEpsilon(read)
-    const inputIndex = consumes ? config.inputIndex + 1 : config.inputIndex
+    const inputIndex = consumes ? config.inputIndex + Array.from(read).length : config.inputIndex
     const child = buildConfig({
       stateId: t.to,
       inputChars: this.inputChars,

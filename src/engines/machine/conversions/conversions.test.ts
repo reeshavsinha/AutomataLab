@@ -17,9 +17,6 @@ import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { cfgToPda } from './cfgToPda'
 import { parseGrammarText } from '../../grammar/parser'
-import { dfaToRegex } from './dfaToRegex'
-import { pdaToCfg } from './pdaToCfg'
-
 // ─── helpers ────────────────────────────────────────────────────
 
 function allStrings(alphabet: string[], maxLen: number): string[] {
@@ -296,57 +293,3 @@ describe('cfgToPda', () => {
   })
 })
 
-// ─── DFA/NFA → Regex (State Elimination) ────────────────────────
-
-describe('dfaToRegex', () => {
-  it('extracts regex from a simple DFA', () => {
-    const r = dfaToRegex(dfaRedundant)
-    expect(typeof r.result).toBe('string')
-    expect((r.result as string).length).toBeGreaterThan(0)
-    expect(r.steps.length).toBeGreaterThan(0)
-  })
-
-  it('handles machine with no accept states', () => {
-    const noAccept: MachineDefinition = {
-      ...dfaRedundant,
-      states: dfaRedundant.states.map((s) => ({ ...s, isAccept: false })),
-    }
-    const r = dfaToRegex(noAccept)
-    expect(r.result).toBe('∅')
-  })
-})
-
-// ─── PDA → CFG (Triplet Construction) ───────────────────────────
-
-describe('pdaToCfg', () => {
-  it('extracts CFG from a valid NPDA', () => {
-    // Generate a simple valid NPDA manually that strictly follows the constraints
-    const pda: MachineDefinition = {
-      id: 'pda_test', name: 'valid_pda', type: 'DPDA', language: '', alphabet: ['a', 'b'],
-      blankSymbol: 'Z',
-      states: [
-        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true },
-        { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: false },
-      ],
-      transitions: [
-        // 1 pop, 2 pushes
-        { id: 't0', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'Z', push: 'AZ' },
-        // 1 pop, 1 push
-        { id: 't1', from: 'q1', to: 'q1', symbols: [], read: 'a', pop: 'A', push: 'A' },
-        // 1 pop, 0 pushes
-        { id: 't2', from: 'q1', to: 'q0', symbols: [], read: 'b', pop: 'A', push: '' },
-      ],
-    }
-    const r = pdaToCfg(pda)
-    expect(typeof r.result).toBe('string')
-    expect((r.result as string).includes('S ->')).toBe(true)
-    expect(r.steps.length).toBeGreaterThan(0)
-  })
-
-  it('throws on PDA with epsilon pop', () => {
-    const pda = cfgToPda('S -> a').result as MachineDefinition
-    // Invalidate the PDA by giving it a transition that pops epsilon
-    pda.transitions[0].pop = ''
-    expect(() => pdaToCfg(pda)).toThrow(/pops ε/)
-  })
-})

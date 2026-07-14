@@ -248,3 +248,34 @@ export function AnalyzeIcon({ size }: IconProps) {
     </S>
   )
 }
+
+export function GrammarLabIcon({ size }: IconProps) {
+  return (
+    <S size={size}>
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+    </S>
+  )
+}
+
+export function ParserStudioIcon({ size }: IconProps) {
+  return (
+    <S size={size}>
+      <polyline points="10 9 15 4 20 9" />
+      <path d="M4 20h16" />
+      <path d="M15 4v12" />
+      <path d="M15 16l-5-5" />
+    </S>
+  )
+}
+
+export function MachineWorkspaceIcon({ size }: IconProps) {
+  return (
+    <S size={size}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </S>
+  )
+}

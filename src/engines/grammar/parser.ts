@@ -89,7 +89,7 @@ export function parseGrammarText(text: string): CFG {
   for (const line of lines) {
     let ruleLine = line.trim().replace(/^\d+:\s*/, '');
     if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
-    const parts = ruleLine.split(/->|=>|:/);
+    const parts = ruleLine.split(/->|::=|→|:/);
     if (parts.length >= 2) {
       // Extract the first token that looks like a generalized nonterminal
       const lhsMatch = parts[0].match(/([A-Z][A-Za-z0-9_']*)/);
@@ -111,7 +111,7 @@ export function parseGrammarText(text: string): CFG {
     if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
 
     ruleLine = ruleLine.replace(/^\d+:\s*/, '');
-    const parts = ruleLine.split(/->|=>|:/);
+    const parts = ruleLine.split(/->|=>|::=|→|:/);
     
     let lhs: string;
     let rhsPart: string;
@@ -129,6 +129,9 @@ export function parseGrammarText(text: string): CFG {
         throw new Error('Invalid grammar file: LHS must be a single nonterminal in ' + line);
       }
       lhs = lhsTokens[0];
+      if (lhs === 'START') {
+        throw new Error('Invalid grammar file: "START" is a reserved nonterminal used internally. Please use a different name like "S".');
+      }
       rhsPart = parts.slice(1).join('->').trim();
       lastLhs = lhs;
     }
@@ -155,6 +158,9 @@ export function parseGrammarText(text: string): CFG {
           rhs.push(sym);
           if (sym !== EPSILON) {
             if (isNonterminal(sym)) {
+              if (sym === 'START') {
+                throw new Error('Invalid grammar file: "START" is a reserved nonterminal used internally. Please use a different name like "S".');
+              }
               nonterminals.add(sym);
             } else {
               terminals.add(sym);

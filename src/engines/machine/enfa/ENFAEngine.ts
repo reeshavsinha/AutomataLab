@@ -32,7 +32,7 @@ export class ENFAEngine extends NFAEngine {
       this.status = 'error'
       return
     }
-    this.inputChars = input === '' ? [] : input.split('')
+    this.inputChars = input === '' ? [] : Array.from(input)
     // Apply ε-closure to the start state set
     this.activeStateIds = epsilonClosure(
       new Set([startState.id]),

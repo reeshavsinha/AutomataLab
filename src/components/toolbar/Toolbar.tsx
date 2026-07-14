@@ -14,15 +14,18 @@ import { useCommandStore } from '@/store/commandStore'
 import { useFileActions } from '@/hooks/useFileActions'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
-import { isPDAType, isTMType } from '@/engines/machine/core/utils'
+import { isPDAType, isTMType, generateId } from '@/engines/machine/core/utils'
 import { useHistoryStore } from '@/store/historyStore'
-import type { MachineType } from '@/engines/machine/core/types'
+import type { MachineType, MachineDefinition } from '@/engines/machine/core/types'
+import { EXAMPLES } from '@/utils/examples'
+import { cfgToPda } from '@/engines/machine/conversions'
 import {
   NewIcon, OpenIcon, SaveIcon, ExportIcon,
   UndoIcon, RedoIcon, CutIcon, CopyIcon, PasteIcon, DeleteIcon,
   ZoomInIcon, ZoomOutIcon, FitIcon, LayoutIcon,
   PlayIcon, PauseIcon, StepIcon, StepBackIcon, ResetIcon,
   AnalyzeIcon, ConvertIcon, ThemeIcon, HelpIcon,
+  GrammarLabIcon, ParserStudioIcon, MachineWorkspaceIcon
 } from '@/components/toolbar/icons'
 
 function transitionFormat(type: MachineType): 'fa' | 'pda' | 'tm' {
@@ -57,7 +60,7 @@ export default function Toolbar() {
     machine, setMachineName, setMachineType, setAlphabet,
     setStackAlphabet, setTapeAlphabet,
     setBlankSymbol, setStepLimit, setTapeCount,
-    loadMachine, undo, redo,
+    loadMachine, undo, redo, insertTab
   } = useMachineStore()
   
   const historyStack = useHistoryStore(s => machine ? s.stacks[`machine:${machine.id}`] : null)
@@ -85,6 +88,51 @@ export default function Toolbar() {
   const isTM = isTMType(machine.type)
   const isPlainTM = machine.type === 'TM'
   const isGraph = !['CFG', 'CSG', 'CFG_PARSER'].includes(machine.type)
+
+  const isGrammarContext = ['CFG', 'CSG'].includes(machine.type)
+  const isParserContext = machine.type === 'CFG_PARSER'
+  const isMachineContext = isGraph
+  const hasGrammar = !!machine.grammarText && machine.grammarText.trim().length > 0;
+
+  const createTabDef = (type: MachineType, suffix: string): MachineDefinition => {
+    let baseName = machine.name;
+    baseName = baseName.replace(/\s*\[(?:Grammar|Parser|PDA)\]$/, '');
+    return {
+      id: generateId('machine'),
+      version: 1,
+      name: `${baseName} ${suffix}`,
+      type,
+      language: machine.language || '',
+      states: [],
+      transitions: [],
+      alphabet: [],
+      grammarText: machine.grammarText,
+    }
+  }
+
+  const handleTransferToGrammar = () => {
+    if (!hasGrammar) return;
+    insertTab(createTabDef('CFG', '[Grammar]'));
+  }
+
+  const handleTransferToParser = () => {
+    if (!hasGrammar) return;
+    insertTab(createTabDef('CFG_PARSER', '[Parser]'));
+  }
+
+  const handleTransferToMachine = () => {
+    if (!hasGrammar) return;
+    try {
+      const res = cfgToPda(machine.grammarText || '');
+      const pdaDef = res.result as MachineDefinition;
+      let baseName = machine.name;
+      baseName = baseName.replace(/\s*\[(?:Grammar|Parser|PDA)\]$/, '');
+      pdaDef.name = `${baseName} [PDA]`;
+      insertTab(pdaDef);
+    } catch (e) {
+      toast.error('Failed to convert CFG to PDA: ' + (e as Error).message);
+    }
+  }
 
   const [alphabetInput, setAlphabetInput] = useState(machine.alphabet?.join(', ') || '')
   const [alphaFocused, setAlphaFocused] = useState(false)
@@ -192,10 +240,70 @@ export default function Toolbar() {
           )}
           {/* Export available for Graph and Grammar/Parser */}
           <TbBtn title="Export (diagram, δ-table, trace, tree, zipped)" onClick={() => openModal('export')}><ExportIcon /></TbBtn>
+
+          {/* Transfers */}
+          {hasGrammar && (
+            <>
+              <Sep />
+              {!isGrammarContext && <TbBtn title="Open in Grammar Lab" onClick={handleTransferToGrammar}><GrammarLabIcon /></TbBtn>}
+              {!isParserContext && <TbBtn title="Open in Parser Studio" onClick={handleTransferToParser}><ParserStudioIcon /></TbBtn>}
+              {!isMachineContext && <TbBtn title="Generate PDA in Machine Workspace" onClick={handleTransferToMachine}><MachineWorkspaceIcon /></TbBtn>}
+            </>
+          )}
         </>
       )}
 
       <div style={{ flex: 1, minWidth: 8 }} />
+
+      {/* Examples Gallery */}
+      <select
+        className="tb-select"
+        style={{ marginRight: '16px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 600 }}
+        value=""
+        onChange={(e) => {
+          const ex = EXAMPLES[e.target.value];
+          if (ex) {
+            loadMachine({ ...ex, id: generateId('machine') } as any, true);
+            setTimeout(requestFitView, 50); // allow layout to settle
+            toast.success(`Loaded example: ${ex.name}`);
+          }
+          e.target.value = '';
+        }}
+        title="Load built-in example"
+      >
+        <option value="" disabled>Load Example...</option>
+        {isMachineContext && (
+          <>
+            <option value="dfaEvenZeros">DFA: Even 0s</option>
+            <option value="nfaEndsIn11">NFA: Ends in 11</option>
+            <option value="npdaBalancedParens">NPDA: Balanced Parens</option>
+            <option value="tmAnBnCn">TM: aⁿ bⁿ cⁿ</option>
+          </>
+        )}
+        {isGrammarContext && (
+          <>
+            <option value="palindromeCfg">CFG: Palindromes</option>
+            <option value="dyckLanguage">CFG: Balanced Parens</option>
+            <option value="equal01Cfg">CFG: Equal 0s and 1s</option>
+            <option value="booleanExprCfg">CFG: Boolean Logic</option>
+            <option value="wwrEvenPalindromes">CFG: Even Palindromes</option>
+            <option value="anBnCnCsg">CSG: aⁿ bⁿ cⁿ</option>
+            <option value="wwCopyCsg">CSG: Copy Language (ww)</option>
+            <option value="powersOf2Csg">CSG: Powers of 2</option>
+          </>
+        )}
+        {isParserContext && (
+          <>
+            <option value="arithmeticCfg">Parser: Arithmetic</option>
+            <option value="jsonParser">Parser: Tiny JSON</option>
+            <option value="lispParser">Parser: LISP S-Expr</option>
+            <option value="sqlParser">Parser: SQL Subset</option>
+            <option value="xmlParser">Parser: HTML/XML</option>
+            <option value="regexParser">Parser: RegEx</option>
+            <option value="cBlocksParser">Parser: C-Style Blocks</option>
+          </>
+        )}
+      </select>
 
       {/* Machine config (compact, right-aligned) */}
       <input

@@ -104,7 +104,6 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     nodeData.isAccept ? 'accept' : '',
     nodeData.isReject ? 'reject' : '',
     isActive ? 'active' : '',
-    isOnPath ? 'on-path' : '',
     halted && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
     halted && isActive && status === 'rejected' ? 'rejected-final' : '',
     halted && isActive && status === 'stuck' ? 'stuck-final' : '',

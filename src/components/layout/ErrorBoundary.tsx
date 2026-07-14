@@ -1,10 +1,14 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { useMachineStore } from '@/store/machineStore';
+import { useGrammarStore } from '@/store/grammarStore';
+import { useParserStore } from '@/store/parserStore';
+import JSZip from 'jszip';
 
 
 interface Props {
   children: ReactNode;
   fallbackName: string;
+  onRevert?: () => void;
 }
 
 interface State {
@@ -27,6 +31,43 @@ export class ErrorBoundary extends Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error(`Uncaught error in ${this.props.fallbackName}:`, error, errorInfo);
     this.setState({ errorInfo });
+  }
+
+  private handleRescueWork = async () => {
+    try {
+      const zip = new JSZip();
+      
+      // Save all machines
+      const machineTabs = useMachineStore.getState().tabs;
+      const machinesFolder = zip.folder("machines");
+      if (machinesFolder && machineTabs.length > 0) {
+        machineTabs.forEach((tab, index) => {
+          const name = tab.name || `machine_${index + 1}`;
+          const safeName = name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          machinesFolder.file(`${safeName}.json`, JSON.stringify(tab, null, 2));
+        });
+      }
+
+      // Save grammar
+      const grammarText = useGrammarStore.getState().rawText;
+      if (grammarText && grammarText.trim() !== '') {
+        zip.file("grammar_lab.txt", grammarText);
+      }
+
+      // Generate and download
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `automatalab_rescue_${new Date().toISOString().replace(/[:.]/g, '-')}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error("Failed to rescue work:", e);
+      alert("Failed to create rescue ZIP. See console for details.");
+    }
   }
 
   public render() {
@@ -55,13 +96,34 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 Try Again
               </button>
+              {this.props.onRevert && (
+                <button 
+                  onClick={() => {
+                    this.props.onRevert?.();
+                    this.setState({ hasError: false, error: null, errorInfo: null });
+                  }}
+                  className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 text-white font-medium"
+                  title="Undo the last action and try to recover the workspace"
+                >
+                  Revert to Last Valid State
+                </button>
+              )}
               <button 
                 onClick={() => {
                   useMachineStore.getState().closeTab(useMachineStore.getState().activeTabIndex);
+                  this.setState({ hasError: false, error: null, errorInfo: null });
                 }}
                 className="px-4 py-2 rounded bg-gray-700 hover:bg-gray-600 text-white font-medium"
               >
                 Close Tab
+              </button>
+              <button 
+                onClick={this.handleRescueWork}
+                className="px-4 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white font-medium ml-auto flex items-center gap-2"
+                title="Save all workspaces as a ZIP file"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Rescue Work
               </button>
             </div>
           </div>

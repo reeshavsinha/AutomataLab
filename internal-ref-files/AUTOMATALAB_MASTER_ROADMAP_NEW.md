@@ -1,3 +1,5 @@
+> **NOTE: Project is currently at v5.0.0.** Historical context is preserved below.
+
 # AUTOMATALAB_MASTER_ROADMAP_NEW.md
 
 # AutomataLab Master Roadmap
@@ -14,7 +16,7 @@ Visual Studio Code for Theoretical Computer Science
 
 ---
 
-# Release 5 — Workspace Architecture
+# Release 5 — Workspace Architecture [COMPLETED in v5.0.0]
 
 ## Goal
 
@@ -37,7 +39,7 @@ Users perceive AutomataLab as an integrated platform rather than multiple discon
 
 ---
 
-# Release 6 — Educational Completion
+# Release 6 — Educational Completion [COMPLETED in v5.0.0]
 
 ## Goal
 
@@ -92,11 +94,36 @@ Entire undergraduate curriculum can be completed inside AutomataLab.
 
 ---
 
-# Release 7 — Engineering Excellence
+# Release 7 — Engineering Excellence [COMPLETED in v5.0.0]
 
 ## Goal
 
-Reach production-quality engineering standards.
+Reach production-quality engineering standards. (Note: These goals were achieved alongside the v5.0.0 consolidation sprint).
+
+---
+
+# Phase 8 — Future Directions (The Next Steps)
+
+## Goal
+
+Extend AutomataLab into collaborative, cloud-synced, and deeply integrated academic workflows.
+
+### Collaborative Workspaces
+* Cloud Sync (Google Drive / GitHub integration)
+* Real-time multiplayer editing (Yjs / WebRTC)
+* Multi-file workspace saving (.workspace bundles)
+
+### Advanced Academic Features
+* Deep semantic proving tools
+* Export to LaTeX/TikZ for direct academic paper inclusion
+* Automated grading API for LMS integration
+* Cross-language syntax tree generation
+
+### Deep Testing
+* Comprehensive Playwright E2E suites for all visual components
+* Fuzzy grammar testing for parser engine edge-cases
+
+---
 
 ### Reliability
 

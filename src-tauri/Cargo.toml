@@ -1,10 +1,10 @@
 [package]
-name = "app"
-version = "4.1.0"
-description = "A Tauri App"
-authors = ["you"]
-license = ""
-repository = ""
+name = "automata-lab"
+version = "5.0.0"
+description = "A modern, fast, and interactive cross-platform desktop application for designing, simulating, and testing automata."
+authors = ["Reeshav Sinha"]
+license = "MIT"
+repository = "https://github.com/reeshavsinha/AutomataLab"
 edition = "2021"
 rust-version = "1.77.2"
 

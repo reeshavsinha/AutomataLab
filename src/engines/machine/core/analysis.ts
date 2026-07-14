@@ -25,6 +25,7 @@ export function getReachability(machine: MachineDefinition) {
       const current = queue[head++]
       for (const t of transitions) {
         if (t.from === current && !reachable.has(t.to)) {
+          if (!t.symbols || t.symbols.length === 0) continue
           reachable.add(t.to)
           queue.push(t.to)
         }
@@ -45,6 +46,7 @@ export function getReachability(machine: MachineDefinition) {
     const current = reverseQueue[head++]
     for (const t of transitions) {
       if (t.to === current && !reachesAccept.has(t.from)) {
+        if (!t.symbols || t.symbols.length === 0) continue
         reachesAccept.add(t.from)
         reverseQueue.push(t.from)
       }
@@ -95,6 +97,7 @@ export function checkEmptiness(machine: MachineDefinition): { isEmpty: boolean; 
     
     for (const t of machine.transitions) {
       if (t.from === id && !visited.has(t.to)) {
+        if (!t.symbols || t.symbols.length === 0) continue
         visited.add(t.to)
         let append = ''
         if (t.symbols && t.symbols.length > 0) {

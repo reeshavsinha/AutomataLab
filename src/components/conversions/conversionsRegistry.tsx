@@ -6,8 +6,6 @@ import {
   minimizeDfa,
   regexToNfa,
   cfgToPda,
-  dfaToRegex,
-  pdaToCfg,
   type ConversionResult,
   type ConversionMode,
 } from '@/engines/machine/conversions'
@@ -240,24 +238,6 @@ export const CONVERSION_PLUGINS: ConversionPlugin[] = [
     inputComponent: CFGInput,
     execute: (text: string) => cfgToPda(text),
     animationBuilder: defaultAnimationBuilder,
-  },
-  {
-    kind: 'dfa-to-regex',
-    label: 'DFA/NFA → Regex',
-    description: 'Extract Regex via State Elimination.',
-    mode: 'extract',
-    appliesTo: ['DFA', 'NFA', 'ENFA'],
-    resultType: 'NFA', // not used for extract
-    execute: (machine: MachineDefinition) => dfaToRegex(machine),
-  },
-  {
-    kind: 'pda-to-cfg',
-    label: 'PDA → CFG',
-    description: 'Extract Grammar via standard triplet construction.',
-    mode: 'extract',
-    appliesTo: ['DPDA', 'NPDA'],
-    resultType: 'NPDA', // not used for extract
-    execute: (machine: MachineDefinition) => pdaToCfg(machine),
   },
 ]
 

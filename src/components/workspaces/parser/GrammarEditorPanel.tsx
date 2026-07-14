@@ -48,10 +48,10 @@ const EditorContent = ({
       }
       return '';
     }
-    if (!lineText.includes('->') && !lineText.endsWith('|')) {
+    if (!/(->|::=|→|:)/.test(lineText) && !lineText.endsWith('|')) {
       if (lineText.match(/^[A-Z][A-Za-z0-9_']*$/)) return ' -> ';
       return '';
-    } else if (lineText.includes('->') && !lineText.trim().endsWith('|')) {
+    } else if (/(->|::=|→|:)/.test(lineText) && !lineText.trim().endsWith('|')) {
       return ' | ';
     }
     return '';
@@ -95,7 +95,7 @@ const EditorContent = ({
         
         let indentLen = 4;
         for (let i = currentLineIndex; i >= 0; i--) {
-          const match = lines[i].match(/^(.*?->\s*)/);
+          const match = lines[i].match(/^(.*?(?:->|::=|→|:)\s*)/);
           if (match) {
             indentLen = match[1].length;
             break;
@@ -244,7 +244,7 @@ const EditorContent = ({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           readOnly={lastEdited !== mode}
-          placeholder={lastEdited !== mode ? (useGrammarStore.getState().rawText.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : 'Enter grammar rules here...'}
+          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : (mode === 'flat' ? "Enter your CFG here...\nE.g.\nS -> a S b\nS -> ε" : "Enter your CFG here...\nE.g.\nS -> a S b | ε")}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             padding: '8px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',

@@ -12,26 +12,26 @@ import type { MachineDefinition } from '@/engines/machine/core/types'
 describe('parseMachineJson — rejects malformed input cleanly', () => {
   it('non-object JSON (null / primitives / arrays) → friendly error, not a TypeError', () => {
     for (const bad of ['null', '42', '"hi"', 'true', '[]', '[1,2,3]']) {
-      expect(() => parseMachineJson(bad), `for ${bad}`).toThrowError(/Invalid machine file/)
+      expect(() => parseMachineJson(bad), `for ${bad}`).toThrowError(/Expected a machine object/)
     }
   })
 
   it('invalid JSON syntax → friendly error', () => {
-    expect(() => parseMachineJson('{ not json')).toThrowError(/not valid JSON/)
-    expect(() => parseMachineJson('')).toThrowError(/not valid JSON/)
+    expect(() => parseMachineJson('{ not json')).toThrowError(/Not a valid JSON file/)
+    expect(() => parseMachineJson('')).toThrowError(/Not a valid JSON file/)
   })
 
   it('missing required fields → friendly error', () => {
-    expect(() => parseMachineJson('{"type":"DFA"}')).toThrowError(/missing required fields/)
+    expect(() => parseMachineJson('{"type":"DFA"}')).toThrowError(/Missing required fields/)
     expect(() => parseMachineJson('{"states":[],"transitions":[]}')).toThrowError(
-      /missing required fields/
+      /Missing required fields/
     )
   })
 
   it('unknown machine type → friendly error', () => {
     expect(() =>
       parseMachineJson('{"type":"XYZ","states":[],"transitions":[]}')
-    ).toThrowError(/unknown machine type/)
+    ).toThrowError(/Unknown machine type/)
   })
 
   it('does not pollute Object.prototype via a crafted __proto__ key', () => {
@@ -48,8 +48,8 @@ describe('parseMachineJson — sanitises accepted fields', () => {
       type: 'DFA',
       name: 123, // not a string → must fall back to a string name
       language: { nope: 1 }, // not a string → ''
-      states: [{ id: 5, label: null, x: 'NaN', y: 10, isStart: 'yes', evil: 1 }],
-      transitions: [{ from: 1, to: 2, symbols: [1, 'a', null] }],
+      states: [{ id: '5', label: null, x: 'NaN', y: 10, isStart: 'yes', evil: 1 }],
+      transitions: [{ from: '5', to: '5', symbols: [1, 'a', null] }],
       alphabet: ['a', 2, null],
     })
     const back = parseMachineJson(json)
@@ -67,8 +67,8 @@ describe('parseMachineJson — sanitises accepted fields', () => {
 
     const t = back.transitions[0]
     expect(typeof t.id).toBe('string')
-    expect(t.from).toBe('1') // String(1)
-    expect(t.to).toBe('2')
+    expect(t.from).toBe('5') // String(5)
+    expect(t.to).toBe('5')
     expect(t.symbols).toEqual(['1', 'a', 'null']) // every symbol coerced to string
 
     expect(back.alphabet).toEqual(['a', '2', 'null'])

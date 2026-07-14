@@ -20,10 +20,11 @@ Currently, `App.tsx` forces the user into `#/app` and renders the monolithic `Ap
 #### [MODIFY] src/store/uiStore.ts
 - *Optional:* We may add an `activeWorkspace` tracking state if components deep in the tree need to know which mode they are in, though hash routing usually suffices.
 
-#### [NEW] src/store/workspaceStore.ts & src/store/documentStore.ts
+#### [MODIFIED] src/store/
 *Architectural Hardening Update:* To properly isolate the workspaces, we have decoupled global persistent data from local UI state:
-- **`documentStore`**: The single source of truth for the academic document (Machine, Grammar, Parser configurations). History and persistence live here.
-- **`workspaceStore`**: Manages UI-transient interaction states (e.g., active tools, selected states, hover highlights).
+- **Domain Stores (`machineStore`, `grammarStore`, `parserStore`)**: The single sources of truth for the academic documents.
+- **`workspaceStore`**: Manages transient UI interaction states (e.g., active tools, hover highlights).
+- **`historyStore`**: Isolates undo/redo stacks per individual tab route to prevent cross-contamination.
 - **`uiStore`**: Strictly limited to application-wide global states (Theme, Modals).
 
 
@@ -153,7 +154,5 @@ Following the Workspace Hub migration, significant ergonomic and logical edge-ca
 - **Parser Studio Stability:** Gated the LL(1) "Automaton" subview render logic to prevent null pointer crashes when algorithms lack item-set generation.
 - **Expanded Hitboxes:** Collapsed workspace side-panels now have fully clickable vertical strips for much easier expansion.
 
-### Quality Engineering & Reliability Hardening Sprint [CURRENT — 2026-06-25]
 
-A final 8-phase stabilization epic has commenced. Feature delivery is halted. The workspace is moving into a phase of deep invariant testing, Playwright E2E automation, type hardening, and architectural fuzzing. No browser instances are permitted to be launched during execution to ensure purely static and test-driven resolution logic until final delivery validation.
 

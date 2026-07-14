@@ -55,7 +55,9 @@ const buildElements = (tree: SyntaxTreeNode | null, stackRoots: SyntaxTreeNode[]
 
   if (!virtualRoot) return { nodes, edges };
 
-  const traverse = (node: SyntaxTreeNode) => {
+  const queue = [virtualRoot];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
     const isLeaf = !node.children || node.children.length === 0;
     const isEpsilon = node.symbol === EPSILON;
     const isMatched = node.isMatched;
@@ -124,12 +126,11 @@ const buildElements = (tree: SyntaxTreeNode | null, stackRoots: SyntaxTreeNode[]
             strokeWidth: 1.5 
           }
         });
-        traverse(child);
+        queue.push(child);
       });
     }
-  };
+  }
 
-  traverse(virtualRoot);
   return { nodes, edges };
 };
 

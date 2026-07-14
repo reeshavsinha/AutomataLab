@@ -4,35 +4,32 @@ import { CFG, EPSILON, EOF_SYMBOL, GrammarAnalysisResult } from '../grammar/type
 import { ActionEntry, LR0Table } from './lr0';
 import { LR1Item, LR1ItemSet } from './lr1_types';
 
-// Helper to check if two cores are equal
-const coresEqual = (a: LR1Item, b: LR1Item) => a.prodIndex === b.prodIndex && a.dot === b.dot;
-
-// Helper to merge an item into a set. Returns true if the set changed (new lookaheads added or new item added)
-const mergeItemIntoSet = (set: LR1Item[], item: LR1Item): boolean => {
-  let changed = false;
-  for (const existing of set) {
-    if (coresEqual(existing, item)) {
-      for (const la of item.lookaheads) {
-        if (!existing.lookaheads.has(la)) {
-          existing.lookaheads.add(la);
-          changed = true;
-        }
-      }
-      return changed;
-    }
-  }
-  // If not found, add it
-  set.push({ prodIndex: item.prodIndex, dot: item.dot, lookaheads: new Set(item.lookaheads) });
-  return true;
+// Helper to generate a deterministic string signature for a set of lookaheads
+const getLookaheadSignature = (lookaheads: Set<string>): string => {
+  return Array.from(lookaheads).sort().join(',');
 };
 
-// Helper to compute FIRST(sequence + lookahead)
+// Helper to generate a deterministic string signature for an item
+const getItemSignature = (item: LR1Item): string => {
+  return `${item.prodIndex}:${item.dot}:${getLookaheadSignature(item.lookaheads)}`;
+};
+
+// Helper to generate a deterministic string signature for an entire state
+const getStateSignature = (items: LR1Item[]): string => {
+  // Sort items primarily by prodIndex, then by dot
+  const sortedItems = [...items].sort((a, b) => {
+    if (a.prodIndex !== b.prodIndex) return a.prodIndex - b.prodIndex;
+    return a.dot - b.dot;
+  });
+  return sortedItems.map(getItemSignature).join('|');
+};
+
+// Helper to compute FIRST(sequence + lookahead). Returns whether allEpsilon is true, and the result set.
 const getFirstSequence = (
   seq: string[],
-  lookahead: string,
   firstSets: Map<string, Set<string>>,
   cfg: CFG
-): Set<string> => {
+): { firstSeq: Set<string>, nullable: boolean } => {
   const result = new Set<string>();
   let allEpsilon = true;
 
@@ -55,11 +52,7 @@ const getFirstSequence = (
     }
   }
 
-  if (allEpsilon) {
-    result.add(lookahead);
-  }
-
-  return result;
+  return { firstSeq: result, nullable: allEpsilon };
 };
 
 export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
@@ -83,36 +76,97 @@ export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
   const nonterminals = new Set(augCfg.nonterminals);
   nonterminals.delete(startPrime);
 
+  // Precompute FIRST(beta) for closure to avoid redundant work
+  const firstBetaCache = new Map<string, { firstSeq: Set<string>, nullable: boolean }>();
+  const getFirstBeta = (beta: string[]) => {
+    const key = beta.join(',');
+    if (firstBetaCache.has(key)) return firstBetaCache.get(key)!;
+    const res = getFirstSequence(beta, analysis.firstSets, augCfg);
+    firstBetaCache.set(key, res);
+    return res;
+  };
+
   // 2. Closure Function for LR(1)
   const closure = (items: LR1Item[]): LR1Item[] => {
-    const result: LR1Item[] = items.map(i => ({ prodIndex: i.prodIndex, dot: i.dot, lookaheads: new Set(i.lookaheads) }));
-    let changed = true;
+    const itemMap = new Map<string, Set<string>>(); // core -> lookaheads
+    const queue: { prodIndex: number, dot: number, lookaheads: string[] }[] = [];
 
-    while (changed) {
-      changed = false;
-      for (let i = 0; i < result.length; i++) {
-        const item = result[i];
-        const prod = augCfg.productions[item.prodIndex];
+    // Initialize
+    for (const i of items) {
+      const coreKey = `${i.prodIndex}-${i.dot}`;
+      if (!itemMap.has(coreKey)) {
+        itemMap.set(coreKey, new Set(i.lookaheads));
+        queue.push({ prodIndex: i.prodIndex, dot: i.dot, lookaheads: Array.from(i.lookaheads) });
+      } else {
+        const existingLa = itemMap.get(coreKey)!;
+        const newLas: string[] = [];
+        for (const la of i.lookaheads) {
+          if (!existingLa.has(la)) {
+            existingLa.add(la);
+            newLas.push(la);
+          }
+        }
+        if (newLas.length > 0) {
+          queue.push({ prodIndex: i.prodIndex, dot: i.dot, lookaheads: newLas });
+        }
+      }
+    }
+
+    while (queue.length > 0) {
+      const item = queue.shift()!;
+      const prod = augCfg.productions[item.prodIndex];
+      
+      if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
+      
+      const symbolAfterDot = prod.rhs[item.dot];
+      if (augCfg.nonterminals.has(symbolAfterDot)) {
+        const beta = prod.rhs.slice(item.dot + 1);
+        const { firstSeq, nullable } = getFirstBeta(beta);
         
-        if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
-        
-        const symbolAfterDot = prod.rhs[item.dot];
-        if (augCfg.nonterminals.has(symbolAfterDot)) {
-          const beta = prod.rhs.slice(item.dot + 1);
-          
-          for (let pIndex = 0; pIndex < augCfg.productions.length; pIndex++) {
-            if (augCfg.productions[pIndex].lhs === symbolAfterDot) {
+        for (let pIndex = 0; pIndex < augCfg.productions.length; pIndex++) {
+          if (augCfg.productions[pIndex].lhs === symbolAfterDot) {
+            const coreKey = `${pIndex}-0`;
+            let existingLa = itemMap.get(coreKey);
+            let isNewCore = false;
+            
+            if (!existingLa) {
+              existingLa = new Set<string>();
+              itemMap.set(coreKey, existingLa);
+              isNewCore = true;
+            }
+
+            const addedLas: string[] = [];
+            
+            // Add FIRST(beta)
+            for (const t of firstSeq) {
+              if (!existingLa.has(t)) {
+                existingLa.add(t);
+                addedLas.push(t);
+              }
+            }
+            
+            // If beta is nullable, add the lookaheads of the current item
+            if (nullable) {
               for (const la of item.lookaheads) {
-                const firstBetaA = getFirstSequence(beta, la, analysis.firstSets, augCfg);
-                const newItem: LR1Item = { prodIndex: pIndex, dot: 0, lookaheads: firstBetaA };
-                if (mergeItemIntoSet(result, newItem)) {
-                  changed = true;
+                if (!existingLa.has(la)) {
+                  existingLa.add(la);
+                  addedLas.push(la);
                 }
               }
+            }
+
+            if (addedLas.length > 0) {
+              queue.push({ prodIndex: pIndex, dot: 0, lookaheads: addedLas });
             }
           }
         }
       }
+    }
+
+    const result: LR1Item[] = [];
+    for (const [coreKey, lookaheads] of itemMap.entries()) {
+      const [pIdx, dIdx] = coreKey.split('-').map(Number);
+      result.push({ prodIndex: pIdx, dot: dIdx, lookaheads });
     }
     return result;
   };
@@ -123,59 +177,55 @@ export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
     for (const item of items) {
       const prod = augCfg.productions[item.prodIndex];
       if (item.dot < prod.rhs.length && prod.rhs[item.dot] === symbol && prod.rhs[0] !== EPSILON) {
-        mergeItemIntoSet(nextItems, { prodIndex: item.prodIndex, dot: item.dot + 1, lookaheads: new Set(item.lookaheads) });
+        nextItems.push({ prodIndex: item.prodIndex, dot: item.dot + 1, lookaheads: new Set(item.lookaheads) });
       }
     }
     return closure(nextItems);
   };
 
-  const setsEqual = (s1: LR1Item[], s2: LR1Item[]) => {
-    if (s1.length !== s2.length) return false;
-    for (const i1 of s1) {
-      const match = s2.find(i2 => coresEqual(i1, i2));
-      if (!match) return false;
-      if (i1.lookaheads.size !== match.lookaheads.size) return false;
-      for (const la of i1.lookaheads) {
-        if (!match.lookaheads.has(la)) return false;
-      }
-    }
-    return true;
-  };
-
   // 4. Build Canonical Collection of LR(1) Item Sets
+  let totalClosures = 0;
+  const startTime = Date.now();
+
   const initialItem: LR1Item = { prodIndex: 0, dot: 0, lookaheads: new Set([EOF_SYMBOL]) };
+  const initialStateItems = closure([initialItem]);
+  totalClosures++;
+
   const states: LR1ItemSet[] = [
-    { id: 0, items: closure([initialItem]) }
+    { id: 0, items: initialStateItems }
   ];
+
+  const stateSignatureMap = new Map<string, number>();
+  stateSignatureMap.set(getStateSignature(initialStateItems), 0);
 
   const transitions: Array<{ from: number, symbol: string, to: number }> = [];
   const allSymbols = [...Array.from(augCfg.terminals), ...Array.from(augCfg.nonterminals)];
 
-  let queue = 0;
-  while (queue < states.length) {
-    const currentState = states[queue];
+  let queueIdx = 0;
+  while (queueIdx < states.length) {
+    const currentState = states[queueIdx];
 
     for (const sym of allSymbols) {
       const nextSet = goto(currentState.items, sym);
       if (nextSet.length > 0) {
-        let existingId = -1;
-        for (const s of states) {
-          if (setsEqual(s.items, nextSet)) {
-            existingId = s.id;
-            break;
-          }
-        }
+        totalClosures++;
+        const sig = getStateSignature(nextSet);
+        let existingId = stateSignatureMap.get(sig);
 
-        if (existingId === -1) {
+        if (existingId === undefined) {
           existingId = states.length;
           states.push({ id: existingId, items: nextSet });
+          stateSignatureMap.set(sig, existingId);
         }
 
         transitions.push({ from: currentState.id, symbol: sym, to: existingId });
       }
     }
-    queue++;
+    queueIdx++;
   }
+
+  const generationTime = Date.now() - startTime;
+  console.log(`[CLR1 Generation] States: ${states.length}, Closures: ${totalClosures}, Time: ${generationTime}ms`);
 
   return { states, transitions, augCfg, terminals, nonterminals };
 }

@@ -182,7 +182,7 @@ export class LL1Simulation implements ParserEngine {
           step: this.history.length,
           actionTitle: 'Conflict Error',
           explanation: [
-            `Multiple entries found in M[${topSymbol}, '${currentToken}'].`,
+            `Multiple entries found in M[${topSymbol}, '${currentToken}']: ${cell.map(p => `${p.lhs} -> ${p.rhs.join(' ') || 'ε'}`).join(', ')}.`,
             `Grammar is not LL(1).`
           ],
           snapshot: this.takeSnapshot()

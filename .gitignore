@@ -51,3 +51,14 @@ rewrite.sh
 
 # Local UI screenshot/preview workspace (headless-Chrome shots + helper scripts)
 .preview/
+
+# Dev context and tests
+test-*.ts
+test_*.ts
+fix.cjs
+T
+fsm_format.md
+internal-docs/
+scratch/
+media/
+*.zip

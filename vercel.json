@@ -1,0 +1,16 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/page/index.html"
+    },
+    {
+      "source": "/simulator",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/simulator/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

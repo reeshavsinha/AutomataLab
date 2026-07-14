@@ -22,7 +22,7 @@ const PREVIEW_HALF = 150
  * tape live while idle instead of showing an empty placeholder.
  */
 function buildPreviewTapes(input: string, tapeCount: number, blank: string): TapeSnapshot[] {
-  const chars = input === '' ? [] : input.split('')
+  const chars = input === '' ? [] : Array.from(input)
   const tapes: TapeSnapshot[] = []
   for (let i = 0; i < tapeCount; i++) {
     const tc = i === 0 ? chars : []

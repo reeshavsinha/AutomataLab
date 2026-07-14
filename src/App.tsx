@@ -119,10 +119,16 @@ export default function App() {
       const canvas = useCommandStore.getState().canvas;
       
       const target = e.target as HTMLElement;
+      // Monaco editor handles key events on a hidden textarea or `.view-lines`
       const isInput = target instanceof HTMLInputElement || 
                       target instanceof HTMLTextAreaElement || 
-                      target.isContentEditable;
+                      target.isContentEditable ||
+                      target.classList.contains('inputarea');
+      const hasSelection = (window.getSelection()?.toString().length || 0) > 0;
       
+      if (isInput) return;
+      if (hasSelection && (k === 'c' || k === 'x')) return;
+
       if (k === 'z') {
         e.preventDefault();
         if (e.shiftKey) {
@@ -133,7 +139,7 @@ export default function App() {
       } else if (k === 'y') {
         e.preventDefault();
         useMachineStore.getState().redo();
-      } else if (!isInput) {
+      } else {
         if (k === 'c') {
           e.preventDefault();
           canvas?.copy();
@@ -181,15 +187,15 @@ export default function App() {
   let content = null;
 
   if (isDemoMode) {
-    content = <ErrorBoundary key={machineId || 'demo'} fallbackName="Demo Workspace"><MachineWorkspace isDemoMode={true} /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId || 'demo'} fallbackName="Demo Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace isDemoMode={true} /></ErrorBoundary>;
   } else if (route === '' || route === '#/') {
     content = <WorkspaceHub />;
   } else if (route === '#/machine') {
-    content = <ErrorBoundary key={machineId} fallbackName="Machine Workspace"><MachineWorkspace /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId} fallbackName="Machine Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace /></ErrorBoundary>;
   } else if (route === '#/grammar') {
-    content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace"><GrammarWorkspace /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace" onRevert={() => { window.location.hash = ''; }}><GrammarWorkspace /></ErrorBoundary>;
   } else if (route === '#/parser') {
-    content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace"><ParserWorkspace /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace" onRevert={() => { window.location.hash = ''; }}><ParserWorkspace /></ErrorBoundary>;
   } else {
     // Fallback or legacy route
     content = <WorkspaceHub />;

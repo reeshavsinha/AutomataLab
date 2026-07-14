@@ -58,6 +58,7 @@ export class TMEngine implements Automaton {
   /** Head movement bounds, applied to EVERY tape (LBA narrows these; base TM leaves them infinite). */
   protected leftBound: number = -Infinity
   protected rightBound: number = Infinity
+  protected visitedConfigs = new Set<string>()
 
   constructor(definition: MachineDefinition, maxSteps?: number) {
     this.definition = definition
@@ -75,7 +76,7 @@ export class TMEngine implements Automaton {
       this.status = 'error'
       return
     }
-    const chars = input === '' ? [] : input.split('')
+    const chars = input === '' ? [] : Array.from(input)
     this.tapes = []
     this.heads = []
     this.usedMin = []
@@ -96,6 +97,8 @@ export class TMEngine implements Automaton {
     this.history = []
     this.stepGuard = 0
     this.lastDirections = []
+    this.visitedConfigs = new Set<string>()
+    this.visitedConfigs.add(this._configKey())
     this._setupBounds(chars.length)
   }
 
@@ -112,6 +115,23 @@ export class TMEngine implements Automaton {
       this.status = 'stuck'
       return this._makeResult('stuck')
     }
+
+    const currentKey = this._configKey()
+    if (this.stepGuard > 1 && this.visitedConfigs.has(currentKey)) {
+      this.status = 'stuck'
+      const entry = this._historyEntry(this.currentStateId, null as any, 'stuck')
+      // overwrite the transitionIds inside the entry to signal loop
+      this.history.push({
+        ...entry,
+        status: 'stuck'
+      })
+      const result = this._makeResult('stuck')
+      if (result.historyEntry) {
+         result.historyEntry.status = 'stuck'
+      }
+      return result
+    }
+    this.visitedConfigs.add(currentKey)
 
     // Halting states resolve immediately (also handles an accept/reject start).
     if (this._isAccept(this.currentStateId)) {
@@ -189,6 +209,7 @@ export class TMEngine implements Automaton {
     this.stepGuard = 0
     this.leftBound = -Infinity
     this.rightBound = Infinity
+    this.visitedConfigs.clear()
   }
 
   getCurrentConfigurations(): Configuration[] {
@@ -298,14 +319,14 @@ export class TMEngine implements Automaton {
     }
   }
 
-  protected _historyEntry(fromStateId: string, t: Transition, status: SimulationStatus): HistoryEntry {
+  protected _historyEntry(fromStateId: string, t: Transition | null, status: SimulationStatus): HistoryEntry {
     return {
       step: this.history.length,
       fromStateIds: [fromStateId],
-      toStateIds: [t.to],
+      toStateIds: t ? [t.to] : [fromStateId],
       // The tape move descriptor (read → write, dir per tape) lives in the history log.
-      symbol: formatTmTransition(t, this.tapeCount, this.blank),
-      transitionIds: [t.id],
+      symbol: t ? formatTmTransition(t, this.tapeCount, this.blank) : '',
+      transitionIds: t ? [t.id] : [],
       status,
     }
   }
@@ -350,5 +371,14 @@ export class TMEngine implements Automaton {
       stack: [],
       tapes: this.currentStateId ? this._snapshots() : undefined,
     }
+  }
+
+  protected _configKey(): string {
+    const parts = [this.currentStateId, this.heads.join(',')]
+    for (const tape of this.tapes) {
+      const entries = Array.from(tape.entries()).filter(([_, sym]) => !isBlank(sym, this.blank)).sort((a, b) => a[0] - b[0])
+      parts.push(JSON.stringify(entries))
+    }
+    return parts.join('|')
   }
 }

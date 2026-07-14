@@ -42,9 +42,14 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
       const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
       const { def, path } = await loadFromFile({ grammarOnly: isGrammarWorkspace })
       openMachine(def, path)
-      requestFitView()
+      setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
+      
+      const type = def.type;
+      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
+      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else window.location.hash = '#/machine';
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') toast.error(err.message)
     }
@@ -54,9 +59,14 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
     try {
       const def = await loadMachineFromPath(file.path)
       openMachine(def, file.path)
-      requestFitView()
+      setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
+
+      const type = def.type;
+      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
+      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else window.location.hash = '#/machine';
     } catch {
       removeRecentFile(file.path)
       bumpRecent()

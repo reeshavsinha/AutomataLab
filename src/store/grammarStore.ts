@@ -9,6 +9,16 @@ import { formatCFGToString } from '@/engines/grammar/transformations';
 import { useMachineStore } from './machineStore';
 import { useHistoryStore } from './historyStore';
 
+export interface GrammarSession {
+  derivationInput?: string;
+  leftmost?: string[][];
+  rightmost?: string[][];
+  derivationError?: string | null;
+  samples?: string[];
+  maxLengthStr?: string;
+  maxStepsStr?: string;
+}
+
 interface GrammarStore {
   rawText: string;
   cfg: CFG | null;
@@ -17,8 +27,9 @@ interface GrammarStore {
   setRawText: (text: string) => void;
   setRawTextWithoutSync: (text: string) => void;
   applyTransformation: (transformFn: (cfg: CFG, nt: string) => CFG, nt: string) => void;
-  derivationInput: string;
-  setDerivationInput: (input: string) => void;
+  sessions: Record<string, GrammarSession>;
+  getSession: (id: string) => GrammarSession;
+  updateSession: (id: string, patch: Partial<GrammarSession>) => void;
 }
 
 const defaultText = ``;
@@ -29,8 +40,16 @@ export const useGrammarStore = create<GrammarStore>((set, get) => {
     cfg: null,
     analysis: null,
     diagnostics: [],
-    derivationInput: '',
-    setDerivationInput: (input) => set({ derivationInput: input }),
+    sessions: {},
+    getSession: (id) => get().sessions[id] || {},
+    updateSession: (id, patch) => {
+      set((s) => ({
+        sessions: {
+          ...s.sessions,
+          [id]: { ...(s.sessions[id] || {}), ...patch }
+        }
+      }));
+    },
     setRawText: (text) => {
       // Write back to the active tab in machineStore and push to history
       useMachineStore.setState((s) => {

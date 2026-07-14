@@ -1,19 +1,34 @@
 import React, { useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
+import { useMachineStore } from '@/store/machineStore';
 import { EarleySimulation } from '@/engines/parser/earley';
 import { SyntaxTreeNode } from '@/engines/parser/model';
-import { LL1Simulation } from '@/engines/parser/ll1Simulation';
 import { tokenizeGrammarString } from '@/engines/grammar/parser';
 
 export function GrammarDerivationTab() {
-  const { cfg, derivationInput, setDerivationInput } = useGrammarStore();
+  const { cfg, getSession, updateSession } = useGrammarStore();
+  const machine = useMachineStore((s) => s.machine);
+  
+  const session = machine ? getSession(machine.id) : {};
+  const derivationInput = session.derivationInput || '';
+  
   const [inputStr, setInputStr] = useState(derivationInput);
-  const [leftmost, setLeftmost] = useState<string[][]>([]);
-  const [rightmost, setRightmost] = useState<string[][]>([]);
-  const [error, setError] = useState<string | null>(null);
+  
+  // Keep arrays in state to avoid re-rendering issues, but initialize from session
+  const [leftmost, setLeftmost] = useState<string[][]>(session.leftmost || []);
+  const [rightmost, setRightmost] = useState<string[][]>(session.rightmost || []);
+  const [error, setError] = useState<string | null>(session.derivationError || null);
 
   React.useEffect(() => {
-    if (!cfg) {
+    // If the inputStr doesn't match the session derivationInput (e.g., when switching tabs), update it
+    setInputStr(derivationInput);
+    setLeftmost(session.leftmost || []);
+    setRightmost(session.rightmost || []);
+    setError(session.derivationError || null);
+  }, [machine?.id]);
+
+  React.useEffect(() => {
+    if (!cfg || !machine) {
       setLeftmost([]);
       setRightmost([]);
       setError(null);
@@ -26,6 +41,9 @@ export function GrammarDerivationTab() {
         setError(null);
         return;
     }
+    
+    // Only parse if we don't already have results for this input
+    if (session.leftmost && session.leftmost.length > 0) return;
 
     try {
       const tokens = derivationInput.trim() ? tokenizeGrammarString(derivationInput, cfg.nonterminals, cfg.terminals) : [];
@@ -48,12 +66,17 @@ export function GrammarDerivationTab() {
       setLeftmost([]);
       setRightmost([]);
     }
-  }, [cfg, derivationInput]);
+  }, [cfg, derivationInput, machine?.id]);
 
-  if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+  if (!cfg || !machine) return <div style={{ padding: 16 }}>No valid grammar.</div>;
 
   const handleParse = () => {
-    setDerivationInput(inputStr);
+    updateSession(machine.id, { 
+      derivationInput: inputStr,
+      leftmost: undefined, // Clear session cache so it recalculates
+      rightmost: undefined,
+      derivationError: undefined 
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -118,6 +141,10 @@ export function GrammarDerivationTab() {
       }
     }
     setRightmost(rightSteps);
+
+    if (machine) {
+      updateSession(machine.id, { leftmost: leftSteps, rightmost: rightSteps });
+    }
   };
 
   return (

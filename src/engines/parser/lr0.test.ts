@@ -19,7 +19,7 @@ describe('LR(0) Matrix Generator', () => {
     expect(state0).toBeDefined();
     
     const items = state0!.items.map(i => formatItem(i, lr0.augmentedCfg));
-    expect(items).toContain("S' -> . S");
+    expect(items).toContain("START -> . S");
     expect(items).toContain("S -> . A B");
     expect(items).toContain("A -> . a");
     

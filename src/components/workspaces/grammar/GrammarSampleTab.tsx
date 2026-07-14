@@ -1,20 +1,26 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
+import { useMachineStore } from '@/store/machineStore';
 import { Production } from '@/engines/grammar/types';
 
 export function GrammarSampleTab() {
-  const { cfg } = useGrammarStore();
-  const [samples, setSamples] = useState<string[]>([]);
-  const [maxLengthStr, setMaxLengthStr] = useState('5');
-  const [maxStepsStr, setMaxStepsStr] = useState('1000');
+  const { cfg, getSession, updateSession } = useGrammarStore();
+  const machine = useMachineStore((s) => s.machine);
+  
+  const session = machine ? getSession(machine.id) : {};
+  
+  const samples = session.samples || [];
+  const maxLengthStr = session.maxLengthStr || '5';
+  const maxStepsStr = session.maxStepsStr || '1000';
+  
   const [isGenerating, setIsGenerating] = useState(false);
 
-  if (!cfg) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+  if (!cfg || !machine) return <div style={{ padding: 16 }}>No valid grammar.</div>;
 
   const handleGenerate = () => {
     if (!cfg || !cfg.startSymbol) return;
     setIsGenerating(true);
-    setSamples([]);
+    updateSession(machine.id, { samples: [] });
 
     const maxLength = Math.max(1, Number(maxLengthStr) || 1);
     const maxSteps = Math.max(10, Number(maxStepsStr) || 10);
@@ -70,52 +76,36 @@ export function GrammarSampleTab() {
         }
       }
 
-      setSamples(Array.from(generated));
+      const finalSamples = Array.from(generated).sort((a, b) => a.length - b.length || a.localeCompare(b));
+      updateSession(machine.id, { samples: finalSamples });
       setIsGenerating(false);
     }, 10);
   };
 
   return (
-    <div style={{ padding: 16, display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16 }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Language Sampler</h3>
-      
-      <div style={{ display: 'flex', gap: 12, marginBottom: 16, alignItems: 'flex-end' }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        Generates short strings belonging to the language using a bounded breadth-first derivation search.
+      </p>
+
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'flex-end' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Max Length</label>
-          <input 
-            type="text" 
-            value={maxLengthStr} 
-            onChange={e => setMaxLengthStr(e.target.value.replace(/[^0-9]/g, ''))}
-            onBlur={() => {
-              if (maxLengthStr === '') setMaxLengthStr('0');
-            }}
-            style={{ 
-              width: 80, 
-              padding: '4px 8px', 
-              border: '1px solid var(--border-color, #555)', 
-              borderRadius: 4, 
-              background: 'var(--bg-tertiary, #2a2a2a)', 
-              color: 'var(--text-primary)' 
-            }}
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Max Length</label>
+          <input
+            type="number"
+            value={maxLengthStr}
+            onChange={e => updateSession(machine.id, { maxLengthStr: e.target.value })}
+            style={{ width: 80, padding: '4px 8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
           />
         </div>
         <div>
-          <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 4 }}>Search Steps</label>
-          <input 
-            type="text" 
-            value={maxStepsStr} 
-            onChange={e => setMaxStepsStr(e.target.value.replace(/[^0-9]/g, ''))}
-            onBlur={() => {
-              if (maxStepsStr === '') setMaxStepsStr('0');
-            }}
-            style={{ 
-              width: 100, 
-              padding: '4px 8px', 
-              border: '1px solid var(--border-color, #555)', 
-              borderRadius: 4, 
-              background: 'var(--bg-tertiary, #2a2a2a)', 
-              color: 'var(--text-primary)' 
-            }}
+          <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Max Steps</label>
+          <input
+            type="number"
+            value={maxStepsStr}
+            onChange={e => updateSession(machine.id, { maxStepsStr: e.target.value })}
+            style={{ width: 100, padding: '4px 8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
             min={10}
             max={100000}
           />

@@ -30,27 +30,46 @@ export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR
   const nonterminals = new Set(augCfg.nonterminals);
   nonterminals.delete(startPrime); // Goto doesn't need S'
 
+  // Helper to generate a deterministic string signature for an entire LR(0) state
+  const getStateSignature = (items: LR0Item[]): string => {
+    const sorted = [...items].sort((a, b) => {
+      if (a.prodIndex !== b.prodIndex) return a.prodIndex - b.prodIndex;
+      return a.dot - b.dot;
+    });
+    return sorted.map(i => `${i.prodIndex}-${i.dot}`).join('|');
+  };
+
   // 2. Closure Function
   const closure = (items: LR0Item[]): LR0Item[] => {
-    const result = [...items];
-    let changed = true;
+    const coreSet = new Set<string>();
+    const queue: LR0Item[] = [];
+    const result: LR0Item[] = [];
 
-    while (changed) {
-      changed = false;
-      for (const item of result) {
-        const prod = augCfg.productions[item.prodIndex];
-        // If dot is at end or points to epsilon
-        if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
-        
-        const symbolAfterDot = prod.rhs[item.dot];
-        if (augCfg.nonterminals.has(symbolAfterDot)) {
-          for (let i = 0; i < augCfg.productions.length; i++) {
-            if (augCfg.productions[i].lhs === symbolAfterDot) {
+    for (const item of items) {
+      const key = `${item.prodIndex}-${item.dot}`;
+      if (!coreSet.has(key)) {
+        coreSet.add(key);
+        queue.push(item);
+        result.push(item);
+      }
+    }
+
+    while (queue.length > 0) {
+      const item = queue.shift()!;
+      const prod = augCfg.productions[item.prodIndex];
+      
+      if (item.dot >= prod.rhs.length || prod.rhs[0] === EPSILON) continue;
+      
+      const symbolAfterDot = prod.rhs[item.dot];
+      if (augCfg.nonterminals.has(symbolAfterDot)) {
+        for (let i = 0; i < augCfg.productions.length; i++) {
+          if (augCfg.productions[i].lhs === symbolAfterDot) {
+            const key = `${i}-0`;
+            if (!coreSet.has(key)) {
+              coreSet.add(key);
               const newItem = { prodIndex: i, dot: 0 };
-              if (!setContains(result, newItem)) {
-                result.push(newItem);
-                changed = true;
-              }
+              queue.push(newItem);
+              result.push(newItem);
             }
           }
         }
@@ -71,48 +90,49 @@ export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR
     return closure(nextItems);
   };
 
-  const setsEqual = (s1: LR0Item[], s2: LR0Item[]) => {
-    if (s1.length !== s2.length) return false;
-    for (const i1 of s1) {
-      if (!setContains(s2, i1)) return false;
-    }
-    return true;
-  };
-
   // 4. Build Canonical Collection of Item Sets
+  let totalClosures = 0;
+  const startTime = Date.now();
+
   const initialItem: LR0Item = { prodIndex: 0, dot: 0 };
+  const initialStateItems = closure([initialItem]);
+  totalClosures++;
+
   const states: LR0ItemSet[] = [
-    { id: 0, items: closure([initialItem]) }
+    { id: 0, items: initialStateItems }
   ];
+
+  const stateSignatureMap = new Map<string, number>();
+  stateSignatureMap.set(getStateSignature(initialStateItems), 0);
 
   const transitions: Array<{ from: number, symbol: string, to: number }> = [];
   const allSymbols = [...Array.from(augCfg.terminals), ...Array.from(augCfg.nonterminals)];
 
-  let queue = 0;
-  while (queue < states.length) {
-    const currentState = states[queue];
+  let queueIdx = 0;
+  while (queueIdx < states.length) {
+    const currentState = states[queueIdx];
 
     for (const sym of allSymbols) {
       const nextSet = goto(currentState.items, sym);
       if (nextSet.length > 0) {
-        let existingId = -1;
-        for (const s of states) {
-          if (setsEqual(s.items, nextSet)) {
-            existingId = s.id;
-            break;
-          }
-        }
+        totalClosures++;
+        const sig = getStateSignature(nextSet);
+        let existingId = stateSignatureMap.get(sig);
 
-        if (existingId === -1) {
+        if (existingId === undefined) {
           existingId = states.length;
           states.push({ id: existingId, items: nextSet });
+          stateSignatureMap.set(sig, existingId);
         }
 
         transitions.push({ from: currentState.id, symbol: sym, to: existingId });
       }
     }
-    queue++;
+    queueIdx++;
   }
+
+  const generationTime = Date.now() - startTime;
+  console.log(`[SLR1 Generation] States: ${states.length}, Closures: ${totalClosures}, Time: ${generationTime}ms`);
 
   // 5. Build Action and Goto Tables
   const actionTable = new Map<number, Map<string, ActionEntry[]>>();

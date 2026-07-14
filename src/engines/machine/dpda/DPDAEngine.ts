@@ -48,7 +48,7 @@ export class DPDAEngine implements Automaton {
     }
     this.currentStateId = startState.id
     this.stack = []
-    this.inputChars = input === '' ? [] : input.split('')
+    this.inputChars = input === '' ? [] : Array.from(input)
     this.inputIndex = 0
     this.status = 'running'
     this.history = []
@@ -91,9 +91,15 @@ export class DPDAEngine implements Automaton {
       this.stack.pop()
     }
     if (!isEpsilon(push)) {
-      // Support comma-delimited multi-character stack symbols (e.g., from CFG conversion)
-      // Fallback to character-by-character for backward compatibility with older PDAs.
-      const pushSymbols = push.includes(',') ? push.split(',') : push.split('');
+      const gamma = this.definition.stackAlphabet ?? []
+      let pushSymbols: string[]
+      if (push.includes(',')) {
+        pushSymbols = push.split(',')
+      } else if (gamma.includes(push)) {
+        pushSymbols = [push]
+      } else {
+        pushSymbols = Array.from(push)
+      }
       // Push so the FIRST symbol of `push` ends up on top of the stack.
       for (let i = pushSymbols.length - 1; i >= 0; i--) {
         if (pushSymbols[i]) {
@@ -104,7 +110,7 @@ export class DPDAEngine implements Automaton {
 
     const consumesInput = !isEpsilon(read)
     if (consumesInput) {
-      this.inputIndex++
+      this.inputIndex += Array.from(read).length
     }
     this.currentStateId = t.to
 
@@ -189,7 +195,8 @@ export class DPDAEngine implements Automaton {
       if (t.from !== this.currentStateId) return false
       const read = t.read ?? ''
       const pop = t.pop ?? ''
-      const readOk = isEpsilon(read) || (this.inputIndex < this.inputChars.length && this.inputChars[this.inputIndex] === read)
+      const readTokens = Array.from(read)
+      const readOk = isEpsilon(read) || (this.inputIndex + readTokens.length <= this.inputChars.length && this.inputChars.slice(this.inputIndex, this.inputIndex + readTokens.length).join('') === read)
       const popOk = isEpsilon(pop) || (top !== null && top === pop)
       return readOk && popOk
     })

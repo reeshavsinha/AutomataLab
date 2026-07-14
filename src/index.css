@@ -11,22 +11,22 @@
 
 /* ── CSS Custom Properties ──────────────────────────────────── */
 :root {
-  --bg-primary:     #ffffff;
+  --bg-primary:     #fafaf9;
   --bg-secondary:   #f4f4f5;
   --bg-tertiary:    #e4e4e7;
-  --bg-card:        #ffffff;
-  --bg-elevated:    #ffffff;
+  --bg-card:        #fafaf9;
+  --bg-elevated:    #fafaf9;
 
   --border-subtle:  #e4e4e7;
   --border-default: #d4d4d8;
   --border-strong:  #a1a1aa;
 
-  --text-primary:   #000000;
+  --text-primary:   #18181b;
   --text-secondary: #555555;
   /* Darkened from #888888 (≈3.5:1, fails WCAG AA) to ≈5:1 on white so the many
      small muted labels are legible (UX audit #4). */
   --text-muted:     #6b6b6b;
-  --text-accent:    #000000;
+  --text-accent:    #18181b;
 
   /* Keyboard focus ring. A deliberate, scoped exception to the B&W palette:
      a single accent hue that stays visible on both light and dark surfaces,
@@ -95,7 +95,7 @@
    Toggled by adding `.dark` to <html>. Only overrides the design
    tokens, so the whole app (which reads var(--...)) flips at once. */
 :root.dark {
-  --bg-primary:     #18181b;
+  --bg-primary:     #1c1d21;
   --bg-secondary:   #1f1f23;
   --bg-tertiary:    #27272a;
   --bg-card:        #1f1f23;
@@ -105,7 +105,7 @@
   --border-default: #3f3f46;
   --border-strong:  #71717a;
 
-  --text-primary:   #f4f4f5;
+  --text-primary:   #e4e4e7;
   --text-secondary: #a1a1aa;
   --text-muted:     #8b8b93;
   --text-accent:    #ffffff;
@@ -358,6 +358,8 @@ body {
    from the dashed `selected` outline (UX audit #9). */
 .state-node.active {
   border-width: 3px !important;
+  border-color: var(--trace) !important;
+  color: var(--trace) !important;
   background: var(--bg-secondary);
   box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.10);
 }

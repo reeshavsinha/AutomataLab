@@ -85,7 +85,7 @@ describe('JFLAP Parser and Exporter', () => {
       <type>turing</type>
       <tapes>2</tapes>
       <automaton>
-        <state id="0" name="q0"><x>0</x><y>0</y></state>
+        <state id="0" name="q0"><x>0</x><y>0</y><initial/></state>
         <transition>
           <from>0</from><to>0</to>
           <read tape="1">a</read>

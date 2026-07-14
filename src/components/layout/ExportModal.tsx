@@ -76,7 +76,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     ? (machine?.states?.some((s) => !s.isText) ?? false)
     : parserHasStates;
 
-  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex' | 'jff') => {
+  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex' | 'jff' | 'txt') => {
     try {
       const out = await downloadText(name, content, ext)
       if (out) toast.success(`Exported ${name}`)
@@ -374,8 +374,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
             <>
               <Section
                 title="Grammar Artifacts"
-                hint="FIRST/FOLLOW sets."
+                hint="Grammar rules and FIRST/FOLLOW sets."
               >
+                <ExportButton 
+                  label="Grammar Source (.txt)" 
+                  onClick={() => save(machine.grammarText || '', `${stem}-grammar.txt`, 'txt')} 
+                />
                 <ExportButton 
                   label="FIRST/FOLLOW Table (CSV)" 
                   disabled={isParserTab ? !parserModel?.analysis : !grammarAnalysis} 

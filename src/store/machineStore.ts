@@ -22,6 +22,7 @@ interface MachineStore {
   machine: MachineDefinition
 
   addTab: (type?: MachineType) => void
+  insertTab: (def: MachineDefinition) => void
   switchTab: (index: number) => void
   closeTab: (index: number) => void
   closeMultipleTabs: (indices: number[]) => void
@@ -89,21 +90,20 @@ const createDefaultMachine = (type?: MachineType, tabs: MachineDefinition[] = []
   const isParser = actualType === 'CFG_PARSER';
   const isGrammar = actualType === 'CFG' || actualType === 'CSG';
 
+  const prefix = isParser ? 'Parser'
+    : isGrammar ? 'Grammar'
+    : 'Machine';
+
   let count = 1;
-  if (isParser) {
-    count = tabs.filter(t => t.type === 'CFG_PARSER').length + 1;
-  } else if (isGrammar) {
-    count = tabs.filter(t => t.type === 'CFG' || t.type === 'CSG').length + 1;
-  } else {
-    count = tabs.filter(t => t.type !== 'CFG_PARSER' && t.type !== 'CFG' && t.type !== 'CSG').length + 1;
+  while (tabs.some(t => t.name === `${prefix} ${count}`)) {
+    count++;
   }
 
-  const name = isParser ? `Parser ${count}`
-    : isGrammar ? `Grammar ${count}`
-    : `Machine ${count}`;
+  const name = `${prefix} ${count}`;
 
   return {
     id: generateId('machine'),
+    version: 1,
     name,
     type: actualType,
     language: '',
@@ -162,6 +162,18 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           tabs: [...s.tabs, newMachine],
           activeTabIndex: s.tabs.length,
           machine: newMachine
+        };
+      });
+    },
+
+    insertTab: (def: MachineDefinition) => {
+      useUIStore.getState().clearSelection();
+      set((s) => {
+        return {
+          tabs: [...s.tabs, def],
+          activeTabIndex: s.tabs.length,
+          machine: def,
+          dirtyTabs: { ...s.dirtyTabs, [def.id]: true }
         };
       });
     },
@@ -382,13 +394,13 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     setMachineType: (type) => set((s) => sync(s, { type })),
 
     addState: (x, y) => {
-      const stateCount = get().machine.states.length
+      const nonTextStatesCount = get().machine.states.filter((s) => !s.isText).length
       const newState: AutomataState = {
         id: generateId('state'),
-        label: `q${stateCount}`,
+        label: `q${nonTextStatesCount}`,
         x,
         y,
-        isStart: stateCount === 0,
+        isStart: nonTextStatesCount === 0,
         isAccept: false,
       }
       set((s) => sync(s, { states: [...s.machine.states, newState] }))
@@ -609,7 +621,14 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     }),
 
     openMachine: (def, path) => {
-      get().addTab()
+      const s = get()
+      const current = s.machine
+      const isClean = current ? !s.dirtyTabs[current.id] : true
+      if (current && isPristineTab(current) && isClean) {
+        // reuse current tab
+      } else {
+        get().addTab()
+      }
       get().loadMachine(def, true, path ?? null)
       return get().activeTabIndex
     },

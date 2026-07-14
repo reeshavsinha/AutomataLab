@@ -1,6 +1,13 @@
 {
   "name": "AutomataLab",
-  "version": "7.2.0",
+  "version": "5.0.0",
+  "description": "A modern, fast, and interactive cross-platform desktop application for designing, simulating, and testing automata.",
+  "author": "Reeshav Sinha",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/reeshavsinha/AutomataLab.git"
+  },
   "private": true,
   "type": "module",
   "scripts": {

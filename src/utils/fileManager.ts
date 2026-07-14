@@ -67,26 +67,27 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
   try {
     raw = JSON.parse(jsonString)
   } catch {
-    throw new Error('Invalid machine file: not valid JSON')
+    throw new Error('Failed to load project: Not a valid JSON file.')
   }
   // The payload must be a JSON object — guard against null / arrays / primitives
   // so the field access below can't throw a raw TypeError ("…of null").
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error('Invalid machine file: expected a machine object')
+    throw new Error('Failed to load project: Expected a machine object.')
   }
   // Minimal validation
   if (!raw.states || !raw.transitions || !raw.type) {
-    throw new Error('Invalid machine file: missing required fields')
+    throw new Error('Failed to load project: Missing required fields (states, transitions, type).')
   }
 
   if (!VALID_TYPES.includes(raw.type)) {
-    throw new Error('Invalid machine file: unknown machine type')
+    throw new Error(`Failed to load project: Unknown machine type "${raw.type}".`)
   }
 
   // Ensure a unique id on load, and prevent prototype pollution / injection by
   // explicitly rebuilding every state and transition from known fields only.
   const def: MachineDefinition = {
     id: generateId('machine'),
+    version: Number.isFinite(raw.version) ? Number(raw.version) : 1,
     // Force string-typed metadata: a numeric/boolean `name` would otherwise flow
     // through and crash later (e.g. `fileStem` calls String.prototype.replace).
     name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : 'Imported Machine',
@@ -129,10 +130,13 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
 
   const transIds = new Set<string>()
   for (const t of def.transitions) {
-    if (transIds.has(t.id)) throw new Error('Invalid machine file: duplicate transition IDs detected')
+    if (transIds.has(t.id)) throw new Error(`Failed to load project: Duplicate transition ID detected (${t.id}).`)
     transIds.add(t.id)
-    if (!stateIds.has(t.from) || !stateIds.has(t.to)) {
-      throw new Error('Invalid machine file: transition references a nonexistent state')
+    if (!stateIds.has(t.from)) {
+      throw new Error(`Failed to load project: Missing transition source state ${t.from}.`)
+    }
+    if (!stateIds.has(t.to)) {
+      throw new Error(`Failed to load project: Missing transition target state ${t.to}.`)
     }
   }
 
@@ -152,7 +156,15 @@ export interface LoadedMachine {
  */
 export async function saveMachine(machine: MachineDefinition, options?: { grammarOnly?: boolean }): Promise<string | null> {
   const grammarOnly = options?.grammarOnly ?? false;
-  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(machine, null, 2);
+  
+  // Inject metadata for future migrations
+  const toSave = {
+    ...machine,
+    version: '1.0.0',
+    workspaceType: machine.type.includes('CFG') ? 'grammar' : 'automata'
+  };
+  
+  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toSave, null, 2);
   const extension = grammarOnly ? '.txt' : FILE_EXTENSION;
   const defaultName = `${machine.name.replace(/\s+/g, '_')}${extension}`
 

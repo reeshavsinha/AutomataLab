@@ -28,7 +28,7 @@ export function GrammarEmptyState() {
       <div style={{ fontSize: '3rem', marginBottom: '16px', opacity: 0.5 }}>📝</div>
       <h2 style={{ margin: '0 0 16px 0', color: 'var(--text-primary)', fontSize: '1.5rem' }}>Start writing a Grammar</h2>
       <p style={{ color: 'var(--text-secondary)', marginBottom: '32px', maxWidth: '400px', lineHeight: '1.5' }}>
-        Define a Context-Free Grammar using production rules (e.g., S -&gt; a S b). Use A-Z for Nonterminals. The parser will automatically analyze your grammar.
+        Define a Context-Free Grammar (CFG) using production rules (e.g., S -&gt; a S b). Use A-Z for Nonterminals. The parser will automatically analyze your grammar.
       </p>
 
       <div style={{ display: 'flex', gap: '16px' }}>

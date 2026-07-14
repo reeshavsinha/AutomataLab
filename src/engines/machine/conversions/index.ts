@@ -13,11 +13,9 @@ import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { cfgToPda } from './cfgToPda'
-import { dfaToRegex } from './dfaToRegex'
-import { pdaToCfg } from './pdaToCfg'
 
 export type { ConversionKind, ConversionMeta, ConversionResult, ConversionStep, ConversionMode } from './types'
-export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda, dfaToRegex, pdaToCfg }
+export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda }
 
 export const CONVERSIONS: ConversionMeta[] = [
   {

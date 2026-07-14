@@ -52,7 +52,7 @@ export class NFAEngine implements Automaton, TreeProvider {
       return
     }
     this.activeStateIds = new Set([startState.id])
-    this.inputChars = input === '' ? [] : input.split('')
+    this.inputChars = input === '' ? [] : Array.from(input)
     this.inputIndex = 0
     this.status = 'running'
     this.history = []

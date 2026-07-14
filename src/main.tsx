@@ -18,50 +18,54 @@ const renderError = (err: any) => {
   div.innerText = err instanceof Error ? err.stack || err.message : String(err);
   document.body.appendChild(div);
 };
-window.addEventListener('error', (e) => renderError(e.error || e.message));
-window.addEventListener('unhandledrejection', (e) => renderError(e.reason));
+const isBenignError = (msg: string) => {
+  return msg.includes('resizeobserver') || 
+         msg.includes('resize observer') || 
+         msg === 'canceled' || 
+         msg === 'script error' || 
+         msg.includes('script error.');
+};
+
+window.addEventListener('error', (e) => {
+  const msg = (typeof e === 'string' ? e : (e.error?.message || e.message || '')).toLowerCase();
+  if (isBenignError(msg)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  renderError(e.error || e.message);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const msg = (e.reason?.message || String(e.reason) || '').toLowerCase();
+  if (isBenignError(msg)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  renderError(e.reason);
+});
 
 
 
 // Custom Context Menu Handler
 window.addEventListener('contextmenu', async (e) => {
-  e.preventDefault();
-  
   const target = e.target as HTMLElement;
-  const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-  const hasSelection = window.getSelection()?.toString().length;
+  const isInput = target.tagName === 'INPUT' || 
+                  target.tagName === 'TEXTAREA' || 
+                  target.isContentEditable ||
+                  target.classList.contains('inputarea') ||
+                  target.closest('.monaco-editor') !== null;
+  const hasSelection = (window.getSelection()?.toString().length || 0) > 0;
   
   if (isInput || hasSelection) {
-    try {
-      const menu = await Menu.new({
-        items: [
-          await PredefinedMenuItem.new({ item: 'Undo', text: 'Undo' }),
-          await PredefinedMenuItem.new({ item: 'Separator' }),
-          await PredefinedMenuItem.new({ item: 'Cut', text: 'Cut' }),
-          await PredefinedMenuItem.new({ item: 'Copy', text: 'Copy' }),
-          await PredefinedMenuItem.new({ item: 'Paste', text: 'Paste' }),
-          await MenuItem.new({ 
-            text: 'Paste as plain text', 
-            action: async () => {
-              try {
-                const text = await navigator.clipboard.readText();
-                document.execCommand('insertText', false, text);
-              } catch (err) {
-                console.error('Failed to paste as plain text:', err);
-              }
-            }
-          }),
-          await PredefinedMenuItem.new({ item: 'Separator' }),
-          await PredefinedMenuItem.new({ item: 'SelectAll', text: 'Select all' }),
-        ]
-      });
-      await menu.popup();
-    } catch (err) {
-      console.error('Failed to show native context menu:', err);
-    }
+    // If it's an input or there's text selected, allow the native webview context menu
+    // which natively provides Cut, Copy, Paste, etc.
+    return;
   }
+  
+  // Otherwise prevent the default context menu
+  e.preventDefault();
 }, { capture: true });
-
 // Prevent common browser keyboard shortcuts (Print, Find, DevTools)
 window.addEventListener('keydown', (e) => {
   // Ctrl+P (Print)
