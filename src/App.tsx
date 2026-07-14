@@ -181,13 +181,30 @@ export default function App() {
     }
   }, [activeMachineType, route]);
 
+  // Auto-initialize Demo Mode
+  useEffect(() => {
+    if (isDemoMode) {
+      const state = useMachineStore.getState();
+      if (!state.machine && state.tabs.length === 0) {
+        state.addTab('DFA');
+      }
+    }
+  }, [isDemoMode]);
+
   // -----------------------------------------------------
   // Route dispatch
   // -----------------------------------------------------
   let content = null;
 
   if (isDemoMode) {
-    content = <ErrorBoundary key={machineId || 'demo'} fallbackName="Demo Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace isDemoMode={true} /></ErrorBoundary>;
+    if (!machineId) {
+      content = <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Loading demo workspace...</div>;
+    } else {
+      content = <ErrorBoundary key={machineId || 'demo'} fallbackName="Demo Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace isDemoMode={true} /></ErrorBoundary>;
+    }
+  } else if (!machineId && route !== '' && route !== '#/') {
+    // Guard against crashing during the first render before Anti-Trap redirects
+    content = null;
   } else if (route === '' || route === '#/') {
     content = <WorkspaceHub />;
   } else if (route === '#/machine') {
