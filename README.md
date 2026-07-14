@@ -18,7 +18,7 @@
 <br/>
 
 <!-- REPLACE THIS LINK WITH YOUR ACTUAL SCREENSHOT/GIF -->
-![AutomataLab Screenshot](./media/screenshot.png)
+![AutomataLab Screenshot](./page/docs/screenshot.png)
 
 <br/>
 
