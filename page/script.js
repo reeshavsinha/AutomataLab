@@ -260,9 +260,9 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetEl) {
         const textToCopy = targetEl.textContent.replace('SHA256:', '').trim();
         navigator.clipboard.writeText(textToCopy).then(() => {
-          // Temporarily show checkmark icon
+          // Temporarily show Copied! text
           const originalHTML = btn.innerHTML;
-          btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a6e22e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+          btn.innerHTML = '<span style="color: #a6e22e; font-size: 0.75rem; font-family: \'JetBrains Mono\', monospace; font-weight: 600; padding: 0 4px;">Copied!</span>';
           setTimeout(() => {
             btn.innerHTML = originalHTML;
           }, 2000);

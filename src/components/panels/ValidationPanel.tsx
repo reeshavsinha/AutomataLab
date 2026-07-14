@@ -6,7 +6,7 @@ import { useMemo } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
 import { validateMachine } from '@/utils/validator'
-import type { ValidationError } from '@/engines/core/types'
+import type { ValidationError } from '@/engines/machine/core/types'
 
 function ValidationItem({ error }: { error: ValidationError }) {
   const requestFocus = useUIStore((s) => s.requestFocus)

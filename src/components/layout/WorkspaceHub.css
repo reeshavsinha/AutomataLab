@@ -1,0 +1,145 @@
+/* src/components/layout/WorkspaceHub.css */
+
+.workspace-hub-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 4rem 2rem;
+  overflow-y: auto;
+}
+
+.workspace-hub {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 860px;
+}
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.hub-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hub-logo svg {
+  fill: none;
+}
+
+.hub-logo svg circle {
+  fill: var(--text-primary);
+}
+
+.hub-logo svg path {
+  stroke: var(--text-primary);
+}
+
+.hub-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.hub-title {
+  font-family: var(--font-sans);
+  font-size: 2.2rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.hub-subtitle {
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  color: var(--text-secondary);
+  margin: 0.25rem 0 0 0;
+}
+
+.hub-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  width: 100%;
+}
+
+.hub-card {
+  display: flex;
+  align-items: center;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.hub-card:hover {
+  background-color: var(--bg-tertiary);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.hub-card.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.hub-card-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  flex-shrink: 0;
+  margin-right: 1.5rem;
+  color: var(--text-secondary);
+}
+
+.hub-card-number {
+  font-family: var(--font-sans);
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.hub-card-content {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+
+.hub-card-content h2 {
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.hub-card-content p {
+  font-family: var(--font-sans);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: .5rem;
+  padding: .2rem .6rem;
+  background: var(--text-muted);
+  color: var(--bg-primary);
+  border-radius: var(--radius-sm);
+  font-size: .75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}

@@ -7,7 +7,7 @@
 // No React/DOM imports — safe to unit test and run headless.
 // ============================================================
 
-import type { MachineDefinition, Transition } from '@/engines/core/types'
+import type { MachineDefinition, Transition } from '@/engines/machine/core/types'
 import {
   BLANK,
   EPSILON,
@@ -16,7 +16,7 @@ import {
   isEpsilon,
   isPDAType,
   isTMType,
-} from '@/engines/core/utils'
+} from '@/engines/machine/core/utils'
 
 export interface DiagramColors {
   background: string

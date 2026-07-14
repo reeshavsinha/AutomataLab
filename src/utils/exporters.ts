@@ -6,7 +6,9 @@
 // Pure string builders here; `downloadText` handles web + Tauri delivery.
 // ============================================================
 
-import type { Configuration, HistoryEntry, MachineDefinition, Transition } from '@/engines/core/types'
+import type { Configuration, HistoryEntry, MachineDefinition, Transition } from '@/engines/machine/core/types'
+import type { LR0Table, ActionEntry } from '@/engines/parser/lr0'
+import type { LL1Table } from '@/engines/parser/ll1'
 import {
   EPSILON,
   isEpsilon,
@@ -15,7 +17,7 @@ import {
   formatTmTransition,
   tmTapeOps,
   BLANK,
-} from '@/engines/core/utils'
+} from '@/engines/machine/core/utils'
 import { isTauri } from '@tauri-apps/api/core'
 
 // ─── small helpers ─────────────────────────────────────────────
@@ -27,7 +29,8 @@ function csvCell(value: string): string {
 }
 
 function toCSV(rows: string[][]): string {
-  return rows.map((r) => r.map(csvCell).join(',')).join('\r\n')
+  // Prepend UTF-8 BOM (\uFEFF) so Excel correctly renders symbols like ε
+  return '\uFEFF' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n')
 }
 
 function latexEscape(s: string): string {
@@ -43,6 +46,76 @@ function labelMap(machine: MachineDefinition): Map<string, string> {
   for (const s of machine.states) m.set(s.id, s.label)
   return m
 }
+
+// ─── Grammar & Parser Exporters ──────────────────────────────────────────────────
+
+export function firstFollowToCSV(firstSets: Map<string, Set<string>>, followSets: Map<string, Set<string>>): string {
+  const header = ['Non-Terminal', 'FIRST', 'FOLLOW']
+  const rows: string[][] = []
+  
+  // followSets only contains non-terminals, which is exactly what we want to export
+  const allNts = Array.from(followSets.keys())
+  for (const nt of allNts) {
+    const first = Array.from(firstSets.get(nt) || []).join(' ')
+    const follow = Array.from(followSets.get(nt) || []).join(' ')
+    rows.push([nt, first, follow])
+  }
+  
+  return toCSV([header, ...rows])
+}
+
+export function ll1TableToCSV(table: LL1Table): string {
+  const terminals = Array.from(table.terminals)
+  if (!terminals.includes('$')) terminals.push('$')
+  const nonterminals = Array.from(table.nonterminals)
+
+  const header = ['Non-Terminal', ...terminals]
+  const rows: string[][] = []
+
+  for (const nt of nonterminals) {
+    const row = [nt]
+    for (const t of terminals) {
+      const prods = table.table.get(nt)?.get(t) || []
+      const cell = prods.map(p => `${p.lhs} -> ${p.rhs.length === 1 && p.rhs[0] === 'ε' ? 'ε' : p.rhs.join(' ')}`).join(' / ')
+      row.push(cell)
+    }
+    rows.push(row)
+  }
+
+  return toCSV([header, ...rows])
+}
+
+export function lrTableToCSV(table: LR0Table): string {
+  const terminals = Array.from(table.terminals)
+  if (!terminals.includes('$')) terminals.push('$')
+  const nonterminals = Array.from(table.nonterminals).filter(nt => nt !== table.augmentedCfg.startSymbol)
+
+  const topHeader = ['State', 'ACTION', ...Array(Math.max(0, terminals.length - 1)).fill(''), 'GOTO', ...Array(Math.max(0, nonterminals.length - 1)).fill('')]
+  const subHeader = ['', ...terminals, ...nonterminals]
+  const rows: string[][] = []
+
+  for (let i = 0; i < table.states.length; i++) {
+    const row = [String(i)]
+    for (const t of terminals) {
+      const actions = table.actionTable.get(i)?.get(t) || []
+      const cell = actions.map(a => {
+        if (a.type === 'Accept') return 'acc'
+        if (a.type === 'Shift') return `s${a.target}`
+        if (a.type === 'Reduce') return `r${a.target}`
+        return ''
+      }).join(' / ')
+      row.push(cell)
+    }
+    for (const nt of nonterminals) {
+      const g = table.gotoTable.get(i)?.get(nt)
+      row.push((g !== undefined && g !== -1) ? String(g) : '')
+    }
+    rows.push(row)
+  }
+
+  return toCSV([topHeader, subHeader, ...rows])
+}
+
 
 /** Real (non-annotation) states, start first then creation order. */
 function orderedStates(machine: MachineDefinition) {
@@ -253,7 +326,9 @@ const MIME: Record<string, string> = {
   tex: 'text/plain',
   txt: 'text/plain',
   svg: 'image/svg+xml',
+  png: 'image/png',
   jff: 'application/xml',
+  zip: 'application/zip',
 }
 
 /** A safe-ish file stem from the machine name. */
@@ -284,6 +359,41 @@ export async function downloadText(
     // Fall through to the web download path.
   }
   const blob = new Blob([content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+  return filename
+}
+
+/**
+ * Save binary data to disk.
+ */
+export async function downloadBlob(
+  filename: string,
+  content: Uint8Array | Blob,
+  ext: keyof typeof MIME
+): Promise<string | null> {
+  const mime = MIME[ext] ?? 'application/octet-stream'
+  try {
+    if (isTauri()) {
+      const { save } = await import('@tauri-apps/plugin-dialog')
+      const { writeFile } = await import('@tauri-apps/plugin-fs')
+      const path = await save({ defaultPath: filename, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] })
+      if (!path) return null
+      
+      const uint8Array = content instanceof Blob ? new Uint8Array(await content.arrayBuffer()) : content
+      await writeFile(path, uint8Array)
+      return path
+    }
+  } catch {
+    // Fall through
+  }
+  const blob = content instanceof Blob ? content : new Blob([content as any], { type: mime })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

@@ -22,7 +22,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import { useCommandStore } from '@/store/commandStore'
-import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType } from '@/engines/core/utils'
+import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType } from '@/engines/machine/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -166,7 +166,7 @@ function buildEdges(
       selected: selectedTransitionIds.includes(edgeId),
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: isActive ? 'var(--state-active)' : 'var(--text-primary)',
+        color: isActive ? 'var(--trace)' : 'var(--text-primary)',
         width: 15,
         height: 15,
       },
@@ -322,6 +322,7 @@ function AutomataCanvasInner() {
 
   const {
     transitionMode,
+    setTransitionMode,
     mousePos,
     onPointerMove,
     onNodeClick,
@@ -384,7 +385,8 @@ function AutomataCanvasInner() {
       cancelDrawing()
       setContextMenu(null)
       setCanvasTool('select')
-    }, [cancelDrawing, setContextMenu])
+      setSelectionModeActive(false)
+    }, [cancelDrawing, setContextMenu, setSelectionModeActive])
   })
 
   // Structural tools auto-reset on running sim
@@ -478,7 +480,6 @@ function AutomataCanvasInner() {
     setRfNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
     setRfEdges((eds) => eds.map((e) => ({ ...e, selected: false })))
     setContextMenu(null)
-    setSelectionModeActive(false)
     if (transitionMode) {
       cancelDrawing()
     }
@@ -579,6 +580,7 @@ function AutomataCanvasInner() {
               onClick={() => {
                 if (disabled) return
                 setCanvasTool(t.id)
+                setSelectionModeActive(false)
                 if (t.id !== 'transition') {
                   cancelDrawing()
                 }
@@ -715,7 +717,7 @@ function AutomataCanvasInner() {
 
       {flash && <div key={flash.id} className={`result-flash ${flash.kind}`} />}
 
-      {!machine.states.some((s) => !s.isText) && !transitionMode && (
+      {machine.states.length === 0 && !transitionMode && (
         <div
           style={{
             position: 'absolute',
@@ -777,6 +779,7 @@ function AutomataCanvasInner() {
           onClose={() => setContextMenu(null)}
           onAddState={(x, y) => { addState(x, y); setContextMenu(null) }}
           onAddText={(x, y) => { const t = addTextState(x, y); startRenaming(t.id); setContextMenu(null) }}
+          onSelectionMode={machine.states.length > 0 ? () => { setSelectionModeActive(true); setContextMenu(null); } : undefined}
           onDeleteState={(id) => { deleteState(id); setContextMenu(null) }}
           onSetStart={(id) => { setStartState(id); setContextMenu(null) }}
           onToggleAccept={(id) => { toggleAcceptState(id); setContextMenu(null) }}
@@ -786,7 +789,7 @@ function AutomataCanvasInner() {
             setContextMenu(null)
           }}
           onStartTransition={(fromStateId) => {
-            setTransitionDrawModeForNodesEdges({ fromStateId })
+            setTransitionMode({ fromStateId })
             setContextMenu(null)
           }}
           onEditStateTransitions={(stateId) => {

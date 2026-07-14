@@ -14,6 +14,7 @@ import { saveMachine, saveMachineToPath, loadMachine as loadFromFile, loadMachin
 import { getRecentFiles, removeRecentFile, clearRecentFiles, type RecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { toast } from '@/store/toastStore'
+import type { MachineType } from '@/engines/machine/core/types'
 
 export function useFileActions(opts?: { bindKeys?: boolean }) {
   const { machine, activeTabIndex, dirtyTabs, tabPaths, addTab, openMachine, markTabSaved } = useMachineStore()
@@ -22,21 +23,33 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
   const [, setRecentNonce] = useState(0)
   const bumpRecent = () => setRecentNonce((n) => n + 1)
 
-  const isDirty = !!dirtyTabs[machine.id]
+  const isDirty = machine ? !!dirtyTabs[machine.id] : false
   const recentFiles: RecentFile[] = isTauri() ? getRecentFiles() : []
 
   const handleNew = useCallback(() => {
-    addTab()
+    let type: MachineType = 'DFA';
+    const hash = window.location.hash;
+    if (hash.startsWith('#/grammar')) type = 'CFG';
+    else if (hash.startsWith('#/parser')) type = 'CFG_PARSER';
+    
+    addTab(type)
     requestFitView()
   }, [addTab, requestFitView])
 
   const handleOpen = useCallback(async () => {
     try {
-      const { def, path } = await loadFromFile()
+      const hash = window.location.hash;
+      const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
+      const { def, path } = await loadFromFile({ grammarOnly: isGrammarWorkspace })
       openMachine(def, path)
-      requestFitView()
+      setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
+      
+      const type = def.type;
+      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
+      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else window.location.hash = '#/machine';
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') toast.error(err.message)
     }
@@ -46,9 +59,14 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
     try {
       const def = await loadMachineFromPath(file.path)
       openMachine(def, file.path)
-      requestFitView()
+      setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
+
+      const type = def.type;
+      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
+      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else window.location.hash = '#/machine';
     } catch {
       removeRecentFile(file.path)
       bumpRecent()
@@ -67,11 +85,15 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
     const knownPath = tabPaths[machine.id]
     try {
       if (isTauri() && knownPath) {
-        await saveMachineToPath(machine, knownPath)
+        const hash = window.location.hash;
+        const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
+        await saveMachineToPath(machine, knownPath, { grammarOnly: isGrammarWorkspace })
         markTabSaved(activeTabIndex, knownPath)
         toast.success(`Saved "${machine.name}".`)
       } else {
-        const saved = await saveMachine(machine)
+        const hash = window.location.hash;
+        const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
+        const saved = await saveMachine(machine, { grammarOnly: isGrammarWorkspace })
         if (saved) {
           markTabSaved(activeTabIndex, isTauri() ? saved : null)
           toast.success(`Saved "${machine.name}".`)
@@ -85,7 +107,9 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
 
   const handleSaveAs = useCallback(async () => {
     try {
-      const saved = await saveMachine(machine)
+      const hash = window.location.hash;
+      const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
+      const saved = await saveMachine(machine, { grammarOnly: isGrammarWorkspace })
       if (saved) {
         markTabSaved(activeTabIndex, isTauri() ? saved : null)
         toast.success(`Saved "${machine.name}".`)
@@ -100,6 +124,9 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
   useEffect(() => {
     if (!opts?.bindKeys) return
     const onKey = (e: KeyboardEvent) => {
+      // Do not handle file shortcuts if we are on the Launchpad (Hub)
+      if (window.location.hash === '#/' || window.location.hash === '') return;
+
       const isMac = navigator.userAgent.toLowerCase().includes('mac')
       const mod = isMac ? e.metaKey : e.ctrlKey
       if (!mod) return

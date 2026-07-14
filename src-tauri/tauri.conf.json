@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "AutomataLab",
-  "version": "4.1.0",
+  "version": "5.0.0",
   "identifier": "com.automatalab.dev",
   "build": {
     "frontendDist": "../dist",
@@ -19,6 +19,7 @@
         "minHeight": 500,
         "resizable": true,
         "fullscreen": false,
+        "maximized": true,
         "decorations": false
       }
     ],

@@ -2,8 +2,8 @@
 // File Manager — Save / Load machine definitions as JSON
 // ============================================================
 
-import type { AutomataState, MachineDefinition, Transition } from '@/engines/core/types'
-import { generateId, isPDAType } from '@/engines/core/utils'
+import type { AutomataState, MachineDefinition, Transition } from '@/engines/machine/core/types'
+import { generateId, isPDAType } from '@/engines/machine/core/utils'
 import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { parseJFLAP } from '@/utils/jflap'
@@ -67,26 +67,27 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
   try {
     raw = JSON.parse(jsonString)
   } catch {
-    throw new Error('Invalid machine file: not valid JSON')
+    throw new Error('Failed to load project: Not a valid JSON file.')
   }
   // The payload must be a JSON object — guard against null / arrays / primitives
   // so the field access below can't throw a raw TypeError ("…of null").
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    throw new Error('Invalid machine file: expected a machine object')
+    throw new Error('Failed to load project: Expected a machine object.')
   }
   // Minimal validation
   if (!raw.states || !raw.transitions || !raw.type) {
-    throw new Error('Invalid machine file: missing required fields')
+    throw new Error('Failed to load project: Missing required fields (states, transitions, type).')
   }
 
   if (!VALID_TYPES.includes(raw.type)) {
-    throw new Error('Invalid machine file: unknown machine type')
+    throw new Error(`Failed to load project: Unknown machine type "${raw.type}".`)
   }
 
   // Ensure a unique id on load, and prevent prototype pollution / injection by
   // explicitly rebuilding every state and transition from known fields only.
   const def: MachineDefinition = {
     id: generateId('machine'),
+    version: Number.isFinite(raw.version) ? Number(raw.version) : 1,
     // Force string-typed metadata: a numeric/boolean `name` would otherwise flow
     // through and crash later (e.g. `fileStem` calls String.prototype.replace).
     name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : 'Imported Machine',
@@ -113,6 +114,32 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
   if (Number.isFinite(raw.tapeCount) && raw.tapeCount > 1) {
     def.tapeCount = Math.floor(Number(raw.tapeCount))
   }
+
+  // Phase 2 Validation
+  const stateIds = new Set<string>()
+  let startStateCount = 0
+  for (const s of def.states) {
+    if (stateIds.has(s.id)) throw new Error('Invalid machine file: duplicate state IDs detected')
+    stateIds.add(s.id)
+    if (s.isStart) startStateCount++
+  }
+
+  if (def.states.length > 0 && startStateCount !== 1) {
+    throw new Error('Invalid machine file: machine must have exactly one start state')
+  }
+
+  const transIds = new Set<string>()
+  for (const t of def.transitions) {
+    if (transIds.has(t.id)) throw new Error(`Failed to load project: Duplicate transition ID detected (${t.id}).`)
+    transIds.add(t.id)
+    if (!stateIds.has(t.from)) {
+      throw new Error(`Failed to load project: Missing transition source state ${t.from}.`)
+    }
+    if (!stateIds.has(t.to)) {
+      throw new Error(`Failed to load project: Missing transition target state ${t.to}.`)
+    }
+  }
+
   return def
 }
 
@@ -127,9 +154,19 @@ export interface LoadedMachine {
  * Returns the saved file path (Tauri) or the download filename (web) on success,
  * or null if the user cancelled the native save dialog.
  */
-export async function saveMachine(machine: MachineDefinition): Promise<string | null> {
-  const json = JSON.stringify(machine, null, 2)
-  const defaultName = `${machine.name.replace(/\s+/g, '_')}${FILE_EXTENSION}`
+export async function saveMachine(machine: MachineDefinition, options?: { grammarOnly?: boolean }): Promise<string | null> {
+  const grammarOnly = options?.grammarOnly ?? false;
+  
+  // Inject metadata for future migrations
+  const toSave = {
+    ...machine,
+    version: '1.0.0',
+    workspaceType: machine.type.includes('CFG') ? 'grammar' : 'automata'
+  };
+  
+  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toSave, null, 2);
+  const extension = grammarOnly ? '.txt' : FILE_EXTENSION;
+  const defaultName = `${machine.name.replace(/\s+/g, '_')}${extension}`
 
   if (isTauri()) {
     try {
@@ -137,13 +174,16 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
       const { writeTextFile } = await import('@tauri-apps/plugin-fs')
       const path = await save({
         defaultPath: defaultName,
-        filters: [{
+        filters: grammarOnly ? [{
+          name: 'Grammar File',
+          extensions: ['txt']
+        }] : [{
           name: 'AutomataLab Machine',
           extensions: ['autolab.json', 'json']
         }]
       })
       if (path) {
-        await writeTextFile(path, json)
+        await writeTextFile(path, contentToWrite)
         addRecentFile(path, machine.name)
         return path
       }
@@ -154,7 +194,8 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
     }
   } else {
     // Web fallback
-    const blob = new Blob([json], { type: MIME_TYPE })
+    const mime = grammarOnly ? 'text/plain' : MIME_TYPE
+    const blob = new Blob([contentToWrite], { type: mime })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -171,14 +212,15 @@ export async function saveMachine(machine: MachineDefinition): Promise<string | 
  * Save a machine directly to a known path without showing a dialog (Tauri only).
  * Used by "Save" once a file already has a location. Returns the path on success.
  */
-export async function saveMachineToPath(machine: MachineDefinition, path: string): Promise<string> {
+export async function saveMachineToPath(machine: MachineDefinition, path: string, options?: { grammarOnly?: boolean }): Promise<string> {
   if (!isTauri()) {
     throw new Error('Saving to a path is only supported in the desktop app')
   }
-  const json = JSON.stringify(machine, null, 2)
+  const grammarOnly = options?.grammarOnly ?? false;
+  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(machine, null, 2);
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs')
-    await writeTextFile(path, json)
+    await writeTextFile(path, contentToWrite)
     addRecentFile(path, machine.name)
     return path
   } catch (err) {
@@ -187,14 +229,19 @@ export async function saveMachineToPath(machine: MachineDefinition, path: string
   }
 }
 
-/** Open file picker and parse a .autolab.json file. */
-export async function loadMachine(): Promise<LoadedMachine> {
+/** Open file picker and parse a .autolab.json file, or a .txt file for grammar input. */
+export async function loadMachine(options?: { grammarOnly?: boolean }): Promise<LoadedMachine> {
+  const grammarOnly = options?.grammarOnly ?? false;
+  
   if (isTauri()) {
     const { open } = await import('@tauri-apps/plugin-dialog')
     const { readTextFile } = await import('@tauri-apps/plugin-fs')
     const path = await open({
       multiple: false,
-      filters: [{
+      filters: grammarOnly ? [{
+        name: 'Grammar File',
+        extensions: ['txt']
+      }] : [{
         name: 'AutomataLab Machine',
         extensions: ['autolab.json', 'json', 'jff']
       }]
@@ -206,9 +253,25 @@ export async function loadMachine(): Promise<LoadedMachine> {
 
     const filePath = Array.isArray(path) ? path[0] : path
     const content = await readTextFile(filePath)
-    const isJff = filePath.toLowerCase().endsWith('.jff')
-    const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
-    if (isJff) checkImportWarnings(def)
+    
+    let def: MachineDefinition;
+    if (grammarOnly) {
+      def = {
+        id: generateId(),
+        name: filePath.split(/[\\/]/).pop()?.replace('.txt', '') || 'Untitled Grammar',
+        type: window.location.hash.includes('parser') ? 'CFG_PARSER' : 'CFG',
+        states: [],
+        transitions: [],
+        grammarText: content,
+        alphabet: [],
+        language: ''
+      }
+    } else {
+      const isJff = filePath.toLowerCase().endsWith('.jff')
+      def = isJff ? parseJFLAP(content) : parseMachineJson(content)
+      if (isJff) checkImportWarnings(def)
+    }
+    
     addRecentFile(filePath, def.name)
     return { def, path: filePath }
   } else {
@@ -216,7 +279,7 @@ export async function loadMachine(): Promise<LoadedMachine> {
     return new Promise((resolve, reject) => {
       const input = document.createElement('input')
       input.type = 'file'
-      input.accept = '.json,.autolab.json,.jff'
+      input.accept = grammarOnly ? '.txt' : '.json,.autolab.json,.jff'
       input.onchange = () => {
         const file = input.files?.[0]
         if (!file) {
@@ -227,9 +290,23 @@ export async function loadMachine(): Promise<LoadedMachine> {
         reader.onload = (e) => {
           try {
             const content = e.target?.result as string
-            const isJff = file.name.toLowerCase().endsWith('.jff')
-            const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
-            if (isJff) checkImportWarnings(def)
+            let def: MachineDefinition;
+            if (grammarOnly) {
+              def = {
+                id: generateId(),
+                name: file.name.replace('.txt', ''),
+                type: window.location.hash.includes('parser') ? 'CFG_PARSER' : 'CFG',
+                states: [],
+                transitions: [],
+                grammarText: content,
+                alphabet: [],
+                language: ''
+              }
+            } else {
+              const isJff = file.name.toLowerCase().endsWith('.jff')
+              def = isJff ? parseJFLAP(content) : parseMachineJson(content)
+              if (isJff) checkImportWarnings(def)
+            }
             resolve({ def, path: null })
           } catch (err) {
             reject(new Error('Failed to parse machine file'))

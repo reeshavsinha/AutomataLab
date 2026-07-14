@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import { BLANK } from '@/engines/core/utils'
-import type { Transition } from '@/engines/core/types'
+import { BLANK } from '@/engines/machine/core/utils'
+import type { Transition } from '@/engines/machine/core/types'
 
 interface LBAEditorProps {
   stateId: string

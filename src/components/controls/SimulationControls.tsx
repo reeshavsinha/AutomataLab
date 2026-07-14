@@ -3,12 +3,12 @@
 // No animations, plain black & white.
 // ============================================================
 
-import { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useCommandStore } from '@/store/commandStore'
-import { isTMType } from '@/engines/core/utils'
+import { isTMType } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
 
 const DEFAULT_STEP_LIMIT = 10_000
@@ -35,45 +35,23 @@ const STATUS_TITLES: Record<string, string> = {
   error:    'Error: the machine is invalid, so the run could not start. See the Validate tab.',
 }
 
-function ControlButton({
-  icon,
-  label,
-  onClick,
-  active,
-  disabled,
-}: {
-  icon: string
-  label: string
-  onClick: () => void
-  active?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '32px',
-        height: '32px',
-        borderRadius: 'var(--radius-sm)',
-        border: `1px solid ${active ? 'var(--text-primary)' : 'var(--border-default)'}`,
-        background: active ? 'var(--bg-elevated)' : 'transparent',
-        color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: '14px',
-        opacity: disabled ? 0.3 : 1,
-        fontFamily: 'var(--font-sans)',
-      }}
-    >
-      {icon}
-    </button>
-  )
-}
+const BTN_BASE: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid var(--border-default)',
+  borderRadius: '3px',
+  padding: '2px 7px',
+  cursor: 'pointer',
+  color: 'var(--text-primary)',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '0.72rem',
+  fontWeight: 600,
+  lineHeight: '18px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  minWidth: '24px'
+};
+
 
 export default function SimulationControls() {
   const { step, stepBack, seekTo, play, pause, reset } = useSimulation()
@@ -119,6 +97,10 @@ export default function SimulationControls() {
     }
     seekTo(target)
   }, [isPlaying, pause, seekTo])
+
+  const handleSeekToEnd = useCallback(() => {
+    handleSeekTo(10000)
+  }, [handleSeekTo])
 
   const handleReset = useCallback(() => {
     pause()
@@ -196,17 +178,12 @@ export default function SimulationControls() {
 
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
-  // Colour-coded result badge so the outcome is unmistakable. "Stuck" gets its
-  // own amber treatment so a no-move halt / step-limit isn't read as an explicit
-  // reject (UX audit #10).
-  const badge = (() => {
-    if (status === 'accepted') return { bg: 'var(--status-accept)', fg: '#ffffff', border: 'var(--status-accept)' }
-    if (status === 'rejected' || status === 'error')
-      return { bg: 'var(--status-reject)', fg: '#ffffff', border: 'var(--status-reject)' }
-    if (status === 'stuck') return { bg: 'transparent', fg: 'var(--status-running)', border: 'var(--status-running)' }
-    if (status === 'running') return { bg: 'transparent', fg: 'var(--status-running)', border: 'var(--status-running)' }
-    return { bg: 'transparent', fg: 'var(--text-primary)', border: 'var(--border-default)' }
-  })()
+  const statusColor =
+    status === 'accepted' ? '#4ade80' :
+    status === 'error' || status === 'rejected' ? '#f87171' :
+    '#fb923c';
+
+  const displayStatusLabel = status === 'idle' ? 'Idle' : statusLabel;
 
   const clampSpeed = (v: number) => Math.min(8, Math.max(0.25, v))
 
@@ -214,59 +191,52 @@ export default function SimulationControls() {
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '10px',
-      padding: '6px 12px',
+      padding: '4px 12px',
+      gap: '6px',
+      minHeight: '48px',
       background: 'var(--chrome-bg)',
       borderTop: '1px solid var(--chrome-border)',
       flexShrink: 0,
     }}>
-      {/* Play / Pause */}
-      <ControlButton
-        icon={isPlaying ? '⏸' : '▶'}
-        label={isPlaying ? 'Pause (Space / P)' : 'Play (Space / P)'}
+      {/* Transport buttons */}
+      <button onClick={() => handleSeekTo(0)} style={BTN_BASE} title="Go to beginning">|&lt;&lt;</button>
+      <button onClick={handleStepBack} style={BTN_BASE} title="One step back">&lt;</button>
+      <button
         onClick={handlePlay}
-        active={isPlaying}
-        disabled={isDone && !isPlaying}
-      />
+        style={{
+          ...BTN_BASE,
+          background: isPlaying ? '#21262d' : 'transparent',
+          color: 'var(--text-primary)',
+          minWidth: '28px',
+        }}
+        title={isPlaying ? 'Pause' : 'Play'}
+      >
+        {isPlaying ? '⏸' : '▶'}
+      </button>
+      <button onClick={handleStep} style={BTN_BASE} title="One step forward">&gt;</button>
+      <button onClick={handleSeekToEnd} style={BTN_BASE} title="Go to latest step">&gt;&gt;|</button>
+      <button onClick={handleReset} style={BTN_BASE} title="Reset">↺</button>
 
-      {/* Step Back */}
-      <ControlButton
-        icon="⏮"
-        label="Step Back (Left Arrow)"
-        onClick={handleStepBack}
-        disabled={stepCount === 0}
-      />
+      {/* Divider */}
+      <div style={{ width: '1px', height: '16px', background: '#30363d', margin: '0 4px' }} />
 
-      {/* Step Forward */}
-      <ControlButton
-        icon="⏭"
-        label="Step Forward (Right Arrow / S)"
-        onClick={handleStep}
-        disabled={isDone}
-      />
-
-      {/* Reset */}
-      <ControlButton
-        icon="↺"
-        label="Reset (R)"
-        onClick={handleReset}
-        disabled={isIdle}
-      />
-
-      <div style={{ width: '1px', height: '20px', background: 'var(--border-default)' }} />
-
-      {/* Speed — slider for fine control + presets for common values. The value
-          is shown read-only so the control isn't presented three ways (S4). */}
+      {/* Speed slider + presets */}
+      <span style={{
+        fontSize: '0.68rem',
+        color: 'var(--text-muted)',
+        fontFamily: 'var(--font-mono)',
+        marginRight: '2px'
+      }}>
+        SPEED
+      </span>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          SPEED
-        </span>
         <input
           type="range"
           min={0.25}
           max={8}
           step={0.25}
           value={speed}
+          title={`${speed}x speed`}
           aria-label={`Simulation speed: ${speed}×`}
           onChange={(e) => setSpeed(clampSpeed(parseFloat(e.target.value)))}
           style={{
@@ -276,62 +246,58 @@ export default function SimulationControls() {
           }}
         />
         <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', minWidth: '34px' }}>
-          {speed}×
+          {speed}x
         </span>
-
-        {/* Speed presets */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
-          {[0.5, 1, 2, 4].map((p) => (
+        <div style={{ display: 'flex', gap: '2px' }}>
+          {[0.5, 1, 2, 4].map(p => (
             <button
               key={p}
               onClick={() => setSpeed(p)}
-              title={`${p}× speed`}
-              aria-label={`Set speed ${p}×`}
               style={{
-                background: speed === p ? 'var(--bg-elevated)' : 'transparent',
-                border: `1px solid ${speed === p ? 'var(--text-primary)' : 'var(--border-default)'}`,
-                borderRadius: 'var(--radius-sm)',
-                color: speed === p ? 'var(--text-primary)' : 'var(--text-secondary)',
-                fontSize: '10px',
-                fontFamily: 'var(--font-mono)',
-                padding: '2px 5px',
-                cursor: 'pointer',
-                lineHeight: 1,
+                ...BTN_BASE,
+                background: speed === p ? 'var(--bg-secondary)' : 'transparent',
+                color: speed === p ? 'var(--text-primary)' : 'var(--text-muted)',
+                border: speed === p ? '1px solid var(--border-strong)' : '1px solid var(--border-subtle)',
+                padding: '1px 5px',
+                fontSize: '0.68rem'
               }}
             >
-              {p}×
+              {p}x
             </button>
           ))}
         </div>
       </div>
 
-      <div style={{ flex: 1 }} />
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {/* Step counter */}
+        {stepCount > 0 && (
+          <span style={{
+            fontFamily: 'var(--font-mono)',
+            fontSize: '0.72rem',
+            color: 'var(--text-muted)'
+          }}>
+            step {stepCount}
+          </span>
+        )}
 
-      {/* Step counter */}
-      {!isIdle && (
-        <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-          step {stepCount}
+        {/* Status */}
+        <span
+          title={STATUS_TITLES[status] ?? ''}
+          style={{
+            padding: '1px 8px',
+            background: status === 'idle' ? 'var(--bg-elevated)' : `${statusColor}18`,
+            color: status === 'idle' ? 'var(--text-primary)' : statusColor,
+            border: status === 'idle' ? '1px solid var(--border-subtle)' : `1px solid ${statusColor}`,
+            borderRadius: '3px',
+            fontSize: '0.68rem',
+            fontWeight: 700,
+            fontFamily: 'var(--font-mono)',
+            letterSpacing: '0.06em',
+            cursor: 'help'
+          }}
+        >
+          {displayStatusLabel}
         </span>
-      )}
-
-      {/* Status */}
-      <div
-        role="status"
-        title={STATUS_TITLES[status] ?? ''}
-        style={{
-          padding: '3px 12px',
-          borderRadius: 'var(--radius-sm)',
-          border: `1px solid ${badge.border}`,
-          background: badge.bg,
-          color: badge.fg,
-          fontSize: '12px',
-          fontWeight: 700,
-          fontFamily: 'var(--font-mono)',
-          letterSpacing: '0.04em',
-          cursor: 'help',
-        }}
-      >
-        {statusLabel}
       </div>
     </div>
   )

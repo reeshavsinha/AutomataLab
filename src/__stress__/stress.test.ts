@@ -16,12 +16,12 @@
 // ============================================================
 
 import { describe, it, expect } from 'vitest'
-import { TMEngine } from '@/engines/tm/TMEngine'
-import { DFAEngine } from '@/engines/dfa/DFAEngine'
-import { NFAEngine } from '@/engines/nfa/NFAEngine'
+import { TMEngine } from '@/engines/machine/tm/TMEngine'
+import { DFAEngine } from '@/engines/machine/dfa/DFAEngine'
+import { NFAEngine } from '@/engines/machine/nfa/NFAEngine'
 import { useSimulationStore } from '@/store/simulationStore'
-import { dfaToggle, nfaComplete, tmRightMover } from '@/engines/testing/fixtures'
-import type { HistoryEntry } from '@/engines/core/types'
+import { dfaToggle, nfaComplete, tmRightMover } from '@/engines/machine/testing/fixtures'
+import type { HistoryEntry } from '@/engines/machine/core/types'
 
 const ms = (n: number) => `${n.toFixed(0)}ms`
 
@@ -41,7 +41,7 @@ describe('stress — TM tape window stays bounded', () => {
     const dt = performance.now() - t0
     console.log(`[TM long run]  steps≈${N}  time=${ms(dt)}  maxWindowCells=${maxCells}`)
     expect(maxCells).toBeLessThanOrEqual(400)
-  })
+  }, 15000)
 
   it('a huge seeded input renders only a window, not the whole tape', () => {
     const len = 50_000

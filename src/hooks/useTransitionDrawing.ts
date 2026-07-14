@@ -3,7 +3,7 @@ import type { Connection, Node } from '@xyflow/react'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { isPDAType, isTMType } from '@/engines/core/utils'
+import { isPDAType, isTMType } from '@/engines/machine/core/utils'
 
 interface TransitionDrawMode {
   fromStateId: string

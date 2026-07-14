@@ -5,9 +5,9 @@
 // ============================================================
 
 import { useRef, useCallback, useEffect, useMemo } from 'react'
-import type { Automaton, HistoryEntry, StepResult, ValidationError } from '@/engines/core/types'
-import { supportsTree } from '@/engines/core/computationTree'
-import { createEngine } from '@/engines/core/engineFactory'
+import type { Automaton, HistoryEntry, StepResult, ValidationError } from '@/engines/machine/core/types'
+import { supportsTree } from '@/engines/machine/core/computationTree'
+import { createEngine } from '@/engines/machine/core/engineFactory'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'

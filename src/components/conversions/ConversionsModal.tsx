@@ -19,9 +19,9 @@ import {
   defaultAnimationBuilder,
   type ConversionPlugin,
 } from './conversionsRegistry'
-import type { MachineDefinition } from '@/engines/core/types'
-import type { ConversionResult } from '@/engines/conversions'
-import { generateId } from '@/engines/core/utils'
+import type { MachineDefinition } from '@/engines/machine/core/types'
+import type { ConversionResult } from '@/engines/machine/conversions'
+import { generateId } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
 import Dialog from '@/components/common/Dialog'
 
@@ -129,12 +129,9 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
 
   const openInNewTab = () => {
     if (!laidOut) return
-    const reused = isPristineTab(machine)
     openMachine({ ...laidOut, id: generateId('machine') }, null)
     requestFitView()
-    toast.success(reused
-      ? 'Loaded the converted machine into the current (empty) tab.'
-      : 'Opened the converted machine in a new tab.')
+    toast.success('Opened the converted machine in a new tab.')
     onClose()
   }
 

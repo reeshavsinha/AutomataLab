@@ -4,11 +4,11 @@
 // Collapsible to a thin reopen strip; the active tab persists across sessions.
 // ============================================================
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { isPDAType, isTMType, supportsComputationTree } from '@/engines/core/utils'
+import { isPDAType, isTMType, supportsComputationTree } from '@/engines/machine/core/utils'
 import { validateMachine } from '@/utils/validator'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
@@ -67,6 +67,9 @@ export default function SidePanel() {
   const isTM = isTMType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
+  const [isCompressed, setIsCompressed] = useState(false)
+  const containerRef = useRef<HTMLElement>(null)
+
   // Live validation counts → a badge on the Validate tab so problems are
   // visible without opening the panel (UX audit FLO-1).
   const issues = useMemo(() => {
@@ -77,43 +80,6 @@ export default function SidePanel() {
     }
   }, [machine])
 
-  // Width is user-resizable (persisted). Until the user drags, stack-machine
-  // and tree views default wider since their content is denser.
-  const [userWidth, setUserWidth] = useState<number | null>(() => {
-    if (typeof localStorage === 'undefined') return null
-    const n = parseInt(localStorage.getItem(WIDTH_KEY) ?? '', 10)
-    return Number.isFinite(n) ? Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, n)) : null
-  })
-
-  const width = userWidth ?? (isPDA || hasTree || isTM ? 300 : 240)
-
-  useEffect(() => {
-    if (userWidth != null && typeof localStorage !== 'undefined') {
-      localStorage.setItem(WIDTH_KEY, String(userWidth))
-    }
-  }, [userWidth])
-
-  const startResize = useCallback((e: React.PointerEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startW = width
-    const onMove = (ev: PointerEvent) => {
-      // Panel is on the right, so dragging the handle left widens it.
-      const next = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, startW + (startX - ev.clientX)))
-      setUserWidth(next)
-    }
-    const onUp = () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    // pointercancel covers gestures interrupted outside the window so the
-    // move listener can't leak and keep resizing on the next click.
-    window.addEventListener('pointercancel', onUp)
-  }, [width])
-
   const tabs: { id: Tab; label: string; title?: string }[] = [
     { id: 'delta',      label: 'δ',        title: 'Transition table (δ) — every move, grouped by state' },
     { id: 'history',    label: 'History',  title: 'Run history — each step of the last simulation' },
@@ -123,6 +89,17 @@ export default function SidePanel() {
     ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', title: 'Computation tree / trellis of branches' }] : []),
     { id: 'info',       label: 'Info',     title: 'Machine summary and simulation status' },
   ]
+
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver((entries) => {
+      for (let entry of entries) {
+        setIsCompressed(entry.contentRect.width < tabs.length * 55)
+      }
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [tabs.length])
 
   // If a context-specific tab no longer applies (e.g. NFA→DFA drops Tree), fall
   // back to δ — the always-present machine definition — rather than History.
@@ -142,10 +119,9 @@ export default function SidePanel() {
     return (
       <aside
         style={{
-          width: '26px',
+          width: '100%',
           flexShrink: 0,
           background: 'var(--bg-secondary)',
-          borderLeft: '1px solid var(--border-default)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -157,7 +133,18 @@ export default function SidePanel() {
           onClick={togglePanel}
           title="Show panel"
           aria-label="Show side panel"
-          style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '13px' }}
+          style={{ 
+            border: 'none', 
+            background: 'transparent', 
+            color: 'var(--text-muted)', 
+            cursor: 'pointer', 
+            fontSize: '18px',
+            width: '100%',
+            padding: '16px 0',
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}
         >
           ‹
         </button>
@@ -179,42 +166,51 @@ export default function SidePanel() {
   }
 
   return (
-    <aside style={{
-      width: `${width}px`,
+    <aside ref={containerRef} style={{
+      width: '100%',
+      height: '100%',
       flexShrink: 0,
       position: 'relative',
       background: 'var(--bg-secondary)',
-      borderLeft: '1px solid var(--border-default)',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
     }}>
-      {/* Resize handle */}
-      <div
-        onPointerDown={startResize}
-        title="Drag to resize"
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          bottom: 0,
-          width: '6px',
-          marginLeft: '-3px',
-          cursor: 'col-resize',
-          zIndex: 20,
-        }}
-      />
-      {/* Tab bar */}
-      <div role="tablist" aria-label="Side panel" style={{
+      <div role="tablist" aria-label="Side panel" className="workspace-sidepanel-tablist" style={{
         display: 'flex',
         borderBottom: '1px solid var(--border-default)',
         flexShrink: 0,
-        overflow: 'hidden'
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        scrollbarWidth: 'none', // Firefox
+        msOverflowStyle: 'none' // IE/Edge
       }}>
+        {/* We can hide the webkit scrollbar in css if needed, but inline styles for scrollbar-width cover Firefox/Edge */}
+        <style>{`
+          .workspace-sidepanel-tablist::-webkit-scrollbar {
+            display: none;
+          }
+        `}</style>
+        <button
+          onClick={togglePanel}
+          title="Collapse panel"
+          aria-label="Collapse side panel"
+          style={{
+            flexShrink: 0,
+            width: '24px',
+            border: 'none',
+            borderRight: '1px solid var(--border-subtle)',
+            background: 'transparent',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            fontSize: '12px',
+          }}
+        >
+          ›
+        </button>
         {tabs.map((tab, idx) => {
           const selected = activePanel === tab.id
           const showBadge = tab.id === 'validation' && (issues.errors > 0 || issues.warnings > 0)
-          const isCompressed = width / tabs.length < 55
           const displayLabel = isCompressed && tab.label !== 'δ' ? tab.label.charAt(0) : tab.label
           
           return [
@@ -252,7 +248,7 @@ export default function SidePanel() {
                 cursor: 'pointer',
                 fontFamily: 'var(--font-mono)',
                 letterSpacing: '0.03em',
-                minWidth: 0,
+                minWidth: isCompressed ? '32px' : '48px', // Ensure tabs do not retract completely
               }}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -282,23 +278,6 @@ export default function SidePanel() {
             </button>
           ]
         })}
-        <button
-          onClick={togglePanel}
-          title="Collapse panel"
-          aria-label="Collapse side panel"
-          style={{
-            flexShrink: 0,
-            width: '24px',
-            border: 'none',
-            borderLeft: '1px solid var(--border-subtle)',
-            background: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            fontSize: '12px',
-          }}
-        >
-          ›
-        </button>
       </div>
 
       <div role="tabpanel" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>

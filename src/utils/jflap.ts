@@ -4,9 +4,9 @@
 // with JFLAP's broad automata library.
 // ============================================================
 
-import type { AutomataState, MachineDefinition, MachineType, Transition } from '@/engines/core/types'
-import { generateId, isEpsilon, EPSILON, isPDAType, isTMType } from '@/engines/core/utils'
-import type { TapeDir } from '@/engines/core/utils'
+import type { AutomataState, MachineDefinition, MachineType, Transition } from '@/engines/machine/core/types'
+import { generateId, isEpsilon, EPSILON, isPDAType, isTMType } from '@/engines/machine/core/utils'
+import type { TapeDir } from '@/engines/machine/core/utils'
 
 function getChildText(parent: Element, tagName: string): string | null {
   const child = Array.from(parent.children).find((c) => c.tagName === tagName)
@@ -188,6 +188,28 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
 
   if (tapeCount > 1) {
     def.tapeCount = tapeCount
+  }
+
+  // Phase 2 Validation
+  const stateIds = new Set<string>()
+  let startStateCount = 0
+  for (const s of def.states) {
+    if (stateIds.has(s.id)) throw new Error('Invalid JFLAP file: duplicate state IDs detected')
+    stateIds.add(s.id)
+    if (s.isStart) startStateCount++
+  }
+
+  if (def.states.length > 0 && startStateCount !== 1) {
+    throw new Error('Invalid JFLAP file: machine must have exactly one start state')
+  }
+
+  const transIds = new Set<string>()
+  for (const t of def.transitions) {
+    if (transIds.has(t.id)) throw new Error('Invalid JFLAP file: duplicate transition IDs detected')
+    transIds.add(t.id)
+    if (!stateIds.has(t.from) || !stateIds.has(t.to)) {
+      throw new Error('Invalid JFLAP file: transition references a nonexistent state')
+    }
   }
 
   return def

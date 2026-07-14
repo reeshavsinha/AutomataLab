@@ -15,7 +15,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import EpsilonInserter from './EpsilonInserter'
-import { EPSILON, isEpsilon } from '@/engines/core/utils'
+import { EPSILON, isEpsilon } from '@/engines/machine/core/utils'
 
 export interface TransitionEdgeData {
   symbols: string[]
@@ -354,20 +354,13 @@ const TransitionEdge = memo(
       window.addEventListener('pointercancel', onPointerUp)
     }, [isEditing, edgeData.controlPointOffset, screenToFlowPosition, id, updateTransition])
 
-    // Trace overlay: once a run halts, edges the computation traversed are tinted
-    // so the path is visible without re-reading the History log (UX audit THY-1).
-    const simHalted = simStatus === 'accepted' || simStatus === 'rejected' || simStatus === 'stuck'
-    const isOnPath = simHalted && !isActive && memberIds.some((mid) => pathTransitionIds.includes(mid))
-
     const edgeColor = isActive
-      ? 'var(--state-active)'
-      : isOnPath
       ? 'var(--trace)'
       : selected
       ? 'var(--border-strong)'
       : 'var(--text-primary)'
 
-    const strokeWidth = isActive ? 2 : isOnPath ? 1.75 : selected ? 1.5 : 1
+    const strokeWidth = isActive ? 2 : selected ? 1.5 : 1
 
     // ─── Label content (UX #2) ───────────────────────────────────────────
     // Merged FA edges and stacked PDA/TM rules collapse to a compact chip with
@@ -458,7 +451,7 @@ const TransitionEdge = memo(
                   onBlur={commitEdit}
                   onKeyDown={handleKeyDown}
                   onPointerDown={(e) => e.stopPropagation()}
-                  placeholder={isENFA ? 'a,b · empty = ε' : 'a,b'}
+                  placeholder={isENFA ? 'empty = ε' : ''}
                   title={isENFA ? 'Comma- or space-separated symbols. Leave empty (or type eps) for an ε-move.' : 'Comma- or space-separated symbols.'}
                   autoFocus
                   style={{

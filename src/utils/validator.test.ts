@@ -5,7 +5,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { validateMachine, hasBlockingErrors } from './validator'
-import type { MachineDefinition } from '@/engines/core/types'
+import type { MachineDefinition } from '@/engines/machine/core/types'
 
 function machine(partial: Partial<MachineDefinition>): MachineDefinition {
   return {

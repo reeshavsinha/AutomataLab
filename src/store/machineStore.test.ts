@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useMachineStore, isPristineTab } from './machineStore'
-import type { MachineDefinition } from '@/engines/core/types'
+import type { MachineDefinition } from '@/engines/machine/core/types'
 
 let counter = 0
 function makeDef(over: Partial<MachineDefinition> = {}): MachineDefinition {
@@ -31,10 +31,6 @@ function resetStore() {
     dirtyTabs: {},
     tabPaths: {},
     machine: fresh,
-    past: [],
-    future: [],
-    _lastCoalesceKey: null,
-    _lastEditAt: 0,
   })
 }
 

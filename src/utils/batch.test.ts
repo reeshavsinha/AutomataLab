@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseBatchCases, runBatch, batchSummary } from './batch'
-import type { MachineDefinition } from '@/engines/core/types'
+import type { MachineDefinition } from '@/engines/machine/core/types'
 
 // DFA over {a,b} accepting strings that END in 'b'.
 const endsInB: MachineDefinition = {

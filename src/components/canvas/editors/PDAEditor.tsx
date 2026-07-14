@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import type { Transition } from '@/engines/core/types'
+import type { Transition } from '@/engines/machine/core/types'
 
 interface PDAEditorProps {
   stateId: string

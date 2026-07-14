@@ -5,8 +5,8 @@
 // (UX audit #7 / PRD FR-4.7.) Pure TypeScript — no UI imports.
 // ============================================================
 
-import type { MachineDefinition, SimulationStatus } from '@/engines/core/types'
-import { runToCompletion } from '@/engines/core/engineFactory'
+import type { MachineDefinition, SimulationStatus } from '@/engines/machine/core/types'
+import { runToCompletion } from '@/engines/machine/core/engineFactory'
 
 export type Expectation = 'accept' | 'reject' | null
 

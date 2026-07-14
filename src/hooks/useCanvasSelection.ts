@@ -43,7 +43,7 @@ export function useCanvasSelection(
   }, [])
 
   const onSelectionEnd = useCallback(() => {
-    setSelectionModeActive(false)
+    // Keep selection mode active until user explicitly switches tools or presses Escape
   }, [])
 
   const handleSelectAll = useCallback(() => {

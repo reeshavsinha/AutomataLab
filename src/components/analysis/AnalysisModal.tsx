@@ -7,8 +7,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
 import Dialog from '@/components/common/Dialog'
-import AnalysisWorker from '@/engines/workers/analysis.worker?worker'
-import type { AnalysisRequest, AnalysisResponse } from '@/engines/workers/analysis.worker'
+import AnalysisWorker from '@/engines/machine/workers/analysis.worker?worker'
+import type { AnalysisRequest, AnalysisResponse } from '@/engines/machine/workers/analysis.worker'
 
 type TabId = 'reachability' | 'emptiness' | 'equivalence' | 'inclusion'
 

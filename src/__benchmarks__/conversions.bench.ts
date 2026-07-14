@@ -1,8 +1,8 @@
 import { bench, describe, beforeAll } from 'vitest'
-import { nfaToDfa } from '@/engines/conversions/subsetConstruction'
-import { minimizeDfa } from '@/engines/conversions/minimizeDfa'
-import { nfaComplete } from '@/engines/testing/fixtures'
-import type { MachineDefinition } from '@/engines/core/types'
+import { nfaToDfa } from '@/engines/machine/conversions/subsetConstruction'
+import { minimizeDfa } from '@/engines/machine/conversions/minimizeDfa'
+import { nfaComplete } from '@/engines/machine/testing/fixtures'
+import type { MachineDefinition } from '@/engines/machine/core/types'
 
 describe('Conversion algorithm benchmarks', () => {
   let dfa10: MachineDefinition;

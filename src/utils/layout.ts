@@ -1,4 +1,4 @@
-import type { MachineDefinition, AutomataState } from '@/engines/core/types'
+import type { MachineDefinition, AutomataState } from '@/engines/machine/core/types'
 import type { ELK, ElkNode, ElkExtendedEdge } from 'elkjs/lib/elk-api'
 
 // ============================================================

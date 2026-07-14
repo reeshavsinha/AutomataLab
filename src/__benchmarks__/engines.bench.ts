@@ -1,7 +1,7 @@
 import { bench, describe } from 'vitest'
-import { DFAEngine } from '@/engines/dfa/DFAEngine'
-import { NFAEngine } from '@/engines/nfa/NFAEngine'
-import { dfaToggle, nfaComplete } from '@/engines/testing/fixtures'
+import { DFAEngine } from '@/engines/machine/dfa/DFAEngine'
+import { NFAEngine } from '@/engines/machine/nfa/NFAEngine'
+import { dfaToggle, nfaComplete } from '@/engines/machine/testing/fixtures'
 
 const input10k = 'a'.repeat(10_000)
 

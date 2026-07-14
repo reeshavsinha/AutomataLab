@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { applyAutoLayout } from './layout'
-import type { MachineDefinition, AutomataState, Transition } from '@/engines/core/types'
+import type { MachineDefinition, AutomataState, Transition } from '@/engines/machine/core/types'
 
 const NODE_SIZE = 52
 

@@ -1,0 +1,39 @@
+/* ParserWorkspace.css */
+
+/* ── Override WorkspaceShell sidebar constraints so react-resizable-panels wins ── */
+.workspace-shell-sidebar-left,
+.workspace-shell-sidebar-right {
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+/* ── Compact dark scrollbars throughout parser ── */
+/* Reverting to default scrollbars, or styling them using theme variables */
+.workspace-shell-sidebar-left ::-webkit-scrollbar,
+.workspace-shell-sidebar-right ::-webkit-scrollbar,
+.workspace-shell-content ::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+.workspace-shell-sidebar-left ::-webkit-scrollbar-track,
+.workspace-shell-sidebar-right ::-webkit-scrollbar-track,
+.workspace-shell-content ::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+.workspace-shell-sidebar-left ::-webkit-scrollbar-thumb,
+.workspace-shell-sidebar-right ::-webkit-scrollbar-thumb,
+.workspace-shell-content ::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+.workspace-shell-sidebar-left ::-webkit-scrollbar-thumb:hover,
+.workspace-shell-sidebar-right ::-webkit-scrollbar-thumb:hover,
+.workspace-shell-content ::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+/* Hide handles in syntax tree */
+.react-flow__handle {
+  opacity: 0;
+  pointer-events: none;
+}

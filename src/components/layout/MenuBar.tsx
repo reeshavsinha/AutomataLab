@@ -13,10 +13,12 @@ import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import { useCommandStore } from '@/store/commandStore'
 import { useFileActions } from '@/hooks/useFileActions'
+import { useHistoryStore } from '@/store/historyStore'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
-import { isPDAType, isTMType } from '@/engines/core/utils'
-import type { MachineType } from '@/engines/core/types'
+import { isPDAType, isTMType } from '@/engines/machine/core/utils'
+import WorkspaceSwitcher from './WorkspaceSwitcher'
+import type { MachineType } from '@/engines/machine/core/types'
 import logoUrl from '@/assets/logo.png'
 
 type Item =
@@ -70,6 +72,7 @@ function MenuPopup({ items, onClose, nested }: { items: Item[]; onClose: () => v
             className="menupop-item"
             role="menuitem"
             disabled={it.disabled}
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => { if (!it.disabled) { it.onClick(); onClose() } }}
           >
             {it.checked && <span className="mi-check">✓</span>}
@@ -87,7 +90,52 @@ export default function MenuBar() {
   const [checkingUpdate, setCheckingUpdate] = useState(false)
   const barRef = useRef<HTMLDivElement>(null)
 
-  const { machine, setMachineType, undo, redo, past, future, loadMachine } = useMachineStore()
+  const { machine, setMachineType, loadMachine, activeTabIndex } = useMachineStore()
+  
+  // Hash routing for workspace-agnostic features
+  const [route, setRoute] = useState(window.location.hash)
+  
+  useEffect(() => {
+    const handleHashChange = () => setRoute(window.location.hash)
+    window.addEventListener('hashchange', handleHashChange)
+    return () => window.removeEventListener('hashchange', handleHashChange)
+  }, [])
+
+  const isHub = route === '#/' || route === ''
+  const workspaceType: 'machine' | 'grammar' | 'parser' | 'regex' | 'hub' = 
+    isHub ? 'hub' :
+    route === '#/grammar' ? 'grammar' :
+    route === '#/parser' ? 'parser' : 
+    route === '#/regex' ? 'regex' : 'machine'
+
+  const tabId = workspaceType === 'machine' ? (machine?.id ?? 'global') : 'global'
+
+  // Subscribe to history stacks for active workspace/tab
+  const historyStack = useHistoryStore(s => s.stacks[`${workspaceType}:${tabId}`])
+  const canUndo = (historyStack?.past.length ?? 0) > 0
+  const canRedo = (historyStack?.future.length ?? 0) > 0
+
+  const handleGlobalUndo = () => {
+    clearSelection();
+    if (workspaceType === 'machine') {
+      useMachineStore.getState().undo();
+    } else if (workspaceType === 'grammar') {
+      // TODO
+    } else if (workspaceType === 'parser') {
+      // TODO
+    }
+  }
+
+  const handleGlobalRedo = () => {
+    clearSelection();
+    if (workspaceType === 'machine') {
+      useMachineStore.getState().redo();
+    } else if (workspaceType === 'grammar') {
+      // TODO
+    } else if (workspaceType === 'parser') {
+      // TODO
+    }
+  }
   const status = useSimulationStore((s) => s.status)
   const stepCount = useSimulationStore((s) => s.stepCount)
   const theme = useUIStore((s) => s.theme)
@@ -123,12 +171,12 @@ export default function MenuBar() {
   const isIdle = status === 'idle'
 
   const handleType = (newType: MachineType) => {
-    const oldType = machine.type
+    const oldType = machine?.type
     if (newType === oldType) return
     setMachineType(newType)
     clearSelection()
     const formatChanged = transitionFormat(oldType) !== transitionFormat(newType)
-    if (formatChanged && machine.transitions.length > 0) {
+    if (formatChanged && (machine?.transitions.length ?? 0) > 0) {
       const fmt = transitionFormat(newType) === 'pda' ? 'read, pop → push'
         : transitionFormat(newType) === 'tm' ? 'read → write, dir' : 'input symbols'
       toast.warning(`Switched to ${newType}. Existing transitions now use a different format (${fmt}) — re-check their labels.`)
@@ -190,78 +238,83 @@ export default function MenuBar() {
       ]
     : [{ kind: 'action' as const, label: '(no recent files)', onClick: () => {}, disabled: true }]
 
+  const handleGlobalCut = async () => {
+    const target = document.activeElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      document.execCommand('cut');
+    } else {
+      canvas?.cut();
+    }
+  };
+
+  const handleGlobalCopy = async () => {
+    const target = document.activeElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      document.execCommand('copy');
+    } else {
+      canvas?.copy();
+    }
+  };
+
+  const handleGlobalPaste = async () => {
+    const target = document.activeElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      try {
+        const text = await navigator.clipboard.readText();
+        document.execCommand('insertText', false, text);
+      } catch (err) {
+        document.execCommand('paste');
+      }
+    } else {
+      canvas?.paste();
+    }
+  };
+
+  const handleGlobalSelectAll = () => {
+    const target = document.activeElement;
+    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+      target.select();
+    } else {
+      canvas?.selectAll();
+    }
+  };
+
   const menus: { id: string; label: string; items: Item[] }[] = [
     {
       id: 'file', label: 'File', items: [
-        { kind: 'action', label: 'New', accel: 'Ctrl+N', onClick: file.handleNew },
-        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen },
-        { kind: 'submenu', label: 'Open Recent', items: recentItems },
+        { kind: 'action', label: 'New', accel: 'Ctrl+N', onClick: file.handleNew, disabled: isHub },
+        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'submenu', label: 'Open Recent', items: recentItems, disabled: isHub || workspaceType !== 'machine' },
         { kind: 'sep' },
-        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave },
-        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs },
+        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs, disabled: isHub || workspaceType !== 'machine' },
         { kind: 'sep' },
-        { kind: 'action', label: 'Export…', onClick: () => openModal('export') },
+        { kind: 'action', label: 'Go to Workspace Hub', onClick: () => { window.location.hash = '#/'; }, disabled: isHub },
         ...(isTauri() ? [{ kind: 'sep' as const }, { kind: 'action' as const, label: 'Exit', onClick: handleExit }] : []),
       ],
     },
     {
       id: 'edit', label: 'Edit', items: [
-        { kind: 'action', label: 'Undo', accel: 'Ctrl+Z', onClick: () => { clearSelection(); undo() }, disabled: !(past.length > 0 && canEdit) },
-        { kind: 'action', label: 'Redo', accel: 'Ctrl+Y', onClick: () => { clearSelection(); redo() }, disabled: !(future.length > 0 && canEdit) },
+        { kind: 'action', label: 'Undo', accel: 'Ctrl+Z', onClick: handleGlobalUndo, disabled: isHub || !(canUndo && canEdit) },
+        { kind: 'action', label: 'Redo', accel: 'Ctrl+Y', onClick: handleGlobalRedo, disabled: isHub || !(canRedo && canEdit) },
         { kind: 'sep' },
-        { kind: 'action', label: 'Cut', accel: 'Ctrl+X', onClick: () => canvas?.cut(), disabled: !canvas?.hasSelection || !canEdit },
-        { kind: 'action', label: 'Copy', accel: 'Ctrl+C', onClick: () => canvas?.copy(), disabled: !canvas?.hasSelection },
-        { kind: 'action', label: 'Paste', accel: 'Ctrl+V', onClick: () => canvas?.paste(), disabled: !canvas?.hasClipboard || !canEdit },
-        { kind: 'action', label: 'Delete', accel: 'Del', onClick: () => canvas?.deleteSelection(), disabled: !canvas?.hasSelection || !canEdit },
+        { kind: 'action', label: 'Cut', accel: 'Ctrl+X', onClick: handleGlobalCut, disabled: isHub || !canEdit },
+        { kind: 'action', label: 'Copy', accel: 'Ctrl+C', onClick: handleGlobalCopy, disabled: isHub },
+        { kind: 'action', label: 'Paste', accel: 'Ctrl+V', onClick: handleGlobalPaste, disabled: isHub || !canEdit },
+        { kind: 'action', label: 'Delete', accel: 'Del', onClick: () => canvas?.deleteSelection(), disabled: isHub || !canEdit },
         { kind: 'sep' },
-        { kind: 'action', label: 'Select All', accel: 'Ctrl+A', onClick: () => canvas?.selectAll() },
-        { kind: 'action', label: 'Add State', accel: 'N', onClick: () => canvas?.addState(), disabled: !canEdit },
+        { kind: 'action', label: 'Select All', accel: 'Ctrl+A', onClick: handleGlobalSelectAll, disabled: isHub },
       ],
     },
     {
       id: 'view', label: 'View', items: [
-        { kind: 'action', label: 'Zoom In', onClick: () => canvas?.zoomIn() },
-        { kind: 'action', label: 'Zoom Out', onClick: () => canvas?.zoomOut() },
-        { kind: 'action', label: 'Fit to View', onClick: () => canvas?.fit() },
+        { kind: 'action', label: 'Zoom In', onClick: () => canvas?.zoomIn(), disabled: isHub || !canvas },
+        { kind: 'action', label: 'Zoom Out', onClick: () => canvas?.zoomOut(), disabled: isHub || !canvas },
+        { kind: 'action', label: 'Fit to View', onClick: () => canvas?.fit(), disabled: isHub || !canvas },
         { kind: 'sep' },
-        { kind: 'action', label: 'Auto Layout', onClick: handleAutoLayout },
-        { kind: 'action', label: panelCollapsed ? 'Show Side Panel' : 'Hide Side Panel', onClick: togglePanel },
+        { kind: 'action', label: panelCollapsed ? 'Show Side Panel' : 'Hide Side Panel', onClick: togglePanel, disabled: isHub },
         { kind: 'sep' },
         { kind: 'action', label: theme === 'dark' ? 'Light Theme' : 'Dark Theme', onClick: toggleTheme },
-      ],
-    },
-    {
-      id: 'machine', label: 'Machine', items: [
-        { kind: 'header', label: 'Machine type' },
-        ...TYPES.map((t) => ({ kind: 'action' as const, label: t.label, checked: machine.type === t.value, onClick: () => handleType(t.value), disabled: !canEdit })),
-      ],
-    },
-    {
-      id: 'simulate', label: 'Simulate', items: [
-        { kind: 'action', label: sim?.isPlaying ? 'Pause' : 'Run', accel: 'Space', onClick: () => sim?.play(), disabled: !sim || (isDone && !sim.isPlaying) },
-        { kind: 'action', label: 'Step Forward', accel: '→', onClick: () => sim?.step(), disabled: !sim || isDone },
-        { kind: 'action', label: 'Step Back', accel: '←', onClick: () => sim?.stepBack(), disabled: !sim || stepCount === 0 },
-        { kind: 'action', label: 'Reset', accel: 'R', onClick: () => sim?.reset(), disabled: !sim || isIdle },
-        { kind: 'sep' },
-        { kind: 'action', label: 'Batch test…', onClick: () => openModal('batch') },
-      ],
-    },
-    {
-      id: 'analyze', label: 'Analyze', items: [
-        { kind: 'action', label: 'Reachability Analysis…', onClick: () => openModal('analysis') },
-        { kind: 'action', label: 'Emptiness Checking…', onClick: () => openModal('analysis') },
-        { kind: 'sep' },
-        { kind: 'action', label: 'Equivalence & Inclusion…', onClick: () => openModal('analysis') },
-      ],
-    },
-    {
-      id: 'convert', label: 'Convert', items: [
-        { kind: 'action', label: 'Conversions / Transform…', onClick: () => openModal('convert') },
-        { kind: 'sep' },
-        { kind: 'header', label: 'Available' },
-        { kind: 'action', label: 'NFA → DFA, ε-NFA → NFA', onClick: () => openModal('convert') },
-        { kind: 'action', label: 'Minimize DFA', onClick: () => openModal('convert') },
-        { kind: 'action', label: 'Regex → NFA, CFG → PDA', onClick: () => openModal('convert') },
       ],
     },
     {
@@ -276,12 +329,27 @@ export default function MenuBar() {
     },
   ]
 
-  // F1 → Help (a classic shortcut).
+  // Global Shortcuts
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'F1') { e.preventDefault(); openModal('help') } }
+    const onKey = (e: KeyboardEvent) => { 
+      if (e.key === 'F1') { e.preventDefault(); openModal('help') }
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault()
+          if (e.shiftKey) {
+            if (canRedo && canEdit) handleGlobalRedo()
+          } else {
+            if (canUndo && canEdit) handleGlobalUndo()
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault()
+          if (canRedo && canEdit) handleGlobalRedo()
+        }
+      }
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openModal])
+  }, [openModal, canUndo, canRedo, canEdit, handleGlobalUndo, handleGlobalRedo])
 
   const handleMinimize = async () => {
     if (!isTauri()) return
@@ -324,9 +392,9 @@ export default function MenuBar() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} data-tauri-drag-region>
         <a
           className="menubar-brand"
-          href="https://github.com/reeshavsinha/AutomataLab"
-          onClick={(e) => { e.preventDefault(); openGitHub() }}
-          title={`AutomataLab v${packageJson.version}`}
+          href="#/"
+          onClick={(e) => { e.preventDefault(); window.location.hash = '#/'; }}
+          title={`AutomataLab v${packageJson.version} (Go to Hub)`}
           rel="noopener noreferrer"
         >
           <img
@@ -340,9 +408,8 @@ export default function MenuBar() {
           />
           AutomataLab
         </a>
-        {menus.map((m, index) => (
+        {menus.map((m) => (
           <div key={m.id} style={{ display: 'flex', alignItems: 'center' }} data-tauri-drag-region>
-            {index > 0 && <div style={{ width: '1px', height: '16px', backgroundColor: 'currentColor', opacity: 0.4, margin: '0 6px' }} />}
             <div
               style={{ position: 'relative', display: 'flex' }}
               onMouseEnter={() => { if (open && open !== m.id) setOpen(m.id) }}

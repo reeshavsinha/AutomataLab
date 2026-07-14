@@ -6,7 +6,8 @@ import { useRef, useState } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
-import { isTMType } from '@/engines/core/utils'
+import { useCommandStore } from '@/store/commandStore'
+import { isTMType } from '@/engines/machine/core/utils'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 
 export default function InputBar() {
@@ -16,6 +17,7 @@ export default function InputBar() {
     useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
   const openModal = useUIStore((s) => s.openModal)
+  const sim = useCommandStore((s) => s.sim)
   const isTM = isTMType(machineType)
 
   const isIdle = status === 'idle'
@@ -30,6 +32,12 @@ export default function InputBar() {
     setInputString(value)
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      sim?.play()
+    }
+  }
+
   // Engines fold the just-read symbol into `consumedInput` AND report it again as
   // `currentSymbol`. Render it once — as the highlighted most-recently-read cell —
   // so the tape doesn't show the current symbol twice.
@@ -38,50 +46,62 @@ export default function InputBar() {
       ? consumedInput.slice(0, consumedInput.length - currentSymbol.length)
       : consumedInput
 
+  const BTN: React.CSSProperties = {
+    padding: '1px 8px',
+    background: 'transparent',
+    border: '1px solid var(--border-default)',
+    borderRadius: '3px',
+    cursor: 'pointer',
+    color: 'var(--text-secondary)',
+    fontSize: '0.72rem',
+    fontFamily: 'var(--font-mono)',
+    flexShrink: 0,
+    whiteSpace: 'nowrap'
+  };
+
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-      padding: '6px 12px',
-      background: 'var(--chrome-bg)',
-      borderBottom: '1px solid var(--chrome-border)',
       flexShrink: 0,
+      borderBottom: '1px solid var(--border-subtle)',
+      background: 'var(--bg-secondary)'
     }}>
-      <span style={{
-        fontSize: '11px',
-        color: 'var(--text-muted)',
-        fontFamily: 'var(--font-mono)',
-        flexShrink: 0,
-        letterSpacing: '0.06em',
+      {/* Row 1: INPUT STRING */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '6px',
+        padding: '4px 10px', borderBottom: '1px solid var(--border-subtle)', minHeight: '28px'
       }}>
-        INPUT
-      </span>
+        <span style={{
+          fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em',
+          color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', flexShrink: 0
+        }}>
+          INPUT STRING
+        </span>
 
-      <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
-        <input
-          ref={inputRef}
-          type="text"
-          value={inputString}
-          onChange={(e) => handleInputChange(e.target.value)}
-          disabled={status === 'running'}
-          placeholder={isTM ? 'Enter initial tape contents (e.g. 0011)' : 'Enter input string (e.g. aabb)'}
-          style={{
-            flex: 1,
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '5px 30px 5px 10px',
-            fontSize: '13px',
-            fontFamily: 'var(--font-mono)',
-            color: 'var(--text-primary)',
-            outline: 'none',
-            opacity: status === 'running' ? 0.5 : 1,
-          }}
-          onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
-          onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
-        />
-        {!isTM && (
+        <div style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center' }}>
+          <input
+            ref={inputRef}
+            type="text"
+            value={inputString}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={status === 'running'}
+            placeholder={isTM ? 'Enter initial tape contents' : 'Enter input string'}
+            style={{
+              flex: 1,
+              padding: '2px 8px',
+              background: 'var(--bg-primary)',
+              border: '1px solid var(--border-default)',
+              borderRadius: '3px',
+              color: 'var(--text-primary)',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '0.8rem',
+              outline: 'none',
+              minWidth: 0,
+              opacity: status === 'running' ? 0.5 : 1,
+            }}
+            onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
+            onBlur={(e) => (e.target.style.borderColor = 'var(--border-default)')}
+          />
           <div style={{ position: 'absolute', right: '4px' }}>
             <EpsilonInserter
               targetRef={inputRef}
@@ -91,70 +111,76 @@ export default function InputBar() {
               size="sm"
             />
           </div>
+        </div>
+
+        {!isTM && isIdle && (
+          <span
+            title="An empty input tests the empty string ε"
+            style={{ flexShrink: 0, fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
+          >
+            empty = ε
+          </span>
         )}
+
+        <button
+          onClick={() => openModal('batch')}
+          title="Test many strings at once (batch / test-suite runner)"
+          aria-label="Open batch tester"
+          style={BTN}
+        >
+          Batch…
+        </button>
       </div>
 
-      {/* Membership of the empty string ε is a routine query — make it explicit
-          that an empty field means ε (UX audit THY-4). Not shown for TM/LBA,
-          where an empty field means a blank tape. */}
-      {!isTM && isIdle && (
-        <span
-          title="An empty input tests the empty string ε"
-          style={{ flexShrink: 0, fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}
-        >
-          empty = ε
-        </span>
-      )}
-
-      <button
-        onClick={() => openModal('batch')}
-        title="Test many strings at once (batch / test-suite runner)"
-        aria-label="Open batch tester"
-        style={{
-          flexShrink: 0,
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          color: 'var(--text-secondary)',
-          fontSize: '12px',
-          fontFamily: 'var(--font-mono)',
-          padding: '5px 10px',
-          cursor: 'pointer',
-        }}
-      >
-        Batch…
-      </button>
-
-      {/* Inline FA tape progress. TM head moves both ways, so the dedicated
-          TapePanel is canonical there and this compact view is hidden. */}
-      {!isIdle && !isTM && (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1px',
-          fontFamily: 'var(--font-mono)',
-          fontSize: '13px',
-          flexShrink: 0,
+      {/* Row 2: INPUT BUFFER */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: '0',
+        padding: '3px 10px', minHeight: '24px', overflowX: 'auto'
+      }}>
+        <span style={{
+          fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em',
+          color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', minWidth: '92px', marginRight: '8px', flexShrink: 0
         }}>
-          <span style={{ color: 'var(--text-muted)', letterSpacing: '2px' }}>
-            {headConsumed}
+          INPUT BUFFER
+        </span>
+
+        {isIdle ? (
+          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.77rem' }}>
+            {inputString ? 'Press Enter/Space to start' : ''}
           </span>
-          {currentSymbol && (
-            <span style={{
-              background: 'var(--text-primary)',
-              color: 'var(--bg-primary)',
-              padding: '0 5px',
-              fontWeight: 700,
-              margin: '0 2px',
-            }}>
-              {currentSymbol}
+        ) : isTM ? (
+          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.77rem' }}>
+            (Tape controls are available in the Tape panel)
+          </span>
+        ) : (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '1px',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '13px',
+            flexShrink: 0,
+          }}>
+            <span style={{ color: 'var(--text-muted)', letterSpacing: '2px' }}>
+              {headConsumed}
             </span>
-          )}
-          <span style={{ color: 'var(--text-secondary)', letterSpacing: '2px' }}>
-            {remainingInput}
-          </span>
-        </div>
-      )}
+            {currentSymbol && (
+              <span style={{
+                background: 'var(--text-primary)',
+                color: 'var(--bg-primary)',
+                padding: '0 5px',
+                fontWeight: 700,
+                margin: '0 2px',
+              }}>
+                {currentSymbol}
+              </span>
+            )}
+            <span style={{ color: 'var(--text-secondary)', letterSpacing: '2px' }}>
+              {remainingInput}
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

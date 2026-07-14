@@ -11,7 +11,7 @@ import {
   traceToJSON,
   treeToJSON,
 } from './exporters'
-import type { Configuration, HistoryEntry, MachineDefinition } from '@/engines/core/types'
+import type { Configuration, HistoryEntry, MachineDefinition } from '@/engines/machine/core/types'
 
 const dfa: MachineDefinition = {
   id: 'd', name: 'Ends In B', type: 'DFA', language: '', alphabet: ['a', 'b'],
@@ -37,7 +37,7 @@ describe('deltaTableToCSV', () => {
   it('emits an FA matrix with start/accept decoration', () => {
     const csv = deltaTableToCSV(dfa)
     const lines = csv.split('\r\n')
-    expect(lines[0]).toBe('δ,a,b')
+    expect(lines[0]).toBe('\ufeffδ,a,b')
     // Start floats to the top; cells hold the target labels.
     expect(lines[1]).toBe('→ q0,q0,q1')
     expect(lines[2]).toBe('* q1,q0,q1')
@@ -46,7 +46,7 @@ describe('deltaTableToCSV', () => {
   it('emits PDA moves in long format', () => {
     const csv = deltaTableToCSV(dpda)
     const lines = csv.split('\r\n')
-    expect(lines[0]).toBe('From,Read,Pop,Push,To')
+    expect(lines[0]).toBe('\ufeffFrom,Read,Pop,Push,To')
     expect(lines[1]).toBe('→ * s,a,Z,aZ,s')
   })
 })
@@ -68,7 +68,7 @@ describe('traceToCSV / traceToJSON', () => {
   it('renders the per-step trace with resolved labels', () => {
     const csv = traceToCSV(dfa, history)
     const lines = csv.split('\r\n')
-    expect(lines[0]).toBe('Step,Read,From,To,Status')
+    expect(lines[0]).toBe('\ufeffStep,Read,From,To,Status')
     expect(lines[1]).toBe('0,b,q0,q1,accepted')
   })
 

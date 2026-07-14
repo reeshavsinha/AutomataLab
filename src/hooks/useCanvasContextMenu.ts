@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import type { ContextMenuConfig } from '@/components/canvas/ContextMenu'
 import { useMachineStore } from '@/store/machineStore'
-import { isTMType } from '@/engines/core/utils'
+import { isTMType } from '@/engines/machine/core/utils'
 
 export function useCanvasContextMenu(rfInstance: any, transitionMode: any, cancelDrawing: () => void) {
   const machine = useMachineStore((s) => s.machine)

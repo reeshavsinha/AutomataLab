@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import { tmTapeOps, BLANK } from '@/engines/core/utils'
-import type { Transition } from '@/engines/core/types'
+import { tmTapeOps, BLANK } from '@/engines/machine/core/utils'
+import type { Transition } from '@/engines/machine/core/types'
 
 interface TMEditorProps {
   stateId: string

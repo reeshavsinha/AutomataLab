@@ -54,6 +54,10 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     }
   }, [renamingStateId, id])
 
+  const toggleAccept = useCallback(() => {
+    updateState(id, { isAccept: !nodeData.isAccept });
+  }, [id, nodeData.isAccept, updateState]);
+
   const startEdit = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
@@ -100,7 +104,6 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     nodeData.isAccept ? 'accept' : '',
     nodeData.isReject ? 'reject' : '',
     isActive ? 'active' : '',
-    isOnPath ? 'on-path' : '',
     halted && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
     halted && isActive && status === 'rejected' ? 'rejected-final' : '',
     halted && isActive && status === 'stuck' ? 'stuck-final' : '',
@@ -124,7 +127,7 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
 
       <div
         className={classes}
-        onDoubleClick={startEdit}
+        onDoubleClick={toggleAccept}
         title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}${nodeData.isReject ? ' (reject)' : ''}${nodeData.description ? `\n${nodeData.description}` : ''}`}
       >
         {isEditing ? (

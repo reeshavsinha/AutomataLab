@@ -17,7 +17,7 @@ import {
   buildComputationTree,
   type ComputationTreeNode,
   type TreeNodeStatus,
-} from '@/engines/core/computationTree'
+} from '@/engines/machine/core/computationTree'
 
 /** Cap on rendered rows — guards against UI freeze on huge branchings (PRD risk). */
 const MAX_ROWS = 600

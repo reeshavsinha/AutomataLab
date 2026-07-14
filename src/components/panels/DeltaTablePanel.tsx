@@ -7,6 +7,10 @@
 // ============================================================
 
 import { useRef, useState } from 'react'
+
+function convertEpsilon(val: string): string {
+  return val.replace(/\b(eps|epsilon)\b/gi, 'ε');
+}
 import { useMachineStore } from '@/store/machineStore'
 import { useUIStore } from '@/store/uiStore'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
@@ -16,8 +20,8 @@ import {
   formatTmTransition,
   tmTapeOps,
   BLANK,
-} from '@/engines/core/utils'
-import type { AutomataState, Transition } from '@/engines/core/types'
+} from '@/engines/machine/core/utils'
+import type { AutomataState, Transition } from '@/engines/machine/core/types'
 
 function splitSymbols(raw: string): string[] {
   return raw
@@ -331,7 +335,7 @@ function DeltaRow({
           <>
             <input
               value={tmRead}
-              onChange={(e) => setTmRead(e.target.value)}
+              onChange={(e) => setTmRead(convertEpsilon(e.target.value))}
               onBlur={() => onChange({ read: tmRead.trim(), reads: undefined })}
               placeholder={blank}
               title={`Symbol read (blank "${blank}")`}
@@ -340,7 +344,7 @@ function DeltaRow({
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
             <input
               value={tmWrite}
-              onChange={(e) => setTmWrite(e.target.value)}
+              onChange={(e) => setTmWrite(convertEpsilon(e.target.value))}
               onBlur={() => onChange({ write: tmWrite.trim(), writes: undefined })}
               placeholder={blank}
               title={`Symbol written (blank "${blank}")`}
@@ -362,7 +366,7 @@ function DeltaRow({
           <>
             <input
               value={read}
-              onChange={(e) => setRead(e.target.value)}
+              onChange={(e) => setRead(convertEpsilon(e.target.value))}
               onBlur={() => onChange({ read: read.trim() })}
               placeholder="ε"
               title="Input read (blank = ε)"
@@ -371,7 +375,7 @@ function DeltaRow({
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
             <input
               value={pop}
-              onChange={(e) => setPop(e.target.value)}
+              onChange={(e) => setPop(convertEpsilon(e.target.value))}
               onBlur={() => onChange({ pop: pop.trim() })}
               placeholder="ε"
               title="Stack popped (blank = ε)"
@@ -380,7 +384,7 @@ function DeltaRow({
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
             <input
               value={push}
-              onChange={(e) => setPush(e.target.value)}
+              onChange={(e) => setPush(convertEpsilon(e.target.value))}
               onBlur={() => onChange({ push: push.trim() })}
               placeholder="ε"
               title="Pushed; first char on top (blank = ε)"
@@ -392,7 +396,7 @@ function DeltaRow({
             <input
               ref={symbolRef}
               value={symbols}
-              onChange={(e) => setSymbols(e.target.value)}
+              onChange={(e) => setSymbols(convertEpsilon(e.target.value))}
               onBlur={() => {
                 const next = splitSymbols(symbols)
                 if (next.length > 0) onChange({ symbols: next })
@@ -566,9 +570,9 @@ function AddRow({
       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', paddingLeft: '18px' }}>
         {isTM ? (
           <>
-            <input value={read} onChange={(e) => setRead(e.target.value)} placeholder={blank} title="Read" style={cellInput} />
+            <input value={read} onChange={(e) => setRead(convertEpsilon(e.target.value))} placeholder={blank} title="Read" style={cellInput} />
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
-            <input value={write} onChange={(e) => setWrite(e.target.value)} placeholder={blank} title="Write" style={cellInput} />
+            <input value={write} onChange={(e) => setWrite(convertEpsilon(e.target.value))} placeholder={blank} title="Write" style={cellInput} />
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
             <select value={dir} onChange={(e) => setDir(e.target.value as 'L' | 'R' | 'S')} title="Move" style={selectCell}>
               <option value="L">L</option>
@@ -578,18 +582,18 @@ function AddRow({
           </>
         ) : isPDA ? (
           <>
-            <input value={read} onChange={(e) => setRead(e.target.value)} placeholder="ε" title="Read" style={cellInput} />
+            <input value={read} onChange={(e) => setRead(convertEpsilon(e.target.value))} placeholder="ε" title="Read" style={cellInput} />
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
-            <input value={pop} onChange={(e) => setPop(e.target.value)} placeholder="ε" title="Pop" style={cellInput} />
+            <input value={pop} onChange={(e) => setPop(convertEpsilon(e.target.value))} placeholder="ε" title="Pop" style={cellInput} />
             <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>→</span>
-            <input value={push} onChange={(e) => setPush(e.target.value)} placeholder="ε" title="Push" style={cellInput} />
+            <input value={push} onChange={(e) => setPush(convertEpsilon(e.target.value))} placeholder="ε" title="Push" style={cellInput} />
           </>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, position: 'relative' }}>
             <input
               ref={symbolRef}
               value={symbols}
-              onChange={(e) => setSymbols(e.target.value)}
+              onChange={(e) => setSymbols(convertEpsilon(e.target.value))}
               onKeyDown={(e) => e.key === 'Enter' && submit()}
               placeholder="a, b, ε"
               title="Symbols (comma-separated)"

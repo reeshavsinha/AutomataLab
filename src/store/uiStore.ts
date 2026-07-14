@@ -110,6 +110,7 @@ interface UIStore {
   selectTransition: (id: string | null) => void
   setActivePanel: (panel: ActivePanel) => void
   togglePanel: () => void
+  setPanelCollapsed: (collapsed: boolean) => void
   setEditingTransition: (id: string | null) => void
   openTransitionEditor: (stateId: string) => void
   closeTransitionEditor: () => void
@@ -182,6 +183,13 @@ export const useUIStore = create<UIStore>((set) => ({
       return { panelCollapsed }
     }),
 
+  setPanelCollapsed: (panelCollapsed) =>
+    set((s) => {
+      if (s.panelCollapsed === panelCollapsed) return s;
+      if (typeof localStorage !== 'undefined') localStorage.setItem(COLLAPSE_KEY, panelCollapsed ? '1' : '0')
+      return { panelCollapsed }
+    }),
+
   setEditingTransition: (isEditingTransition) => set({ isEditingTransition }),
 
   openTransitionEditor: (transitionEditorStateId) => set({ transitionEditorStateId }),
@@ -192,7 +200,13 @@ export const useUIStore = create<UIStore>((set) => ({
   stopRenaming: () => set({ renamingStateId: null }),
 
   clearSelection: () =>
-    set({ selectedStateIds: [], selectedTransitionIds: [] }),
+    set({ 
+      selectedStateIds: [], 
+      selectedTransitionIds: [],
+      isEditingTransition: null,
+      transitionEditorStateId: null,
+      renamingStateId: null
+    }),
 
   setClipboard: (clipboard) => set({ clipboard }),
 

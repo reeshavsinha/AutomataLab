@@ -8,6 +8,44 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('automatalab-theme');
+          if (saved === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script>
+      window.onerror = function(message, source, lineno, colno, error) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '0';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.background = 'red';
+        div.style.color = 'white';
+        div.style.padding = '10px';
+        div.style.zIndex = '9999';
+        div.innerText = String(message) + ' at ' + String(source) + ':' + String(lineno);
+        document.body.appendChild(div);
+      };
+      window.onunhandledrejection = function(event) {
+        var div = document.createElement('div');
+        div.style.position = 'fixed';
+        div.style.top = '50px';
+        div.style.left = '0';
+        div.style.width = '100%';
+        div.style.background = 'orange';
+        div.style.color = 'white';
+        div.style.padding = '10px';
+        div.style.zIndex = '9999';
+        div.innerText = 'Unhandled Rejection: ' + String(event.reason);
+        document.body.appendChild(div);
+      };
+    </script>
   </head>
   <body>
     <div id="root"></div>

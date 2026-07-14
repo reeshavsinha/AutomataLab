@@ -5,7 +5,7 @@
 // ============================================================
 
 import { create } from 'zustand'
-import type { Configuration, HistoryEntry, SimulationStatus, TapeSnapshot } from '@/engines/core/types'
+import type { Configuration, HistoryEntry, SimulationStatus, TapeSnapshot } from '@/engines/machine/core/types'
 
 /**
  * Cap on retained history entries. The log appends one entry per step; on a long

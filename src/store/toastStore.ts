@@ -5,7 +5,7 @@
 // ============================================================
 
 import { create } from 'zustand'
-import { generateId } from '@/engines/core/utils'
+import { generateId } from '@/engines/machine/core/utils'
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning'
 

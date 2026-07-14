@@ -1,16 +1,14 @@
 import React, { useRef, useState } from 'react'
-import type { MachineDefinition, MachineType } from '@/engines/core/types'
+import type { MachineDefinition, MachineType } from '@/engines/machine/core/types'
 import {
   enfaToNfa,
   nfaToDfa,
   minimizeDfa,
   regexToNfa,
   cfgToPda,
-  dfaToRegex,
-  pdaToCfg,
   type ConversionResult,
   type ConversionMode,
-} from '@/engines/conversions'
+} from '@/engines/machine/conversions'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 
 export interface ConversionPlugin {
@@ -240,24 +238,6 @@ export const CONVERSION_PLUGINS: ConversionPlugin[] = [
     inputComponent: CFGInput,
     execute: (text: string) => cfgToPda(text),
     animationBuilder: defaultAnimationBuilder,
-  },
-  {
-    kind: 'dfa-to-regex',
-    label: 'DFA/NFA → Regex',
-    description: 'Extract Regex via State Elimination.',
-    mode: 'extract',
-    appliesTo: ['DFA', 'NFA', 'ENFA'],
-    resultType: 'NFA', // not used for extract
-    execute: (machine: MachineDefinition) => dfaToRegex(machine),
-  },
-  {
-    kind: 'pda-to-cfg',
-    label: 'PDA → CFG',
-    description: 'Extract Grammar via standard triplet construction.',
-    mode: 'extract',
-    appliesTo: ['DPDA', 'NPDA'],
-    resultType: 'NPDA', // not used for extract
-    execute: (machine: MachineDefinition) => pdaToCfg(machine),
   },
 ]
 

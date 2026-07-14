@@ -4,8 +4,8 @@
 // Returns structured errors and warnings.
 // ============================================================
 
-import type { MachineDefinition, ValidationError } from '@/engines/core/types'
-import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, tmTapeOps } from '@/engines/core/utils'
+import type { MachineDefinition, ValidationError } from '@/engines/machine/core/types'
+import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, tmTapeOps } from '@/engines/machine/core/utils'
 
 export function validateMachine(machine: MachineDefinition): ValidationError[] {
   const errors: ValidationError[] = []
@@ -142,27 +142,7 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
 function validatePDA(machine: MachineDefinition, errors: ValidationError[]): void {
   const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
 
-  // Well-formed read/pop: each must denote at most a single symbol.
-  for (const t of machine.transitions) {
-    const read = t.read ?? ''
-    const pop = t.pop ?? ''
-    if (!isEpsilon(read) && read.length > 1) {
-      errors.push({
-        severity: 'error',
-        code: 'PDA_BAD_READ',
-        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} reads "${read}". A PDA reads a single input symbol (or ε) per move.`,
-        transitionId: t.id,
-      })
-    }
-    if (!isEpsilon(pop) && pop.length > 1) {
-      errors.push({
-        severity: 'error',
-        code: 'PDA_BAD_POP',
-        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} pops "${pop}". A PDA pops a single stack symbol (or ε) per move.`,
-        transitionId: t.id,
-      })
-    }
-  }
+  // Well-formed read/pop: handled dynamically by the engine now.
 
   // Stack alphabet Γ (when declared): pops/pushes should stay within it. These are
   // warnings — Γ is declarative and the engine doesn't constrain symbols (UX #7).
@@ -181,7 +161,15 @@ function validatePDA(machine: MachineDefinition, errors: ValidationError[]): voi
       }
       const push = t.push ?? ''
       if (!isEpsilon(push)) {
-        const bad = [...push].find((ch) => !gammaSet.has(ch))
+        let pushSymbols: string[]
+        if (push.includes(',')) {
+          pushSymbols = push.split(',')
+        } else if (gamma && gamma.includes(push)) {
+          pushSymbols = [push]
+        } else {
+          pushSymbols = Array.from(push)
+        }
+        const bad = pushSymbols.find((sym) => !gammaSet.has(sym))
         if (bad !== undefined) {
           errors.push({
             severity: 'warning',

@@ -1,0 +1,102 @@
+.workspace-shell-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  flex: 1;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+}
+
+.workspace-shell-header {
+  flex-shrink: 0;
+}
+
+.workspace-shell-toolbar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background-color: var(--bg-secondary);
+}
+
+.workspace-shell-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.workspace-shell-sidebar {
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-secondary);
+  overflow: hidden;
+}
+
+.workspace-shell-sidebar-left {
+  border-right: 1px solid var(--border-subtle);
+}
+
+.workspace-shell-sidebar-right {
+  border-left: 1px solid var(--border-subtle);
+}
+
+.workspace-shell-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background-color: var(--bg-primary);
+  position: relative;
+}
+
+.workspace-shell-statusbar {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+/* React Resizable Panels - Global Handle Styles */
+.workspace-resize-handle {
+  flex: 0 0 6px;
+  position: relative;
+  outline: none;
+  background-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  z-index: 10;
+}
+
+.workspace-resize-handle[data-panel-group-direction="horizontal"] {
+  cursor: col-resize;
+}
+
+.workspace-resize-handle[data-panel-group-direction="vertical"] {
+  cursor: row-resize;
+}
+
+.workspace-resize-handle:hover,
+.workspace-resize-handle[data-resize-handle-active] {
+  background-color: rgba(59, 130, 246, 0.2); /* blue tint on hover/drag */
+}
+
+.workspace-resize-handle-inner {
+  background-color: var(--border-subtle);
+  transition: background-color 0.2s ease;
+}
+
+.workspace-resize-handle[data-panel-group-direction="horizontal"] > .workspace-resize-handle-inner {
+  width: 2px;
+  height: 100%;
+}
+
+.workspace-resize-handle[data-panel-group-direction="vertical"] > .workspace-resize-handle-inner {
+  height: 2px;
+  width: 100%;
+}
+
+.workspace-resize-handle:hover > .workspace-resize-handle-inner,
+.workspace-resize-handle[data-resize-handle-active] > .workspace-resize-handle-inner {
+  background-color: #3b82f6;
+}

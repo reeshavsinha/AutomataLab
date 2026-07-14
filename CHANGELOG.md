@@ -2,6 +2,16 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v5.0.0
+
+### Added
+- **Grammar Lab:** A dedicated workspace for designing and analyzing Context-Free Grammars. Features include real-time Nullability, FIRST, and FOLLOW set computations, as well as ambiguity and left-recursion detection.
+- **Grammar Transformations:** Natively convert any Context-Free Grammar into Chomsky Normal Form (CNF) and Greibach Normal Form (GNF) with a single click.
+- **Parser Studio:** A massive new workspace for executing Top-Down and Bottom-Up parsers.
+- **Deterministic Parsers:** Construct Parse Tables and visualize Shift/Reduce actions for LL(1), LR(0), SLR(1), LALR(1), and CLR(1) algorithms.
+- **General Parsers:** Parse any ambiguous grammar using the CYK dynamic programming algorithm or the Earley chart parser.
+- **Visualizations:** Real-time generation of the LR Item Set DFA, interactive CYK matrices, and top-down/bottom-up step-by-step Abstract Syntax Tree (AST) building visualizations.
+
 ## v4.1.0
 
 ### Added

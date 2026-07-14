@@ -719,9 +719,7 @@ html.lenis, html.lenis body {
   flex: 1;
 }
 
-.lp-feature-item:nth-child(1) .lp-feature-text {
-  max-width: 680px;
-}
+
 
 .lp-feature-badges {
   display: flex;
@@ -808,9 +806,7 @@ html.lenis, html.lenis body {
   font-family: 'Inter', sans-serif;
   font-size: 3.6rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--lp-accent), #ffffff);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--lp-text);
   line-height: 1;
 }
 

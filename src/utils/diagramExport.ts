@@ -5,13 +5,13 @@
 // native dialog under Tauri (binary write for PNG) and an anchor download on web.
 // ============================================================
 
-import type { MachineDefinition } from '@/engines/core/types'
+import type { MachineDefinition } from '@/engines/machine/core/types'
 import { isTauri } from '@tauri-apps/api/core'
 import { machineToSVG, LIGHT_COLORS, DARK_COLORS, type DiagramSvgResult } from '@/utils/diagramSvg'
 import { downloadText, fileStem } from '@/utils/exporters'
 
 /** Render the whole machine (real states + text notes) to SVG for export. */
-function renderFullSvg(machine: MachineDefinition, dark: boolean): DiagramSvgResult {
+export function renderFullSvg(machine: MachineDefinition, dark: boolean): DiagramSvgResult {
   return machineToSVG(machine, {
     colors: dark ? DARK_COLORS : LIGHT_COLORS,
     includeTextNodes: true,
@@ -23,6 +23,12 @@ function renderFullSvg(machine: MachineDefinition, dark: boolean): DiagramSvgRes
 export async function exportDiagramSVG(machine: MachineDefinition, dark = false): Promise<string | null> {
   const { svg } = renderFullSvg(machine, dark)
   return downloadText(`${fileStem(machine)}.svg`, svg, 'svg')
+}
+
+/** Copy the diagram as an SVG string to the clipboard. */
+export async function copyDiagramSVG(machine: MachineDefinition, dark = false): Promise<void> {
+  const { svg } = renderFullSvg(machine, dark)
+  await navigator.clipboard.writeText(svg)
 }
 
 /** Rasterise the SVG to a PNG blob at `scale`× the natural size (DOM required). */
@@ -78,4 +84,23 @@ export async function exportDiagramPNG(machine: MachineDefinition, dark = false,
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
   return filename
+}
+
+/** Copy the diagram as a PNG image to the clipboard. */
+export async function copyDiagramPNG(machine: MachineDefinition, dark = false, scale = 2): Promise<void> {
+  const result = renderFullSvg(machine, dark)
+  const blob = await svgToPngBlob(result, scale)
+  if (navigator.clipboard && window.ClipboardItem) {
+    await navigator.clipboard.write([
+      new ClipboardItem({ 'image/png': blob })
+    ])
+  } else {
+    throw new Error('Clipboard API not supported.')
+  }
+}
+
+/** Copy the machine definition as JSON to the clipboard. */
+export async function copyMachineJSON(machine: MachineDefinition): Promise<void> {
+  const jsonStr = JSON.stringify(machine, null, 2)
+  await navigator.clipboard.writeText(jsonStr)
 }

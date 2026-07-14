@@ -9,8 +9,8 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
-import { isTMType } from '@/engines/core/utils'
-import type { TapeSnapshot } from '@/engines/core/types'
+import { isTMType } from '@/engines/machine/core/utils'
+import type { TapeSnapshot } from '@/engines/machine/core/types'
 
 /** Blank padding / max half-width for the idle preview window (mirrors the engine). */
 const PREVIEW_PAD = 3
@@ -22,7 +22,7 @@ const PREVIEW_HALF = 150
  * tape live while idle instead of showing an empty placeholder.
  */
 function buildPreviewTapes(input: string, tapeCount: number, blank: string): TapeSnapshot[] {
-  const chars = input === '' ? [] : input.split('')
+  const chars = input === '' ? [] : Array.from(input)
   const tapes: TapeSnapshot[] = []
   for (let i = 0; i < tapeCount; i++) {
     const tc = i === 0 ? chars : []
