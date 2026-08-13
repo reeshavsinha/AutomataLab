@@ -453,7 +453,8 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
           background: 'var(--bg-primary)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '3px',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          flexShrink: 0
         }}>
           <button
             onClick={() => setViewMode('table')}
@@ -465,12 +466,13 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
               border: 'none',
               background: viewMode === 'table' ? 'var(--trace-ring)' : 'transparent',
               color: viewMode === 'table' ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontFamily: 'var(--font-mono)'
+              fontFamily: 'var(--font-mono)',
+              whiteSpace: 'nowrap'
             }}
           >
             Parse Table
           </button>
-          {presentation?.automatonVisible && (
+          {activeTable && (
             <button
               onClick={() => setViewMode('automaton')}
               style={{
@@ -482,7 +484,8 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
                 borderLeft: '1px solid var(--border-subtle)',
                 background: viewMode === 'automaton' ? 'var(--trace-ring)' : 'transparent',
                 color: viewMode === 'automaton' ? 'var(--text-primary)' : 'var(--text-muted)',
-                fontFamily: 'var(--font-mono)'
+                fontFamily: 'var(--font-mono)',
+                whiteSpace: 'nowrap'
               }}
             >
               Automaton Graph
@@ -494,7 +497,7 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
         {metadata && (
           <div style={{
             display: 'flex', gap: '16px', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-            alignItems: 'center'
+            alignItems: 'center', flexShrink: 1, minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap'
           }}>
             <span title={metadata.educationalDescription}>
               Complexity: <b style={{color: 'var(--text-primary)'}}>{metadata.complexity}</b>
@@ -515,7 +518,11 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
             fontSize: '0.65rem',
             fontFamily: 'var(--font-mono)',
             fontWeight: 600,
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            flexShrink: 1,
+            minWidth: 0,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
           }}>
             Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span>
           </div>

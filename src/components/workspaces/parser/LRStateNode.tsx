@@ -19,37 +19,39 @@ export function LRStateNode({ data }: { data: LRStateNodeData }) {
       minWidth: '120px',
       fontFamily: 'var(--font-mono)',
       fontSize: '0.75rem',
-      overflow: 'hidden'
+      position: 'relative'
     }}>
+      {data.selfLoops && data.selfLoops.length > 0 && (
+        <div style={{
+          position: 'absolute',
+          top: '-10px',
+          right: '-10px',
+          zIndex: 10,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '3px',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: '10px',
+          padding: '1px 6px',
+          fontSize: '10px',
+          color: 'var(--text-primary)',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+          pointerEvents: 'none'
+        }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1 }}>↻</span>
+          <span>{data.selfLoops.join(', ')}</span>
+        </div>
+      )}
+
       <Handle 
         type="target" 
         position={Position.Left} 
         style={{ left: '50%', top: '50%', opacity: 0, pointerEvents: 'none' }} 
       />
       
-      <div style={{ position: 'relative' }}>
-        {data.selfLoops && data.selfLoops.length > 0 && (
-          <div style={{
-            position: 'absolute',
-            right: -8,
-            top: '50%',
-            transform: 'translate(100%, -50%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: '12px',
-            padding: '2px 8px',
-            fontSize: '11px',
-            color: 'var(--text-primary)',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-          }}>
-            <span style={{ fontSize: '14px', color: 'var(--text-muted)' }}>↻</span>
-            {data.selfLoops.join(', ')}
-          </div>
-        )}
+      <div>
         <div style={{
           background: data.isFocused ? 'rgba(96,165,250,0.15)' : 'var(--bg-tertiary)',
           padding: '2px 8px',

@@ -44,7 +44,7 @@ export function AutomatonViewerPanel() {
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>(automatonState?.algorithm === algorithm ? automatonState.nodes : []);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(automatonState?.algorithm === algorithm ? automatonState.edges : []);
   const [isLayingOut, setIsLayingOut] = useState(false);
-  const [showExtended, setShowExtended] = useState(true);
+  const [showExtended, setShowExtended] = useState(false);
   const [layoutSeed, setLayoutSeed] = useState(0);
   const [isLocked, setIsLocked] = useState(true);
 
@@ -223,7 +223,7 @@ export function AutomatonViewerPanel() {
             ...original,
             sourceHandle: isExtended ? 'extended' : undefined,
             type: 'lrEdge',
-            label: isStub ? `${original.label} ---> ${original.target}` : original.label,
+            label: isStub ? `${original.label} ---> State ${original.target}` : original.label,
             data: { ...original.data, isStub, classification: e.classification, originalLabel: original.label, labelOffset },
             markerEnd: isStub ? undefined : { type: MarkerType.ArrowClosed, color: 'var(--text-muted)' },
             style: { 
@@ -325,7 +325,7 @@ export function AutomatonViewerPanel() {
               return {
                 ...e,
                 sourceHandle: isExtended ? 'extended' : undefined,
-                label: isStub ? `${originalLabel} ---> ${e.target}` : originalLabel,
+                label: isStub ? `${originalLabel} ---> State ${e.target}` : originalLabel,
                 data: { 
                   ...e.data, 
                   isStub,

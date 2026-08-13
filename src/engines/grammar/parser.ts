@@ -66,13 +66,9 @@ export function tokenizeGrammarString(str: string, declaredNonterminals: Set<str
       continue;
     }
     
-    // Check for multi-character terminal (lowercase only, no uppercase)
-    const termMatch = str.slice(i).match(/^([a-z][a-z0-9_]*)/);
-    if (termMatch) {
-      tokens.push(termMatch[0]);
-      i += termMatch[0].length;
-      continue;
-    }
+    // No greedy multi-char fallback here. Multi-character terminals must have been
+    // explicitly declared (matched via the `ts` loop above) or space-separated by
+    // the caller. Anything else falls through to the single-char terminal below.
     
     // Otherwise, it's a single character terminal
     tokens.push(str[i]);
@@ -148,7 +144,41 @@ export function parseGrammarText(text: string): CFG {
     }
 
     for (const alt of alternatives) {
-      const symbols = tokenizeGrammarString(alt, declaredNonterminals);
+      // If the alternative contains spaces, tokenize by whitespace-separated words/symbols first
+      const trimmedAlt = alt.trim();
+      let symbols: GrammarSymbol[] = [];
+      if (/\s+/.test(trimmedAlt)) {
+        const rawTokens = trimmedAlt.split(/\s+/);
+        for (const tok of rawTokens) {
+          if (!tok) continue;
+          // Check if this token is a declared nonterminal first
+          if (declaredNonterminals.has(tok)) {
+            symbols.push(tok);
+          } else if (/^[A-Z][A-Za-z0-9_']*$/.test(tok)) {
+            // Looks like a nonterminal by shape even if not declared yet
+            symbols.push(tok);
+          } else if (/^[a-z][a-z0-9_]*$/.test(tok)) {
+            // Plain lowercase word (e.g. 'id', 'num', 'begin') — check if it's
+            // an epsilon keyword first, otherwise treat as single multi-char terminal.
+            const subTokens = tokenizeGrammarString(tok, declaredNonterminals);
+            if (subTokens.length === 1 && subTokens[0] !== tok) {
+              // tokenizer resolved it to something else (e.g. epsilon keyword → EPSILON)
+              symbols.push(subTokens[0]);
+            } else {
+              // Regular lowercase terminal — preserve as-is (e.g. 'id', 'num')
+              symbols.push(tok);
+            }
+          } else {
+            // Other tokens (operators, unicode, epsilon sigils like \epsilon, ε, etc.)
+            // Run through the full tokenizer which handles these cases correctly.
+            const subTokens = tokenizeGrammarString(tok, declaredNonterminals);
+            symbols.push(...subTokens);
+          }
+        }
+      } else {
+        symbols = tokenizeGrammarString(trimmedAlt, declaredNonterminals);
+      }
+
       const rhs: string[] = [];
 
       if (symbols.length === 0) {

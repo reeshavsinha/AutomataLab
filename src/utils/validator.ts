@@ -142,7 +142,26 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
 function validatePDA(machine: MachineDefinition, errors: ValidationError[]): void {
   const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
 
-  // Well-formed read/pop: handled dynamically by the engine now.
+  for (const t of machine.transitions) {
+    const read = t.read ?? ''
+    if (read.length > 1 && !isEpsilon(read)) {
+      errors.push({
+        severity: 'error',
+        code: 'PDA_BAD_READ',
+        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} has a multi-character read "${read}". A PDA can only read 1 character per step.`,
+        transitionId: t.id,
+      })
+    }
+    const pop = t.pop ?? ''
+    if (pop.length > 1 && !isEpsilon(pop)) {
+      errors.push({
+        severity: 'error',
+        code: 'PDA_BAD_POP',
+        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} pops multiple characters "${pop}". A PDA can only pop 1 character per step.`,
+        transitionId: t.id,
+      })
+    }
+  }
 
   // Stack alphabet Γ (when declared): pops/pushes should stay within it. These are
   // warnings — Γ is declarative and the engine doesn't constrain symbols (UX #7).

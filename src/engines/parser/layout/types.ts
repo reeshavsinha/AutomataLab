@@ -22,7 +22,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   laneSpacing: 8,
   labelMargin: 5,
   cornerRadius: 8,
-  showExtended: true,
+  showExtended: false,
 };
 
 // --------------------------------------------------------

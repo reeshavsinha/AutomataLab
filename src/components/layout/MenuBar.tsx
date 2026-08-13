@@ -19,7 +19,7 @@ import { toast } from '@/store/toastStore'
 import { isPDAType, isTMType } from '@/engines/machine/core/utils'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { MachineType } from '@/engines/machine/core/types'
-import logoUrl from '@/assets/logo.png'
+import logoUrl from '@/assets/logo-transparent.svg'
 
 type Item =
   | { kind: 'sep' }
@@ -401,9 +401,10 @@ export default function MenuBar() {
             src={logoUrl}
             alt="AutomataLab Logo"
             style={{
-              width: '14px',
-              height: '14px',
-              objectFit: 'contain'
+              width: '16px',
+              height: '16px',
+              objectFit: 'contain',
+              transform: 'translateY(-1.5px)'
             }}
           />
           AutomataLab

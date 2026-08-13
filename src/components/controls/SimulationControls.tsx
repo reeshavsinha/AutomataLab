@@ -205,7 +205,7 @@ export default function SimulationControls() {
         onClick={handlePlay}
         style={{
           ...BTN_BASE,
-          background: isPlaying ? '#21262d' : 'transparent',
+          background: isPlaying ? 'var(--trace-ring)' : 'transparent',
           color: 'var(--text-primary)',
           minWidth: '28px',
         }}
