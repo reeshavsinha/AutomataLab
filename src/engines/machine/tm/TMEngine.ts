@@ -134,17 +134,9 @@ export class TMEngine implements Automaton {
     const currentKey = this._configKey()
     if (this.stepGuard > 1 && this.visitedConfigs.has(currentKey)) {
       this.status = 'stuck'
-      const entry = this._historyEntry(this.currentStateId, null as any, 'stuck')
-      // overwrite the transitionIds inside the entry to signal loop
-      this.history.push({
-        ...entry,
-        status: 'stuck'
-      })
-      const result = this._makeResult('stuck')
-      if (result.historyEntry) {
-         result.historyEntry.status = 'stuck'
-      }
-      return result
+      const entry = this._historyEntry(this.currentStateId, null, 'stuck')
+      this.history.push(entry)
+      return { ...this._makeResult('stuck'), historyEntry: entry }
     }
     this.visitedConfigs.add(currentKey)
 

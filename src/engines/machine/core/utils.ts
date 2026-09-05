@@ -93,7 +93,7 @@ export function supportsComputationTree(type: string): boolean {
  * Tape-backed machine types. `'LBA'` is a bounded TM. Single source of truth
  * gating the tape UI / TM validator branches, mirroring `PDA_TYPES`/`isPDAType`.
  */
-export const TM_TYPES = ['TM', 'LBA'] as const
+export const TM_TYPES = ['TM', 'MTM', 'LBA', 'NLBA'] as const
 
 export function isTMType(type: string): boolean {
   return (TM_TYPES as readonly string[]).includes(type)
@@ -161,12 +161,38 @@ export function tmTapeOps(
  * multi-tape → per-tape segments joined with ` | ` (e.g. `a → b, R | _ → c, L`).
  */
 export function formatTmTransition(
-  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions'>,
+  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions' | 'submachineId'>,
   tapeCount: number,
   blank: string = BLANK
 ): string {
   const { reads, writes, directions } = tmTapeOps(t, tapeCount)
-  return reads.map((r, i) => formatTmLabel(r, writes[i], directions[i], blank)).join(' | ')
+  const move = reads.map((r, i) => formatTmLabel(r, writes[i], directions[i], blank)).join(' | ')
+  return t.submachineId ? `${move} · call ${t.submachineId}` : move
+}
+
+/** Resolve one multi-track move. Vector components are tracks at a single
+ * physical head, so direction remains scalar and never uses `directions[]`. */
+export function tmTrackOps(
+  transition: Pick<Transition, 'trackReads' | 'trackWrites' | 'direction'>,
+  trackCount: number,
+  blanks: string[],
+): { reads: string[]; writes: string[]; direction: TapeDir } {
+  const count = Math.max(2, Math.floor(trackCount) || 2)
+  return {
+    reads: Array.from({ length: count }, (_, index) => transition.trackReads?.[index] ?? blanks[index] ?? BLANK),
+    writes: Array.from({ length: count }, (_, index) => transition.trackWrites?.[index] ?? blanks[index] ?? BLANK),
+    direction: normalizeDir(transition.direction),
+  }
+}
+
+/** Format a multi-track vector move distinctly from independent multi-tape moves. */
+export function formatMultiTrackTransition(
+  transition: Pick<Transition, 'trackReads' | 'trackWrites' | 'direction'>,
+  trackCount: number,
+  blanks: string[],
+): string {
+  const { reads, writes, direction } = tmTrackOps(transition, trackCount, blanks)
+  return `⟨${reads.join(', ')}⟩ → ⟨${writes.join(', ')}⟩, ${direction}`
 }
 
 /** Get all transitions leaving a given state */

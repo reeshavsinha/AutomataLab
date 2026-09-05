@@ -17,6 +17,7 @@ import EpsilonInserter from '@/components/canvas/EpsilonInserter'
 import {
   isPDAType,
   isTMType,
+  formatMultiTrackTransition,
   formatTmTransition,
   tmTapeOps,
   BLANK,
@@ -92,7 +93,10 @@ export default function DeltaTablePanel() {
   const showFinalStateRoles = !isMealy && machine.type !== 'MOORE'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
   const multiTape = isTM && tapeCount > 1
+  const isMultiTrack = machine.type === 'MTM'
+  const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
   const blank = machine.blankSymbol || BLANK
+  const trackBlanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || blank)
 
   const realStates = machine.states.filter((s) => !s.isText)
   // Start state floats to the top; the rest keep creation order (stable sort).
@@ -203,11 +207,13 @@ export default function DeltaTablePanel() {
 
               {/* Existing transitions */}
               {rows.map((t) =>
-                multiTape ? (
+                (multiTape || isMultiTrack) ? (
                   <MultiTapeRow
                     key={t.id}
                     transition={t}
-                    tapeCount={tapeCount}
+                    tapeCount={isMultiTrack ? trackCount : tapeCount}
+                    multiTrack={isMultiTrack}
+                    trackBlanks={trackBlanks}
                     blank={blank}
                     targetLabel={labelOf(t.to)}
                     onLocate={() => locateTransition(t.id)}
@@ -448,6 +454,8 @@ function DeltaRow({
 function MultiTapeRow({
   transition,
   tapeCount,
+  multiTrack,
+  trackBlanks,
   blank,
   targetLabel,
   onLocate,
@@ -456,6 +464,8 @@ function MultiTapeRow({
 }: {
   transition: Transition
   tapeCount: number
+  multiTrack: boolean
+  trackBlanks: string[]
   blank: string
   targetLabel: string
   onLocate: () => void
@@ -486,14 +496,14 @@ function MultiTapeRow({
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
         }}
-        title={formatTmTransition(transition, tapeCount, blank)}
+        title={multiTrack ? formatMultiTrackTransition(transition, tapeCount, trackBlanks) : formatTmTransition(transition, tapeCount, blank)}
       >
-        {formatTmTransition(transition, tapeCount, blank)}
+        {multiTrack ? formatMultiTrackTransition(transition, tapeCount, trackBlanks) : formatTmTransition(transition, tapeCount, blank)}
       </span>
       <button onClick={onLocate} title="Show on canvas" style={iconBtn}>
         ↗
       </button>
-      <button onClick={onEdit} title="Edit (multi-tape editor)" style={iconBtn}>
+      <button onClick={onEdit} title={`Edit (${multiTrack ? 'multi-track' : 'multi-tape'} editor)`} style={iconBtn}>
         ✎
       </button>
       <button onClick={onDelete} title="Delete transition" style={iconBtn}>

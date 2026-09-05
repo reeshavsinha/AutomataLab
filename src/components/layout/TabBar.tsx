@@ -10,7 +10,7 @@ import { ThemeIcon, HelpIcon } from '@/components/toolbar/icons'
 function tabLabel(tab: MachineDefinition): string {
   if (tab.name) return tab.name
   if (tab.type === 'CFG_PARSER') return 'Untitled Parser'
-  if (tab.type === 'CFG' || tab.type === 'CSG') return 'Untitled Grammar'
+  if (tab.type === 'CFG' || tab.type === 'CSG' || tab.type === 'UG') return 'Untitled Grammar'
   return 'Untitled Machine'
 }
 
@@ -18,6 +18,7 @@ function getWorkspaceName(type: MachineType | undefined): string {
   if (type === 'CFG_PARSER') return 'Parser'
   if (type === 'CFG') return 'CFG'
   if (type === 'CSG') return 'CSG'
+  if (type === 'UG') return 'Type 0'
   return 'Machine'
 }
 

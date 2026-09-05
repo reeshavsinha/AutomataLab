@@ -12,11 +12,25 @@ import { enfaToNfa } from './epsilonElimination'
 import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
+import { regularGrammarToMachine, regularGrammarToNfa, regexToRegularGrammar } from './regularGrammar'
+import { grammarToRecognizer } from './grammarRecognizer'
 import { cfgToPda } from './cfgToPda'
 import { mealyToMoore, mooreToMealy } from './transducers'
 
 export type { ConversionKind, ConversionMeta, ConversionResult, ConversionStep, ConversionMode } from './types'
-export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda, mealyToMoore, mooreToMealy }
+export {
+  enfaToNfa,
+  nfaToDfa,
+  minimizeDfa,
+  regexToNfa,
+  regexToRegularGrammar,
+  regularGrammarToNfa,
+  regularGrammarToMachine,
+  grammarToRecognizer,
+  cfgToPda,
+  mealyToMoore,
+  mooreToMealy,
+}
 
 export const CONVERSIONS: ConversionMeta[] = [
   {

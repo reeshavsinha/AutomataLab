@@ -98,6 +98,14 @@ describe('DFAEngine', () => {
     expect(history[1].symbol).toBe('b')
   })
 
+  it('keeps the terminal result stable when stepped after acceptance', () => {
+    engine.initialize('b')
+    engine.step()
+
+    expect(engine.step()).toMatchObject({ status: 'accepted', activeStateIds: ['q1'] })
+    expect(engine.getStatus()).toBe('accepted')
+  })
+
   it('handles no valid transition (stuck/reject)', () => {
     const dfaDef: MachineDefinition = {
       ...dfaDefinition,

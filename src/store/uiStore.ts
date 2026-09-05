@@ -6,14 +6,14 @@
 import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
-export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta' | 'output'
+export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'watchers' | 'submachines' | 'delta' | 'output'
 /** Top-level modal dialogs that can be opened from both the menu bar and toolbar. */
 export type ModalKind = 'help' | 'manual' | 'theory' | 'export' | 'convert' | 'batch' | 'analysis'
 
 const THEME_KEY = 'automatalab-theme'
 const PANEL_KEY = 'automatalab-active-panel'
 const COLLAPSE_KEY = 'automatalab-panel-collapsed'
-const ALL_PANELS: ActivePanel[] = ['history', 'validation', 'info', 'stack', 'tree', 'tape', 'delta', 'output']
+const ALL_PANELS: ActivePanel[] = ['history', 'validation', 'info', 'stack', 'tree', 'tape', 'watchers', 'submachines', 'delta', 'output']
 
 /** Read the persisted theme, defaulting to light (the app's original look). */
 function getInitialTheme(): Theme {
@@ -74,6 +74,11 @@ export interface ClipboardData {
     reads?: string[]
     writes?: string[]
     directions?: ('L' | 'R' | 'S')[]
+    /** Multi-track TM fields — vector-cell components. */
+    trackReads?: string[]
+    trackWrites?: string[]
+    /** Hierarchical TM — local child snapshot invoked by this transition. */
+    submachineId?: string
     /** Mealy — preserved so copy/paste keeps transition output. */
     output?: string
   }[]

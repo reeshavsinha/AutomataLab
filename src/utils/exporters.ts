@@ -16,6 +16,7 @@ import {
   isTMType,
   formatTmTransition,
   tmTapeOps,
+  tmTrackOps,
   BLANK,
 } from '@/engines/machine/core/utils'
 import { isTauri } from '@tauri-apps/api/core'
@@ -179,6 +180,7 @@ function deltaRows(machine: MachineDefinition): { header: string[]; rows: string
   const states = orderedStates(machine)
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
+  const isMultiTrack = machine.type === 'MTM'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
   const blank = machine.blankSymbol || BLANK
 
@@ -187,6 +189,19 @@ function deltaRows(machine: MachineDefinition): { header: string[]; rows: string
     const rows: string[][] = []
     for (const st of states) {
       for (const t of machine.transitions.filter((tr) => tr.from === st.id)) {
+        if (isMultiTrack) {
+          const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
+          const blanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || blank)
+          const ops = tmTrackOps(t, trackCount, blanks)
+          rows.push([
+            decorate(machine, st.id),
+            `⟨${ops.reads.join(', ')}⟩`,
+            `⟨${ops.writes.join(', ')}⟩`,
+            ops.direction,
+            labels.get(t.to) ?? t.to,
+          ])
+          continue
+        }
         const ops = tmTapeOps(t, tapeCount)
         if (tapeCount === 1) {
           rows.push([
@@ -280,6 +295,12 @@ export interface ExportHistoryMeta {
 
 function formatTape(tape: NonNullable<HistoryEntry['tapes']>[number]): string {
   const right = tape.left + tape.cells.length - 1
+  if (tape.tracks) {
+    const tracks = tape.tracks
+      .map((track, trackIndex) => `Tr${trackIndex + 1}:${track.map((cell, index) => index === tape.head ? `⟦${cell}⟧` : cell).join('')}`)
+      .join(' / ')
+    return `[${tape.left}..${right}; head ${tape.left + tape.head}] ${tracks}`
+  }
   const cells = tape.cells
     .map((cell, index) => index === tape.head ? `⟦${cell}⟧` : cell)
     .join('')
@@ -293,14 +314,20 @@ function formatTape(tape: NonNullable<HistoryEntry['tapes']>[number]): string {
 export function configurationMatrix(machine: MachineDefinition, history: HistoryEntry[], meta: ExportHistoryMeta = {}): ConfigurationMatrix {
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
+  const isMultiTrack = machine.type === 'MTM'
   const isTransducer = machine.type === 'MEALY' || machine.type === 'MOORE'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 0
   const columns = ['Step', 'State']
   if (!isTM) columns.push('Input position', 'Consumed input', 'Remaining input')
   if (isPDA) columns.push('Stack')
   if (isTM) {
-    for (let index = 0; index < tapeCount; index++) {
-      columns.push(`Tape ${index + 1} head`, `Tape ${index + 1}`)
+    if (isMultiTrack) {
+      columns.push('Head')
+      for (let index = 0; index < Math.max(2, machine.trackCount ?? 2); index++) columns.push(`Track ${index + 1}`)
+    } else {
+      for (let index = 0; index < tapeCount; index++) {
+        columns.push(`Tape ${index + 1} head`, `Tape ${index + 1}`)
+      }
     }
   }
   if (isTransducer) columns.push('Output')
@@ -332,9 +359,18 @@ export function configurationMatrix(machine: MachineDefinition, history: History
     )
     if (isPDA) row.push((entry.stack ?? []).join(' '))
     if (isTM) {
-      for (let index = 0; index < tapeCount; index++) {
-        const tape = entry.tapes?.[index]
-        row.push(tape ? String(tape.left + tape.head) : '', tape ? formatTape(tape) : '')
+      if (isMultiTrack) {
+        const tape = entry.tapes?.[0]
+        row.push(tape ? String(tape.left + tape.head) : '')
+        for (let index = 0; index < Math.max(2, machine.trackCount ?? 2); index++) {
+          const track = tape?.tracks?.[index]
+          row.push(track ? track.map((cell, cellIndex) => cellIndex === tape!.head ? `⟦${cell}⟧` : cell).join('') : '')
+        }
+      } else {
+        for (let index = 0; index < tapeCount; index++) {
+          const tape = entry.tapes?.[index]
+          row.push(tape ? String(tape.left + tape.head) : '', tape ? formatTape(tape) : '')
+        }
       }
     }
     if (isTransducer) row.push(entry.output ?? '')
@@ -348,6 +384,7 @@ export function configurationMatrix(machine: MachineDefinition, history: History
     ...((isTM || meta.totalSteps !== undefined) ? {
       note: [
         ...(isTM && tapeCount > 1 ? ['Tape columns are independent tapes; each column has its own head. They are not multi-track cells.'] : []),
+        ...(isMultiTrack ? ['Track columns are vectors from one physical tape with one shared head.'] : []),
         ...(isTM ? ['Each tape value is a bounded render window with absolute coordinates.'] : []),
         ...(meta.totalSteps !== undefined && meta.totalSteps > history.length
           ? [`Retained history window: ${history.length === 0 ? 'no entries' : `${history[0].step}–${history[history.length - 1].step}`} of ${meta.totalSteps} total steps.`]

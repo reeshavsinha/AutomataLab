@@ -64,6 +64,14 @@ interface MachineStore {
   setBlankSymbol: (symbol: string) => void
   setStepLimit: (limit: number | undefined) => void
   setTapeCount: (count: number) => void
+  setTrackCount: (count: number) => void
+  setTrackAlphabets: (alphabets: string[][]) => void
+  setTrackBlanks: (blanks: string[]) => void
+  /** TM only — replace an embedded child snapshot under its local id. */
+  upsertSubmachine: (id: string, definition: MachineDefinition) => void
+  /** TM only — remove an embedded child; call transitions remain repairable. */
+  removeSubmachine: (id: string) => void
+  setSubmachineDepthLimit: (limit: number | undefined) => void
 
   // Actions — File
   loadMachine: (def: MachineDefinition, markClean?: boolean, path?: string | null) => void
@@ -78,7 +86,7 @@ interface MachineStore {
 
 /** A tab is "pristine" when it has no diagram content yet (safe to reuse on open). */
 export function isPristineTab(m: MachineDefinition): boolean {
-  if (m.type === 'CFG' || m.type === 'CSG') {
+  if (m.type === 'CFG' || m.type === 'CSG' || m.type === 'UG') {
     return !m.grammarText || m.grammarText.trim().length === 0
   }
   if (m.type === 'CFG_PARSER') {
@@ -90,7 +98,7 @@ export function isPristineTab(m: MachineDefinition): boolean {
 const createDefaultMachine = (type?: MachineType, tabs: MachineDefinition[] = []): MachineDefinition => {
   const actualType = type ?? 'DFA';
   const isParser = actualType === 'CFG_PARSER';
-  const isGrammar = actualType === 'CFG' || actualType === 'CSG';
+  const isGrammar = actualType === 'CFG' || actualType === 'CSG' || actualType === 'UG';
 
   const prefix = isParser ? 'Parser'
     : isGrammar ? 'Grammar'
@@ -426,6 +434,9 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       ...(isTransducerType(type)
         ? { states: s.machine.states.map((state) => ({ ...state, isAccept: false, isReject: false })) }
         : {}),
+      ...(type === 'MTM'
+        ? { tapeCount: undefined, trackCount: Math.max(2, s.machine.trackCount ?? 2) }
+        : {}),
     })),
 
     addState: (x, y) => {
@@ -657,10 +668,55 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     // Multi-tape TM tape count. A count of 1 clears the field (single-tape default).
     setTapeCount: (count) =>
       set((s) => sync(s, {
-        tapeCount: Number.isFinite(count) && count > 1
+        tapeCount: s.machine.type === 'MTM'
+          ? undefined
+          : Number.isFinite(count) && count > 1
           ? Math.min(9, Math.floor(count))
           : undefined,
       }, 'tapeCount')),
+
+    setTrackCount: (count) =>
+      set((s) => sync(s, {
+        trackCount: s.machine.type === 'MTM' && Number.isFinite(count)
+          ? Math.min(9, Math.max(2, Math.floor(count)))
+          : undefined,
+      }, 'trackCount')),
+
+    setTrackAlphabets: (trackAlphabets) =>
+      set((s) => sync(s, {
+        trackAlphabets: s.machine.type === 'MTM'
+          ? trackAlphabets.map((alphabet) => alphabet.filter(Boolean))
+          : undefined,
+      }, 'trackAlphabets')),
+
+    setTrackBlanks: (trackBlanks) =>
+      set((s) => sync(s, {
+        trackBlanks: s.machine.type === 'MTM'
+          ? trackBlanks.map((blank) => blank.trim().slice(0, 1) || '_')
+          : undefined,
+      }, 'trackBlanks')),
+
+    upsertSubmachine: (id, definition) =>
+      set((s) => {
+        if (s.machine.type !== 'TM' || !id.trim()) return s
+        const submachines = { ...(s.machine.submachines ?? {}), [id.trim()]: definition }
+        return sync(s, { submachines }, 'submachines')
+      }),
+
+    removeSubmachine: (id) =>
+      set((s) => {
+        if (s.machine.type !== 'TM' || !s.machine.submachines?.[id]) return s
+        const submachines = { ...s.machine.submachines }
+        delete submachines[id]
+        return sync(s, { submachines: Object.keys(submachines).length ? submachines : undefined }, 'submachines')
+      }),
+
+    setSubmachineDepthLimit: (limit) =>
+      set((s) => sync(s, {
+        submachineDepthLimit: s.machine.type === 'TM' && limit != null && Number.isFinite(limit)
+          ? Math.min(16, Math.max(1, Math.floor(limit)))
+          : undefined,
+      }, 'submachineDepthLimit')),
 
     loadMachine: (def, markClean = true, path) => set((s) => {
       const normalizedDef = normalizeMachineDefinition(def)

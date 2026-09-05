@@ -55,7 +55,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const hasTrace = history.length > 0
   const hasTree = supportsComputationTree(machine.type) && treeNodes.length > 0
   
-  const isGrammarTab = machine?.type === 'CFG' || machine?.type === 'CSG'
+  const isGrammarTab = machine?.type === 'CFG' || machine?.type === 'CSG' || machine?.type === 'UG'
   const isParserTab = machine?.type === 'CFG_PARSER'
   const isGraphTab = !isGrammarTab && !isParserTab
   const isTransducer = isTransducerType(machine.type)

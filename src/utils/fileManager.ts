@@ -2,7 +2,7 @@
 // File Manager — Save / Load machine definitions as JSON
 // ============================================================
 
-import type { AutomataState, MachineDefinition, Transition } from '@/engines/machine/core/types'
+import type { AutomataState, GrammarFormat, MachineDefinition, Transition } from '@/engines/machine/core/types'
 import { generateId, isPDAType, isTransducerType } from '@/engines/machine/core/utils'
 import { getWorkspaceForMachineType, isMachineType } from '@/engines/machine/core/capabilities'
 import { AUTOMATALAB_FILE_FORMAT_VERSION, readFileFormatVersion } from '@/utils/fileFormat'
@@ -16,6 +16,8 @@ const MAX_TAPE_COUNT = 9
 const MAX_PROJECT_BYTES = 10 * 1024 * 1024
 const MAX_STATES = 5_000
 const MAX_TRANSITIONS = 20_000
+const MAX_SUBMACHINE_DEPTH = 16
+const MAX_SUBMACHINES_PER_MACHINE = 100
 
 /** Copy only the known state fields, dropping anything unexpected from the file. */
 function sanitizeState(raw: any): AutomataState {
@@ -66,10 +68,18 @@ function sanitizeTransition(raw: any): Transition {
       d === 'L' || d === 'R' || d === 'S' ? d : 'S'
     )
   }
+  if (Array.isArray(raw?.trackReads)) t.trackReads = raw.trackReads.map(String)
+  if (Array.isArray(raw?.trackWrites)) t.trackWrites = raw.trackWrites.map(String)
+  if (typeof raw?.submachineId === 'string' && raw.submachineId.trim()) {
+    t.submachineId = raw.submachineId.trim()
+  }
   return t
 }
 
-export function parseMachineJson(jsonString: string): MachineDefinition {
+export function parseMachineJson(jsonString: string, nestingDepth = 0): MachineDefinition {
+  if (nestingDepth > MAX_SUBMACHINE_DEPTH) {
+    throw new Error(`Failed to load project: Submachine nesting cannot exceed ${MAX_SUBMACHINE_DEPTH}.`)
+  }
   if (jsonString.length > MAX_PROJECT_BYTES) {
     throw new Error('Failed to load project: File is larger than 10 MB.')
   }
@@ -130,6 +140,9 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
     def.initialOutput = raw.initialOutput
   }
   if (typeof raw.grammarText === 'string') def.grammarText = raw.grammarText
+  if (['REGEX', 'TYPE_0', 'TYPE_1', 'TYPE_2', 'TYPE_3'].includes(raw.grammarFormat)) {
+    def.grammarFormat = raw.grammarFormat as GrammarFormat
+  }
   if (typeof raw.parserAlgorithm === 'string') def.parserAlgorithm = raw.parserAlgorithm
   if (typeof raw.parserInput === 'string') def.parserInput = raw.parserInput
   if (raw.activeViewMode === 'table' || raw.activeViewMode === 'automaton') {
@@ -163,6 +176,51 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
       throw new Error(`Failed to load project: Tape count cannot exceed ${MAX_TAPE_COUNT}.`)
     }
     def.tapeCount = Math.floor(Number(raw.tapeCount))
+  }
+  if (raw.type === 'MTM') {
+    if (def.tapeCount !== undefined) {
+      throw new Error('Failed to load project: A multi-track TM has one physical tape and cannot declare multiple tapes.')
+    }
+    if (Number.isFinite(raw.trackCount) && (raw.trackCount < 2 || raw.trackCount > MAX_TAPE_COUNT)) {
+      throw new Error(`Failed to load project: Track count must be between 2 and ${MAX_TAPE_COUNT}.`)
+    }
+    def.trackCount = Number.isFinite(raw.trackCount) ? Math.floor(Number(raw.trackCount)) : 2
+    if (Array.isArray(raw.trackAlphabets)) {
+      def.trackAlphabets = raw.trackAlphabets
+        .slice(0, def.trackCount)
+        .map((alphabet: unknown) => Array.isArray(alphabet) ? alphabet.map(String) : [])
+    }
+    if (Array.isArray(raw.trackBlanks)) {
+      def.trackBlanks = raw.trackBlanks
+        .slice(0, def.trackCount)
+        .map((blank: unknown) => String(blank).slice(0, 1) || '_')
+    }
+  }
+  if (raw.type === 'TM' && Number.isFinite(raw.submachineDepthLimit)) {
+    def.submachineDepthLimit = Math.min(
+      MAX_SUBMACHINE_DEPTH,
+      Math.max(1, Math.floor(Number(raw.submachineDepthLimit))),
+    )
+  }
+  if (raw.type === 'TM' && raw.submachines && typeof raw.submachines === 'object' && !Array.isArray(raw.submachines)) {
+    const entries = Object.entries(raw.submachines)
+    if (entries.length > MAX_SUBMACHINES_PER_MACHINE) {
+      throw new Error(`Failed to load project: A machine can own at most ${MAX_SUBMACHINES_PER_MACHINE} submachines.`)
+    }
+    const submachines: Record<string, MachineDefinition> = {}
+    for (const [id, child] of entries) {
+      if (!id.trim() || !child || typeof child !== 'object' || Array.isArray(child)) continue
+      try {
+        const definition = parseMachineJson(JSON.stringify(child), nestingDepth + 1)
+        // Hierarchical execution shares the caller's existing tape runtime; only
+        // ordinary deterministic TMs can make that contract without conversion.
+        if (definition.type === 'TM') submachines[id.trim()] = definition
+      } catch {
+        // Retain any transition's id reference. The validator/editor can then
+        // expose it as an unresolved, repairable call instead of crashing load.
+      }
+    }
+    if (Object.keys(submachines).length > 0) def.submachines = submachines
   }
 
   // Phase 2 Validation
@@ -444,9 +502,14 @@ export function exportMachineJSON(machine: MachineDefinition): string {
 }
 
 /** Add the stable file metadata without changing the in-memory machine object. */
-function toPersistedMachine(machine: MachineDefinition) {
+function toPersistedMachine(machine: MachineDefinition): Record<string, unknown> {
   return {
     ...machine,
+    ...(machine.submachines ? {
+      submachines: Object.fromEntries(
+        Object.entries(machine.submachines).map(([id, child]) => [id, toPersistedMachine(child)]),
+      ),
+    } : {}),
     version: AUTOMATALAB_FILE_FORMAT_VERSION,
     workspaceType: getWorkspaceForMachineType(machine.type),
   }

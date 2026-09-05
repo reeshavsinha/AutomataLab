@@ -11,8 +11,11 @@ import { createEngine } from '@/engines/machine/core/engineFactory'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
+import { useTMDebugStore } from '@/store/tmDebugStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
 import { toast } from '@/store/toastStore'
+import { isTMType } from '@/engines/machine/core/utils'
+import { findWatcherHit } from '@/engines/machine/tm/watchers'
 
 function enrichHistoryEntry(result: StepResult): HistoryEntry {
   const primary = result.configurations[0]
@@ -22,9 +25,17 @@ function enrichHistoryEntry(result: StepResult): HistoryEntry {
     consumedInput: result.consumedInput,
     remainingInput: result.remainingInput,
     ...(result.stack.length > 0 ? { stack: [...result.stack] } : {}),
-    ...(result.tapes ? { tapes: result.tapes.map((tape) => ({ ...tape, cells: [...tape.cells] })) } : {}),
+    ...(result.tapes ? {
+      tapes: result.tapes.map((tape) => ({
+        ...tape,
+        cells: [...tape.cells],
+        ...(tape.tracks ? { tracks: tape.tracks.map((track) => [...track]) } : {}),
+      })),
+    } : {}),
     ...(result.output !== undefined ? { output: result.output } : {}),
     ...(result.outputTrace ? { outputTrace: [...result.outputTrace] } : {}),
+    ...(primary?.activeSubmachinePath ? { activeSubmachinePath: [...primary.activeSubmachinePath] } : {}),
+    ...(primary?.callStack ? { callStack: primary.callStack.map((frame) => ({ ...frame })) } : {}),
   }
 }
 
@@ -56,6 +67,21 @@ export function useSimulation() {
     isPlayingRef.current = false
   }, [])
 
+  /** Watchers are UI-only pause gates: engines and headless/batch execution
+   * remain unaware of them. For an NLBA, the first matching frontier branch
+   * pauses the run in the stable watcher/branch order. */
+  const pauseForMatchingWatcher = useCallback((engine: Automaton): boolean => {
+    if (!isTMType(machine.type)) return false
+    const configurations = engine.getCurrentConfigurations()
+    const session = useTMDebugStore.getState().getSession(machine.id)
+    const hit = findWatcherHit(session.watchers, configurations, useSimulationStore.getState().stepCount)
+    if (!hit) return false
+    stopInterval()
+    useSimulationStore.getState().setPreStepConfigurations(configurations)
+    useTMDebugStore.getState().setLastHit(machine.id, hit)
+    return true
+  }, [machine.id, machine.type, stopInterval])
+
   // ── Push an engine StepResult into the simulation store ─────
   const applyEngineResult = useCallback(
     (engine: Automaton, result: StepResult) => {
@@ -79,9 +105,11 @@ export function useSimulation() {
   )
 
   // ── Execute a single step ──────────────────────────────────
-  const executeStep = useCallback(() => {
+  const executeStep = useCallback((respectWatchers = false) => {
     const engine = engineRef.current
     if (!engine) return false
+    if (respectWatchers && pauseForMatchingWatcher(engine)) return false
+    useTMDebugStore.getState().setLastHit(machine.id, null)
 
     const result = engine.step()
     applyEngineResult(engine, result)
@@ -92,7 +120,7 @@ export function useSimulation() {
       return false
     }
     return true
-  }, [applyEngineResult, stopInterval])
+  }, [applyEngineResult, machine.id, pauseForMatchingWatcher, stopInterval])
 
   // ── Surface a blocked run (UX audit FLO-1) ────────────────
   // A run that can't start used to flip the status badge to "Error" silently.
@@ -115,6 +143,7 @@ export function useSimulation() {
     const engine = createEngine(machine)
     engine.initialize(inputString)
     engineRef.current = engine
+    useTMDebugStore.getState().setLastHit(machine.id, null)
     return true
   }, [machine, inputString, surfaceBlocking])
 
@@ -124,7 +153,7 @@ export function useSimulation() {
       if (!initEngine()) return
     }
     if (engineRef.current) {
-      executeStep()
+      executeStep(false)
     }
   }, [status, initEngine, executeStep])
 
@@ -140,7 +169,7 @@ export function useSimulation() {
       // Advance one step synchronously so the store leaves 'idle' immediately
       // (which locks the input tape). Otherwise the input stays editable for one
       // interval delay and the user could change the string mid-run.
-      if (!executeStep()) return false // finished/failed in a single step
+      if (!executeStep(true)) return false // finished/paused/failed in a single step
     } else if (status === 'running') {
       isPlayingRef.current = true
     } else {
@@ -148,7 +177,7 @@ export function useSimulation() {
     }
 
     intervalRef.current = setInterval(() => {
-      const cont = executeStep()
+      const cont = executeStep(true)
       if (!cont) stopInterval()
     }, getDelay())
     return true
@@ -163,8 +192,9 @@ export function useSimulation() {
   const reset = useCallback(() => {
     stopInterval()
     engineRef.current = null
+    useTMDebugStore.getState().setLastHit(machine.id, null)
     resetSimulation()
-  }, [stopInterval, resetSimulation])
+  }, [machine.id, stopInterval, resetSimulation])
 
   // ── Seek to a specific step ─────────────────────────────────────────
   // Engines are stateful and not serialisable, so we "seek" by rebuilding a
@@ -177,6 +207,7 @@ export function useSimulation() {
     if (target === 0) {
       // Back to the very start → idle, before the first step.
       engineRef.current = null
+      useTMDebugStore.getState().setLastHit(machine.id, null)
       resetSimulation()
       return
     }
@@ -189,6 +220,7 @@ export function useSimulation() {
     const engine = createEngine(machine)
     engine.initialize(inputString)
     engineRef.current = engine
+    useTMDebugStore.getState().setLastHit(machine.id, null)
 
     // Replay silently, collecting history, then push the whole resulting state in
     // ONE store update. Applying each step individually would fire `target` store
@@ -243,7 +275,7 @@ export function useSimulation() {
     if (isPlayingRef.current && intervalRef.current !== null) {
       clearInterval(intervalRef.current)
       intervalRef.current = setInterval(() => {
-        const cont = executeStep()
+      const cont = executeStep(true)
         if (!cont) stopInterval()
       }, getDelay())
     }
@@ -285,10 +317,10 @@ export function useSimulation() {
         (t) =>
           `${t.id},${t.from}>${t.to},${(t.symbols ?? []).join('|')},` +
           `${t.read ?? ''}/${t.pop ?? ''}/${t.push ?? ''},${t.write ?? ''}/${t.direction ?? ''},` +
-          `${(t.reads ?? []).join('|')}/${(t.writes ?? []).join('|')}/${(t.directions ?? []).join('|')},${t.output ?? ''}`
+          `${(t.reads ?? []).join('|')}/${(t.writes ?? []).join('|')}/${(t.directions ?? []).join('|')},${t.output ?? ''},${t.submachineId ?? ''}`
       )
       .join(';')
-    return `${machine.type}|${machine.blankSymbol ?? ''}|${machine.tapeCount ?? 1}|${states}|${trans}`
+    return `${machine.type}|${machine.blankSymbol ?? ''}|${machine.tapeCount ?? 1}|${states}|${trans}|${JSON.stringify(machine.submachines ?? {})}`
   }, [machine])
 
   const structuralSigRef = useRef(structuralSig)

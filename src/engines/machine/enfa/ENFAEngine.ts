@@ -49,7 +49,13 @@ export class ENFAEngine extends NFAEngine {
   /** Override step to apply ε-closure after each symbol consumption */
   step(): StepResult {
     if (this.status !== 'running' || this.activeStateIds.size === 0) {
-      return this._makeResult('stuck', new Set(), '', '')
+      const status = this.status === 'idle' ? 'stuck' : this.status
+      return this._makeResult(
+        status,
+        new Set(this.activeStateIds),
+        consumedWindow(this.inputChars, this.inputIndex),
+        remainingWindow(this.inputChars, this.inputIndex),
+      )
     }
 
     // If input exhausted, determine accept/reject

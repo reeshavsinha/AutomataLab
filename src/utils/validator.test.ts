@@ -176,6 +176,12 @@ describe('validateMachine — PDA rules', () => {
     expect(codes(m)).toContain('PDA_BAD_POP')
   })
 
+  it('treats one non-BMP Unicode code point as one PDA symbol', () => {
+    const m = base([{ id: 't', from: 'q0', to: 'q1', symbols: [], read: '😀', pop: '🧱', push: '' }])
+    expect(codes(m)).not.toContain('PDA_BAD_READ')
+    expect(codes(m)).not.toContain('PDA_BAD_POP')
+  })
+
   it('flags conflicting deterministic moves (same read + pop)', () => {
     const m = base([
       { id: 't0', from: 'q0', to: 'q0', symbols: [], read: 'a', pop: 'A', push: '' },
@@ -264,6 +270,19 @@ describe('validateMachine — TM/LBA rules', () => {
     expect(codes(m)).toContain('TM_BAD_WRITE')
   })
 
+  it('treats one non-BMP Unicode code point as one TM symbol', () => {
+    const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: '😀', write: '🧱', direction: 'S' }])
+    expect(codes(m)).not.toContain('TM_BAD_READ')
+    expect(codes(m)).not.toContain('TM_BAD_WRITE')
+    expect(codes(m)).not.toContain('TM_BAD_DIRECTION')
+  })
+
+  it('requires the configured blank to be exactly one tape symbol', () => {
+    const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'a', direction: 'S' }])
+    m.blankSymbol = 'blank'
+    expect(codes(m)).toContain('TM_BAD_BLANK')
+  })
+
   it('flags a missing head direction', () => {
     const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'b' }])
     expect(codes(m)).toContain('TM_BAD_DIRECTION')
@@ -275,6 +294,19 @@ describe('validateMachine — TM/LBA rules', () => {
       { id: 't1', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'a', direction: 'R' },
     ])
     expect(codes(m)).toContain('TM_NONDETERMINISTIC')
+  })
+
+  it('allows competing moves for an NLBA while retaining all TM tape checks', () => {
+    const m = tmBase([
+      { id: 't0', from: 'q0', to: 'q0', symbols: [], read: 'a', write: 'a', direction: 'S' },
+      { id: 't1', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'b', direction: 'R' },
+    ])
+    m.type = 'NLBA'
+
+    const c = codes(m)
+    expect(c).not.toContain('TM_NONDETERMINISTIC')
+    expect(c).not.toContain('TM_BAD_READ')
+    expect(c).not.toContain('TM_BAD_DIRECTION')
   })
 
   it('flags a state marked both accept and reject', () => {

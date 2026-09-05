@@ -3,11 +3,12 @@
 // No animations, plain black & white.
 // ============================================================
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useCommandStore } from '@/store/commandStore'
+import { useTMDebugStore } from '@/store/tmDebugStore'
 import { isTMType } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
 import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
@@ -60,9 +61,12 @@ export default function SimulationControls() {
   const { step, stepBack, seekTo, play, pause, reset } = useSimulation()
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
+  const machineId = useMachineStore((s) => s.machine.id)
   const stepLimit = useMachineStore((s) => s.machine.stepLimit)
   const transitionModeActive = useCommandStore((s) => s.canvas?.transitionModeActive ?? false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const latestStepRef = useRef(0)
+  const watcherHit = useTMDebugStore((s) => s.getSession(machineId).lastHit)
 
   const isDone = status === 'completed' || status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
   const isIdle = status === 'idle'
@@ -103,7 +107,7 @@ export default function SimulationControls() {
   }, [isPlaying, pause, seekTo])
 
   const handleSeekToEnd = useCallback(() => {
-    handleSeekTo(10000)
+    handleSeekTo(latestStepRef.current)
   }, [handleSeekTo])
 
   const handleReset = useCallback(() => {
@@ -116,7 +120,13 @@ export default function SimulationControls() {
   // (e.g. switching tabs resets the simulation to idle via useSimulation).
   useEffect(() => {
     if (isDone || isIdle) setIsPlaying(false)
-  }, [isDone, isIdle])
+    if (isIdle) latestStepRef.current = 0
+    else latestStepRef.current = Math.max(latestStepRef.current, stepCount)
+  }, [isDone, isIdle, stepCount])
+
+  useEffect(() => {
+    if (watcherHit) setIsPlaying(false)
+  }, [watcherHit])
 
   // Infinite-loop guard feedback (NFR-8): when a TM/LBA halts as `stuck` it hit
   // the step limit. Surface it as a toast so the cause isn't mistaken for a
@@ -181,14 +191,14 @@ export default function SimulationControls() {
     return () => setSimApi(null)
   }, [setSimApi, handlePlay, handleStep, handleStepBack, handleSeekTo, handleReset, isPlaying])
 
-  const statusLabel = STATUS_LABELS[status] ?? 'Idle'
+  const statusLabel = watcherHit ? 'Paused by watcher' : STATUS_LABELS[status] ?? 'Idle'
 
   const statusColor =
     status === 'completed' || status === 'accepted' ? '#4ade80' :
     status === 'error' || status === 'rejected' ? '#f87171' :
     '#fb923c';
 
-  const displayStatusLabel = status === 'idle' ? 'Idle' : statusLabel;
+  const displayStatusLabel = status === 'idle' && !watcherHit ? 'Idle' : statusLabel;
 
   const clampSpeed = (v: number) => Math.min(8, Math.max(0.25, v))
 
@@ -219,7 +229,7 @@ export default function SimulationControls() {
         {isPlaying ? '⏸' : '▶'}
       </button>
       <button onClick={handleStep} style={BTN_BASE} title="One step forward">&gt;</button>
-      <button onClick={handleSeekToEnd} style={BTN_BASE} title="Go to latest step">&gt;&gt;|</button>
+      <button onClick={handleSeekToEnd} style={BTN_BASE} title="Go to latest visited step">&gt;&gt;|</button>
       <button onClick={handleReset} style={BTN_BASE} title="Reset">↺</button>
 
       {/* Divider */}
@@ -287,7 +297,7 @@ export default function SimulationControls() {
 
         {/* Status */}
         <span
-          title={STATUS_TITLES[status] ?? ''}
+          title={watcherHit ? `Paused before step ${watcherHit.stepCount}: ${watcherHit.summary}` : STATUS_TITLES[status] ?? ''}
           style={{
             padding: '1px 8px',
             background: status === 'idle' ? 'var(--bg-elevated)' : `${statusColor}18`,

@@ -36,6 +36,17 @@ function buildPreviewTapes(input: string, tapeCount: number, blank: string): Tap
   return tapes
 }
 
+/** MTM preview: one tape whose cells carry a complete track vector. */
+function buildMultiTrackPreview(input: string, trackCount: number, blanks: string[]): TapeSnapshot[] {
+  const inputTrack = input === '' ? [] : Array.from(input)
+  const from = -PREVIEW_PAD
+  const to = Math.max(inputTrack.length - 1, 0) + PREVIEW_PAD
+  const tracks = Array.from({ length: trackCount }, (_, track) =>
+    Array.from({ length: to - from + 1 }, (_, index) => track === 0 ? inputTrack[from + index] ?? blanks[track] : blanks[track])
+  )
+  return [{ cells: tracks[0].map((_, index) => `⟨${tracks.map((track) => track[index]).join(',')}⟩`), tracks, head: -from, left: from }]
+}
+
 /** LBA end-of-tape marker (⊢ / ⊣) rendered between cells at the bounds. */
 function BoundaryMarker({ glyph }: { glyph: string }) {
   return (
@@ -81,7 +92,9 @@ function TapeRow({
   stateLabel: string
 }) {
   const headCellRef = useRef<HTMLDivElement>(null)
+  const tapeScrollerRef = useRef<HTMLDivElement>(null)
   const hasBounds = tape.leftBound !== undefined && tape.rightBound !== undefined
+  const tracks = tape.tracks
 
   // "Came from here" cue: the cell the head occupied before the last move, with
   // a faded arrow pointing the way it went. Omitted for a stay ('S') or no move.
@@ -91,7 +104,19 @@ function TapeRow({
 
   // Keep this row's head cell centred as the machine moves.
   useEffect(() => {
-    headCellRef.current?.scrollIntoView({ inline: 'center', block: 'nearest' })
+    const scroller = tapeScrollerRef.current
+    const headCell = headCellRef.current
+    if (!scroller || !headCell) return
+
+    // scrollIntoView() also scrolls outer ancestors (including the page), which
+    // shifted the whole demo sideways when the Tape tab mounted. Adjust only
+    // this row's horizontal scroller.
+    const scrollerRect = scroller.getBoundingClientRect()
+    const headRect = headCell.getBoundingClientRect()
+    const offset =
+      headRect.left + headRect.width / 2
+      - (scrollerRect.left + scrollerRect.width / 2)
+    scroller.scrollLeft += offset
   }, [tape.head, tape.left])
 
   return (
@@ -109,9 +134,11 @@ function TapeRow({
           T{index + 1}
         </div>
       )}
-      <div style={{
+      <div ref={tapeScrollerRef} style={{
         flex: 1,
+        minWidth: 0,
         overflowX: 'auto',
+        overflowY: 'hidden',
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: tape.cells.length < 10 ? 'center' : 'flex-start',
@@ -132,8 +159,8 @@ function TapeRow({
                 style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}
               >
                 <div style={{
-                  width: '30px',
-                  height: '34px',
+                  width: tracks ? '42px' : '30px',
+                  minHeight: tracks ? `${Math.max(34, tracks.length * 20)}px` : '34px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -147,7 +174,11 @@ function TapeRow({
                   opacity: outOfBounds && !isHead ? 0.35 : 1,
                   transition: 'background 150ms ease, color 150ms ease',
                 }}>
-                  {sym}
+                  {tracks ? tracks.map((track, trackIndex) => (
+                    <span key={trackIndex} style={{ display: 'block', lineHeight: '18px', fontSize: '11px' }}>
+                      {track[i]}
+                    </span>
+                  )) : sym}
                 </div>
                 {/* Head marker (+ state label for a single tape) under the active
                     cell; a faded arrow under the previous cell shows the last move. */}
@@ -195,14 +226,19 @@ export default function TapePanel() {
   const blank = machine.blankSymbol || '_'
   const isIdle = status === 'idle'
   const isLBA = machine.type === 'LBA'
+  const isMultiTrack = machine.type === 'MTM'
   const tapeCount = Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1)
+  const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
+  const trackBlanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || blank)
   const startLabel = machine.states.find((s) => s.isStart)?.label ?? '—'
 
   // While idle, mirror the input box live on the tape (head at the start cell)
   // instead of showing an empty placeholder; once running, use the engine tapes.
   const previewTapes = useMemo(
-    () => buildPreviewTapes(inputString, tapeCount, blank),
-    [inputString, tapeCount, blank]
+    () => isMultiTrack
+      ? buildMultiTrackPreview(inputString, trackCount, trackBlanks)
+      : buildPreviewTapes(inputString, tapeCount, blank),
+    [inputString, tapeCount, blank, isMultiTrack, trackCount, trackBlanks]
   )
 
   const config = configurations[0]
@@ -242,6 +278,17 @@ export default function TapePanel() {
         }}>
           INSTANTANEOUS DESCRIPTION
         </div>
+        {config?.callStack && config.callStack.length > 0 && (
+          <div style={{
+            marginBottom: '5px',
+            color: 'var(--text-secondary)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '10px',
+            lineHeight: 1.4,
+          }}>
+            CALL STACK: {config.callStack.map((frame) => `${frame.machineName} ↩ ${labelFor(frame.returnStateId)}`).join(' → ')}
+          </div>
+        )}
         {tapes.length === 0 ? (
           <div style={{ fontSize: '13px', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>—</div>
         ) : multi ? (
@@ -286,7 +333,7 @@ export default function TapePanel() {
         letterSpacing: '0.06em',
         flexShrink: 0,
       }}>
-        {multi ? `TAPES · ${tapes.length}` : 'TAPE'}
+        {isMultiTrack ? `ONE TAPE · ${trackCount} TRACKS · ONE HEAD` : multi ? `TAPES · ${tapes.length}` : 'TAPE'}
         {primary && !multi && ` · head @ ${primary.left + primary.head}`}
         {isLBA && ' · bounded'}
       </div>

@@ -36,7 +36,7 @@ describe('parseMachineJson — rejects malformed input cleanly', () => {
 
   it('rejects a project file from a newer major format', () => {
     expect(() =>
-      parseMachineJson('{"version":2,"type":"DFA","states":[],"transitions":[]}')
+      parseMachineJson('{"version":3,"type":"DFA","states":[],"transitions":[]}')
     ).toThrowError(/newer than this application supports/)
   })
 
@@ -158,7 +158,7 @@ describe('exportMachineJSON ↔ parseMachineJson round-trip', () => {
 
     const serialized = exportMachineJSON(parser)
     expect(JSON.parse(serialized)).toMatchObject({
-      version: 1,
+      version: 2,
       workspaceType: 'parser',
     })
 

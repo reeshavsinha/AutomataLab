@@ -123,6 +123,31 @@ describe('ENFAEngine', () => {
     expect(result.status).toBe('accepted')
   })
 
+  it('accepts empty input through an epsilon cycle and remains accepted after another step', () => {
+    const cyclicAccepting: MachineDefinition = {
+      id: 'epsilon-cycle-accept',
+      name: 'epsilon cycle accepting empty',
+      type: 'ENFA',
+      language: '{ε}',
+      alphabet: [],
+      states: [
+        { id: 's', label: 's', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'loop', label: 'loop', x: 100, y: 0, isStart: false, isAccept: false },
+        { id: 'accept', label: 'accept', x: 200, y: 0, isStart: false, isAccept: true },
+      ],
+      transitions: [
+        { id: 'into-cycle', from: 's', to: 'loop', symbols: ['ε'] },
+        { id: 'cycle', from: 'loop', to: 's', symbols: ['λ'] },
+        { id: 'accept-empty', from: 'loop', to: 'accept', symbols: [''] },
+      ],
+    }
+    const cyclicEngine = new ENFAEngine(cyclicAccepting)
+    cyclicEngine.initialize('')
+
+    expect(cyclicEngine.step().status).toBe('accepted')
+    expect(cyclicEngine.step().status).toBe('accepted')
+  })
+
   it('terminates epsilon-cycle expansion after the computation-tree cap', () => {
     const cyclicDefinition: MachineDefinition = {
       id: 'tree-cap-cycle',

@@ -151,4 +151,30 @@ describe('DPDAEngine — lifecycle', () => {
     expect(result.status).toBe('stuck')
     expect(result.stack).toEqual([])
   })
+
+  it('keeps multi-character declared stack symbols atomic and terminal results stable', () => {
+    const atomicStack: MachineDefinition = {
+      id: 'dpda-atomic-stack-symbol',
+      name: 'atomic stack symbol',
+      type: 'DPDA',
+      language: '{ε}',
+      alphabet: [],
+      stackAlphabet: ['AA'],
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'q1', label: 'q1', x: 100, y: 0, isStart: false, isAccept: false },
+        { id: 'accept', label: 'accept', x: 200, y: 0, isStart: false, isAccept: true },
+      ],
+      transitions: [
+        { id: 'push', from: 'q0', to: 'q1', symbols: [], read: '', pop: '', push: 'AA' },
+        { id: 'pop', from: 'q1', to: 'accept', symbols: [], read: '', pop: 'AA', push: '' },
+      ],
+    }
+    const engine = new DPDAEngine(atomicStack)
+    engine.initialize('')
+
+    expect(engine.step().stack).toEqual(['AA'])
+    expect(engine.step()).toMatchObject({ status: 'accepted', stack: [] })
+    expect(engine.step()).toMatchObject({ status: 'accepted', stack: [] })
+  })
 })

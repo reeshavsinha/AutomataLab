@@ -103,6 +103,31 @@ describe('LBAEngine — { aⁿbⁿcⁿ } within the linear bound', () => {
 })
 
 describe('LBAEngine — boundary enforcement (FR-8.5)', () => {
+  it('allows stay at the trailing blank and movement back into the input', () => {
+    const boundaryStay: MachineDefinition = {
+      id: 'lba-boundary-stay',
+      name: 'boundary stay',
+      type: 'LBA',
+      language: '{a}',
+      alphabet: ['a'],
+      states: [
+        st({ id: 'q0', isStart: true }),
+        st({ id: 'at-end' }),
+        st({ id: 'still-at-end' }),
+        st({ id: 'acc', isAccept: true }),
+      ],
+      transitions: [
+        tr('reach-end', 'q0', 'at-end', 'a', 'a', 'R'),
+        tr('stay', 'at-end', 'still-at-end', '_', '_', 'S'),
+        tr('return', 'still-at-end', 'acc', '_', '_', 'L'),
+      ],
+    }
+    const e = run(LBAEngine, boundaryStay, 'a')
+
+    expect(e.getStatus()).toBe('accepted')
+    expect(e.getCurrentConfigurations()[0].inputIndex).toBe(0)
+  })
+
   it('rejects when the head runs off the RIGHT end', () => {
     const e = run(LBAEngine, rightRunner, '0011')
     expect(e.getStatus()).toBe('rejected')

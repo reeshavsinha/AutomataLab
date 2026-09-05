@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  canConvertGrammarToMachine,
+  canOpenInParserStudio,
   getMachineCapabilities,
   getWorkspaceForMachineType,
+  grammarMachineTargets,
   isAutomatonType,
   isGraphMachineType,
   isMachineType,
@@ -22,8 +25,10 @@ describe('machine capability registry', () => {
       'NPDA',
       'TM',
       'LBA',
+      'NLBA',
       'CFG',
       'CSG',
+      'UG',
       'CFG_PARSER',
     ]
 
@@ -33,7 +38,7 @@ describe('machine capability registry', () => {
   })
 
   it('keeps workspace predicates mutually exclusive', () => {
-    const types: MachineType[] = ['DFA', 'MEALY', 'MOORE', 'CFG', 'CSG', 'CFG_PARSER']
+    const types: MachineType[] = ['DFA', 'MEALY', 'MOORE', 'CFG', 'CSG', 'UG', 'CFG_PARSER']
 
     for (const type of types) {
       const matches = [isAutomatonType(type), isGrammarType(type), isParserType(type)].filter(Boolean)
@@ -92,5 +97,17 @@ describe('machine capability registry', () => {
       supportsSimulation: true,
       supportsBatch: true,
     })
+  })
+
+  it('gates grammar destinations by Chomsky hierarchy', () => {
+    expect(canOpenInParserStudio('REGEX')).toBe(true)
+    expect(canOpenInParserStudio('TYPE_3')).toBe(true)
+    expect(canOpenInParserStudio('TYPE_2')).toBe(true)
+    expect(canOpenInParserStudio('TYPE_1')).toBe(false)
+    expect(canOpenInParserStudio('TYPE_0')).toBe(false)
+    expect(grammarMachineTargets('TYPE_2')).toEqual(['NPDA', 'NLBA', 'TM'])
+    expect(canConvertGrammarToMachine('TYPE_2', 'DFA')).toBe(false)
+    expect(canConvertGrammarToMachine('TYPE_1', 'NLBA')).toBe(true)
+    expect(canConvertGrammarToMachine('REGEX', 'MEALY')).toBe(false)
   })
 })

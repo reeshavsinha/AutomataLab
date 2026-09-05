@@ -34,6 +34,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
       case 'NPDA':
         return <PDAEditor stateId={stateId} onClose={onClose} />
       case 'TM':
+      case 'MTM':
         return <TMEditor stateId={stateId} onClose={onClose} />
       case 'LBA':
         return <LBAEditor stateId={stateId} onClose={onClose} />
@@ -48,6 +49,8 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
         return machine.tapeCount && machine.tapeCount > 1
           ? `Format per tape (T1–T${machine.tapeCount}): read → write, dir. Blank read/write = the blank symbol.`
           : 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
+      case 'MTM':
+        return 'One shared head reads and writes the full track vector, then moves L/R/S.'
       case 'LBA':
         return 'Format: read → write, dir. Leave read/write blank for the blank symbol.'
       case 'DPDA':

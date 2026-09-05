@@ -49,7 +49,7 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
       
       const type = def.type;
       if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') window.location.hash = '#/grammar';
       else window.location.hash = '#/machine';
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') toast.error(err.message)
@@ -66,7 +66,7 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
 
       const type = def.type;
       if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') window.location.hash = '#/grammar';
       else window.location.hash = '#/machine';
     } catch {
       removeRecentFile(file.path)

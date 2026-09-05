@@ -50,6 +50,9 @@ export function useCanvasClipboard(
         reads: t.reads,
         writes: t.writes,
         directions: t.directions,
+        trackReads: t.trackReads,
+        trackWrites: t.trackWrites,
+        submachineId: t.submachineId,
         output: t.output,
       })),
     })
@@ -114,12 +117,15 @@ export function useCanvasClipboard(
           t.read !== undefined || t.pop !== undefined || t.push !== undefined ||
           t.write !== undefined || t.direction !== undefined ||
           t.reads !== undefined || t.writes !== undefined || t.directions !== undefined
-          || t.output !== undefined
+          || t.trackReads !== undefined || t.trackWrites !== undefined ||
+          t.submachineId !== undefined || t.output !== undefined
         if (hasOps) {
           updateTransition(newTrans.id, {
             read: t.read, pop: t.pop, push: t.push,
             write: t.write, direction: t.direction,
             reads: t.reads, writes: t.writes, directions: t.directions,
+            trackReads: t.trackReads, trackWrites: t.trackWrites,
+            submachineId: t.submachineId,
             output: t.output,
           })
         }

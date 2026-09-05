@@ -94,6 +94,8 @@ interface SimulationStore {
   }) => void
   resetSimulation: () => void
   setStatus: (status: SimulationStatus) => void
+  /** Publish an initialized engine configuration without recording a step. */
+  setPreStepConfigurations: (configurations: Configuration[]) => void
 }
 
 export const useSimulationStore = create<SimulationStore>((set) => ({
@@ -186,4 +188,21 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     }),
 
   setStatus: (status) => set({ status }),
+  setPreStepConfigurations: (configurations) => {
+    const primary = configurations[0]
+    const tapes = primary?.tapes ?? []
+    set({
+      activeStateIds: Array.from(new Set(configurations.map((configuration) => configuration.stateId))),
+      activeTransitionIds: [],
+      consumedInput: primary?.consumedInput ?? '',
+      remainingInput: primary?.remainingInput ?? '',
+      currentSymbol: tapes[0] ? tapes[0].cells[tapes[0].head] ?? '' : '',
+      configurations,
+      activeStack: primary?.stack ?? [],
+      activeTapes: tapes,
+      treeNodes: [],
+      liveBranchIds: configurations.filter((configuration) => configuration.status === 'running').map((configuration) => configuration.id),
+      status: 'running',
+    })
+  },
 }))

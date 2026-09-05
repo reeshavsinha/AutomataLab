@@ -14,6 +14,9 @@
 
 .workspace-shell-toolbar {
   flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-bottom: 1px solid var(--border-subtle);
   background-color: var(--bg-secondary);
 }

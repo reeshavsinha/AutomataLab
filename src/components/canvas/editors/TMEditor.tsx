@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useMachineStore } from '@/store/machineStore'
-import { tmTapeOps, BLANK } from '@/engines/machine/core/utils'
+import { tmTapeOps, tmTrackOps, BLANK } from '@/engines/machine/core/utils'
 import type { Transition } from '@/engines/machine/core/types'
 
 interface TMEditorProps {
@@ -14,26 +14,37 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
   const state = machine.states.find((s) => s.id === stateId)
   const outgoingTransitions = machine.transitions.filter((t) => t.from === stateId)
   const otherStates = machine.states.filter((s) => s.id !== stateId)
+  const isMultiTrack = machine.type === 'MTM'
   const tapeCount = Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1)
+  const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
+  const cellArity = isMultiTrack ? trackCount : tapeCount
   const blank = machine.blankSymbol || BLANK
+  const trackBlanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || blank)
 
   const [newTo, setNewTo] = useState(otherStates[0]?.id ?? '')
-  const [tmReads, setTmReads] = useState<string[]>(() => Array(tapeCount).fill(''))
-  const [tmWrites, setTmWrites] = useState<string[]>(() => Array(tapeCount).fill(''))
-  const [tmDirs, setTmDirs] = useState<('L' | 'R' | 'S')[]>(() => Array(tapeCount).fill('R'))
+  const [tmReads, setTmReads] = useState<string[]>(() => Array(cellArity).fill(''))
+  const [tmWrites, setTmWrites] = useState<string[]>(() => Array(cellArity).fill(''))
+  const [tmDirs, setTmDirs] = useState<('L' | 'R' | 'S')[]>(() => Array(cellArity).fill('R'))
 
   useEffect(() => {
     const fit = <T,>(arr: T[], fill: T): T[] =>
-      arr.length === tapeCount ? arr : Array.from({ length: tapeCount }, (_, i) => arr[i] ?? fill)
+      arr.length === cellArity ? arr : Array.from({ length: cellArity }, (_, i) => arr[i] ?? fill)
     setTmReads((p) => fit(p, ''))
     setTmWrites((p) => fit(p, ''))
     setTmDirs((p) => fit(p, 'R' as const))
-  }, [tapeCount])
+  }, [cellArity])
 
   const handleAddTransition = useCallback(() => {
     if (!newTo) return
     const tr = addTransition(stateId, newTo, [])
-    if (tapeCount === 1) {
+    if (isMultiTrack) {
+      updateTransition(tr.id, {
+        trackReads: tmReads.map((read, index) => read.trim() || trackBlanks[index]),
+        trackWrites: tmWrites.map((write, index) => write.trim() || trackBlanks[index]),
+        direction: tmDirs[0],
+        reads: undefined, writes: undefined, directions: undefined,
+      })
+    } else if (tapeCount === 1) {
       updateTransition(tr.id, { read: tmReads[0].trim(), write: tmWrites[0].trim(), direction: tmDirs[0] })
     } else {
       updateTransition(tr.id, {
@@ -42,10 +53,10 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
         directions: [...tmDirs],
       })
     }
-    setTmReads(Array(tapeCount).fill(''))
-    setTmWrites(Array(tapeCount).fill(''))
-    setTmDirs(Array(tapeCount).fill('R'))
-  }, [stateId, newTo, tmReads, tmWrites, tmDirs, tapeCount, addTransition, updateTransition])
+    setTmReads(Array(cellArity).fill(''))
+    setTmWrites(Array(cellArity).fill(''))
+    setTmDirs(Array(cellArity).fill('R'))
+  }, [stateId, newTo, tmReads, tmWrites, tmDirs, tapeCount, cellArity, isMultiTrack, trackBlanks, addTransition, updateTransition])
 
   if (!state) return null
   const canAdd = !!newTo
@@ -68,7 +79,10 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
                 fromLabel={state.label}
                 toLabel={toLabel}
                 transition={t}
-                tapeCount={tapeCount}
+                tapeCount={cellArity}
+                multiTrack={isMultiTrack}
+                trackBlanks={trackBlanks}
+                submachines={machine.type === 'TM' ? Object.entries(machine.submachines ?? {}).map(([id, child]) => ({ id, name: child.name })) : []}
                 blank={blank}
                 onChange={(patch) => updateTransition(t.id, patch)}
                 onDelete={() => deleteTransition(t.id)}
@@ -101,14 +115,14 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', flex: 1, minWidth: '220px' }}>
               {tmReads.map((_, i) => (
                 <div key={i} style={tapeGroupStyle}>
-                  {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
+                  {cellArity > 1 && <span style={tapeBadgeStyle}>{isMultiTrack ? `Tr${i + 1}` : `T${i + 1}`}</span>}
                   <input
                     type="text"
                     value={tmReads[i]}
                     onChange={(e) => setTmReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder={blank}
-                    title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
+                    placeholder={isMultiTrack ? trackBlanks[i] : blank}
+                    title={`${isMultiTrack ? 'Track' : 'Tape'} ${i + 1} symbol read`}
                     style={pdaInputStyle}
                   />
                   <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
@@ -117,21 +131,22 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
                     value={tmWrites[i]}
                     onChange={(e) => setTmWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
                     onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
-                    placeholder={blank}
-                    title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
+                    placeholder={isMultiTrack ? trackBlanks[i] : blank}
+                    title={`${isMultiTrack ? 'Track' : 'Tape'} ${i + 1} symbol written`}
                     style={pdaInputStyle}
                   />
-                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
+                  {!isMultiTrack || i === 0 ? <><span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
                   <select
                     value={tmDirs[i]}
                     onChange={(e) => setTmDirs((p) => p.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
-                    title={`Tape ${i + 1} head move direction`}
+                    title={isMultiTrack ? 'One shared head move direction' : `Tape ${i + 1} head move direction`}
                     style={selectStyle}
                   >
                     <option value="L">L</option>
                     <option value="R">R</option>
                     <option value="S">S</option>
                   </select>
+                  </> : null}
                 </div>
               ))}
             </div>
@@ -149,7 +164,9 @@ export default function TMEditor({ stateId, onClose }: TMEditorProps) {
             </button>
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-            {tapeCount > 1
+            {isMultiTrack
+              ? 'This is one physical tape with one head. Each move matches and atomically rewrites its complete track vector, then the shared head moves L/R/S.'
+              : tapeCount > 1
               ? 'Each move reads/writes one symbol per tape and moves each head L/R/S. It fires only when every tape’s read matches.'
               : 'Read the symbol under the head, write a symbol, then move the head L/R/S. Blank read/write = the blank symbol.'}
           </div>
@@ -164,6 +181,9 @@ function TMTransitionRow({
   toLabel,
   transition,
   tapeCount,
+  multiTrack,
+  trackBlanks,
+  submachines,
   blank,
   onChange,
   onDelete,
@@ -172,17 +192,34 @@ function TMTransitionRow({
   toLabel: string
   transition: Transition
   tapeCount: number
+  multiTrack: boolean
+  trackBlanks: string[]
+  submachines: Array<{ id: string; name: string }>
   blank: string
   onChange: (patch: Partial<Transition>) => void
   onDelete: () => void
 }) {
-  const ops = tmTapeOps(transition, tapeCount)
+  const ops = multiTrack
+    ? tmTrackOps(transition, tapeCount, trackBlanks)
+    : tmTapeOps(transition, tapeCount)
+  const sharedDirection = multiTrack
+    ? tmTrackOps(transition, tapeCount, trackBlanks).direction
+    : undefined
   const [reads, setReads] = useState<string[]>(ops.reads)
   const [writes, setWrites] = useState<string[]>(ops.writes)
-  const dirs = ops.directions
+  const dirs = multiTrack
+    ? Array.from({ length: tapeCount }, () => sharedDirection!)
+    : tmTapeOps(transition, tapeCount).directions
 
   const persist = (r: string[], w: string[], d: ('L' | 'R' | 'S')[]) => {
-    if (tapeCount === 1) {
+    if (multiTrack) {
+      onChange({
+        trackReads: r.map((value, index) => value.trim() || trackBlanks[index]),
+        trackWrites: w.map((value, index) => value.trim() || trackBlanks[index]),
+        direction: d[0],
+        reads: undefined, writes: undefined, directions: undefined,
+      })
+    } else if (tapeCount === 1) {
       onChange({ read: r[0].trim(), write: w[0].trim(), direction: d[0], reads: undefined, writes: undefined, directions: undefined })
     } else {
       onChange({ reads: r.map((x) => x.trim()), writes: w.map((x) => x.trim()), directions: d })
@@ -210,14 +247,14 @@ function TMTransitionRow({
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', flex: 1 }}>
         {reads.map((_, i) => (
           <div key={i} style={tapeGroupStyle}>
-            {tapeCount > 1 && <span style={tapeBadgeStyle}>T{i + 1}</span>}
+            {tapeCount > 1 && <span style={tapeBadgeStyle}>{multiTrack ? `Tr${i + 1}` : `T${i + 1}`}</span>}
             <input
               type="text"
               value={reads[i]}
               onChange={(e) => setReads((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
               onBlur={() => persist(reads, writes, dirs)}
-              placeholder={blank}
-              title={`Tape ${i + 1} symbol read (blank "${blank}" = the blank symbol)`}
+              placeholder={multiTrack ? trackBlanks[i] : blank}
+              title={`${multiTrack ? 'Track' : 'Tape'} ${i + 1} symbol read`}
               style={pdaInputStyle}
             />
             <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>→</span>
@@ -226,24 +263,37 @@ function TMTransitionRow({
               value={writes[i]}
               onChange={(e) => setWrites((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
               onBlur={() => persist(reads, writes, dirs)}
-              placeholder={blank}
-              title={`Tape ${i + 1} symbol written (blank "${blank}" = the blank symbol)`}
+              placeholder={multiTrack ? trackBlanks[i] : blank}
+              title={`${multiTrack ? 'Track' : 'Tape'} ${i + 1} symbol written`}
               style={pdaInputStyle}
             />
-            <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
+            {!multiTrack || i === 0 ? <><span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>,</span>
             <select
               value={dirs[i]}
               onChange={(e) => persist(reads, writes, dirs.map((x, j) => (j === i ? (e.target.value as 'L' | 'R' | 'S') : x)))}
-              title={`Tape ${i + 1} head move direction`}
+              title={multiTrack ? 'One shared head move direction' : `Tape ${i + 1} head move direction`}
               style={selectStyle}
             >
               <option value="L">L</option>
               <option value="R">R</option>
               <option value="S">S</option>
             </select>
+            </> : null}
           </div>
         ))}
       </div>
+
+      {submachines.length > 0 && (
+        <select
+          value={transition.submachineId ?? ''}
+          onChange={(event) => onChange({ submachineId: event.target.value || undefined })}
+          title="After this move, call the embedded child. Its accept state returns to this transition's destination."
+          style={{ ...selectStyle, maxWidth: '130px' }}
+        >
+          <option value="">ordinary move</option>
+          {submachines.map((child) => <option key={child.id} value={child.id}>call {child.name}</option>)}
+        </select>
+      )}
 
       <button
         onClick={onDelete}

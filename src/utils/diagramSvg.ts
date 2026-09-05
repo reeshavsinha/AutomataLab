@@ -11,6 +11,7 @@ import type { MachineDefinition, Transition } from '@/engines/machine/core/types
 import {
   BLANK,
   EPSILON,
+  formatMultiTrackTransition,
   formatPdaLabel,
   formatTmTransition,
   isEpsilon,
@@ -100,6 +101,11 @@ function escapeXml(s: string): string {
 /** A combined, human-readable label for all transitions on one (from→to) pair. */
 function bundleLabel(machine: MachineDefinition, group: Transition[]): string[] {
   if (isTMType(machine.type)) {
+    if (machine.type === 'MTM') {
+      const tracks = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
+      const blanks = Array.from({ length: tracks }, (_, index) => machine.trackBlanks?.[index] || machine.blankSymbol || BLANK)
+      return group.map((t) => formatMultiTrackTransition(t, tracks, blanks))
+    }
     const tapeCount = Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1)
     const blank = machine.blankSymbol || BLANK
     return group.map((t) => formatTmTransition(t, tapeCount, blank))

@@ -94,4 +94,15 @@ describe('NFAEngine', () => {
     engine.reset()
     expect(engine.getStatus()).toBe('idle')
   })
+
+  it('keeps the accepting frontier stable when stepped after halting', () => {
+    engine.initialize('ab')
+    engine.step()
+    engine.step()
+
+    const result = engine.step()
+    expect(result.status).toBe('accepted')
+    expect(result.activeStateIds).toContain('q2')
+    expect(engine.getStatus()).toBe('accepted')
+  })
 })

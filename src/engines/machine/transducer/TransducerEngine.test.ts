@@ -93,4 +93,25 @@ describe('TransducerEngine', () => {
 
     expect(run()).toEqual(run())
   })
+
+  it('reports an incomplete transduction without inventing output', () => {
+    const engine = new TransducerEngine(mealy)
+    engine.initialize('b')
+
+    expect(engine.step()).toMatchObject({
+      status: 'error',
+      transitionIds: [],
+      output: '',
+      outputTrace: [],
+    })
+    expect(engine.isAccepted()).toBeNull()
+  })
+
+  it('preserves the Moore initial output for empty input', () => {
+    const engine = new TransducerEngine(moore)
+    engine.initialize('')
+
+    expect(engine.getOutputTrace()).toEqual(['0'])
+    expect(engine.step()).toMatchObject({ status: 'completed', outputTrace: ['0'] })
+  })
 })

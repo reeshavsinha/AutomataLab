@@ -1,8 +1,18 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
+import { useMachineStore } from '@/store/machineStore';
 import { useTraceabilityStore } from '@/store/traceabilityStore';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
 import { ChevronRight, ChevronDown, HelpCircle, BookOpen, Sparkles } from 'lucide-react';
+import type { GrammarFormat } from '@/engines/machine/core/types';
+
+const FORMAT_OPTIONS: Array<{ value: GrammarFormat; label: string; placeholder: string }> = [
+  { value: 'REGEX', label: 'Regex', placeholder: '(a|b)*abb' },
+  { value: 'TYPE_0', label: 'Type 0 — Unrestricted', placeholder: 'A B -> B A\nS -> a S | ε' },
+  { value: 'TYPE_1', label: 'Type 1 — Context-sensitive', placeholder: 'A B -> B A\nS -> a S B | a B' },
+  { value: 'TYPE_2', label: 'Type 2 — Context-free', placeholder: 'S -> a S b | ε' },
+  { value: 'TYPE_3', label: 'Type 3 — Regular', placeholder: 'S -> a S | b A | ε\nA -> a S | b' },
+];
 
 interface EditorContentProps {
   mode: 'grouped' | 'flat';
@@ -12,6 +22,7 @@ interface EditorContentProps {
   setLastEdited: (val: 'grouped' | 'flat') => void;
   setFocusedProduction: (val: number | null) => void;
   setFlatError: (err: string | null) => void;
+  grammarFormat: GrammarFormat;
 }
 
 const EditorContent = ({ 
@@ -21,7 +32,8 @@ const EditorContent = ({
   setRawText,
   setLastEdited,
   setFocusedProduction,
-  setFlatError
+  setFlatError,
+  grammarFormat,
 }: EditorContentProps) => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
@@ -180,7 +192,7 @@ const EditorContent = ({
             // canonical ASCII pipe. Length-preserving, so the caret is unaffected.
             val = val.replace(/∣/g, '|');
             
-            if (mode === 'flat' && val.includes('|')) {
+            if (mode === 'flat' && grammarFormat !== 'TYPE_0' && grammarFormat !== 'TYPE_1' && val.includes('|')) {
               setFlatError("Illegal symbol '|' in Numbered Productions. Use a new line instead.");
               val = val.replace(/\|/g, (match, offset) => {
                 if (offset < start) newStart -= 1;
@@ -194,11 +206,10 @@ const EditorContent = ({
               if (offset < start) newStart -= (match.length - 1);
               return 'ε';
             });
-            // Capitalize starting non-terminals. Accounts for Flat mode missing prefix
-            val = val.replace(/(^|\n)([a-z])/g, (match, p1, p2, offset) => {
-              // length doesn't change, so newStart remains the same
-              return match.slice(0, -1) + p2.toUpperCase();
-            });
+            if (grammarFormat === 'TYPE_2' || grammarFormat === 'TYPE_3') {
+              // Capitalize starting non-terminals for the CFG-oriented formats.
+              val = val.replace(/(^|\n)([a-z])/g, (match, _p1, p2) => match.slice(0, -1) + p2.toUpperCase());
+            }
             
             setRawText(val);
             setLastEdited(mode);
@@ -248,7 +259,7 @@ const EditorContent = ({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           readOnly={lastEdited !== mode}
-          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : (mode === 'flat' ? "Enter CFG (e.g. S -> num + num | S -> ε)\nNote: 'num' is 1 token; 'n u m' is 3 separate tokens" : "Enter CFG (e.g. S -> num + num | ε)\nNote: 'num' is 1 token; 'n u m' is 3 separate tokens")}
+          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : FORMAT_OPTIONS.find((option) => option.value === grammarFormat)?.placeholder}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             padding: '8px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',
@@ -285,8 +296,100 @@ const AccordionHeader = ({ isOpen, onToggle, label }: { isOpen: boolean, onToggl
   );
 };
 
+function GrammarFormatSelect({
+  value,
+  onChange,
+  parserOnly = false,
+}: {
+  value: GrammarFormat
+  onChange: (format: GrammarFormat) => void
+  parserOnly?: boolean
+}) {
+  return (
+    <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.04em' }}>
+      FORMAT
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as GrammarFormat)}
+        title="Grammar format"
+        style={{ background: 'var(--bg-primary)', border: '1px solid var(--border-default)', borderRadius: '3px', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.68rem', padding: '2px 4px' }}
+      >
+        {FORMAT_OPTIONS
+          .filter((option) => !parserOnly || option.value === 'TYPE_2' || option.value === 'TYPE_3')
+          .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
+    </label>
+  )
+}
+
+function RegexEditor({
+  value,
+  setValue,
+  format,
+  setFormat,
+  parserOnly,
+}: {
+  value: string
+  setValue: (value: string) => void
+  format: GrammarFormat
+  setFormat: (format: GrammarFormat) => void
+  parserOnly: boolean
+}) {
+  const diagnostics = useGrammarStore((state) => state.diagnostics)
+  const error = diagnostics[0]?.message
+  const [showHelp, setShowHelp] = useState(false)
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-primary)', borderRight: '1px solid var(--border-subtle)', overflow: 'hidden', fontFamily: 'var(--font-mono)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px', height: '28px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
+        <GrammarFormatSelect value={format} onChange={setFormat} parserOnly={parserOnly} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            title="Toggle regular-expression syntax guide"
+            style={{ padding: '1px 6px', background: showHelp ? 'var(--chrome-active-bg, rgba(59,130,246,0.2))' : 'transparent', border: '1px solid var(--border-subtle)', borderRadius: '3px', cursor: 'pointer', color: showHelp ? 'var(--chrome-active-border, #3b82f6)' : 'var(--text-secondary)', fontSize: '0.68rem', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', gap: '3px', fontWeight: showHelp ? 600 : 400 }}
+          >
+            <HelpCircle size={11} />
+            Syntax
+          </button>
+          <button
+            onClick={() => setValue(`${value}ε`)}
+            title="Insert epsilon (empty string)"
+            style={{ padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)', borderRadius: '3px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.68rem', fontFamily: 'var(--font-mono)' }}
+          >
+            Insert ε
+          </button>
+        </div>
+      </div>
+      {showHelp && (
+        <div style={{ background: 'var(--bg-secondary)', borderBottom: '2px solid var(--border-default)', padding: '10px 12px', fontSize: '0.72rem', lineHeight: '1.5', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}>
+          <strong style={{ color: 'var(--text-primary)' }}>Regular-expression syntax</strong>
+          <div style={{ marginTop: '5px' }}>• Literal symbols are written directly. Whitespace is ignored.</div>
+          <div>• Concatenation is implicit: <code>ab</code> means “a followed by b”.</div>
+          <div>• Alternation: use <code>|</code> or classroom-style binary <code>+</code>: <code>a|b</code> or <code>a+b</code>.</div>
+          <div>• Repetition: <code>*</code> means zero or more; <code>?</code> means optional; postfix <code>+</code> means one or more when it closes an atom.</div>
+          <div>• Because <code>+</code> is ambiguous, write grouped one-or-more explicitly: <code>(a+)b</code>. Thus <code>a+b</code> is alternation.</div>
+          <div>• Use parentheses for grouping, and <code>ε</code>, <code>λ</code>, <code>eps</code>, or <code>epsilon</code> for the empty string.</div>
+          <div style={{ marginTop: '5px', color: 'var(--text-muted)' }}>Examples: <code>(a+b)*ab</code>, <code>(a|b)*abb</code>, <code>(a+)</code>.</div>
+        </div>
+      )}
+      <textarea
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        spellCheck={false}
+        placeholder={FORMAT_OPTIONS[0].placeholder}
+        aria-label="Regular expression"
+        style={{ flex: 1, minHeight: 0, resize: 'none', border: 'none', outline: 'none', padding: '12px', background: 'transparent', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.9rem', lineHeight: 1.5 }}
+      />
+      <div style={{ padding: '3px 8px', borderTop: '1px solid var(--border-subtle)', color: error ? 'var(--status-reject)' : 'var(--status-accept)', background: error ? 'var(--status-reject-soft)' : 'var(--status-accept-soft)', fontSize: '0.68rem' }}>
+        {error ? `✗ ${error}` : '✓ Valid regular expression'}
+      </div>
+    </div>
+  )
+}
+
 export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) {
-  const { rawText, setRawText, cfg } = useGrammarStore();
+  const { rawText, setRawText, cfg, grammar, classification, grammarFormat, setGrammarFormat } = useGrammarStore();
+  const parserOnly = useMachineStore((state) => state.machine?.type === 'CFG_PARSER');
   const { setFocusedProduction } = useTraceabilityStore();
   
   const [openGrouped, setOpenGrouped] = useState(true);
@@ -331,6 +434,10 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
   const groupedValue = lastEdited === 'grouped' ? rawText : syncedGrouped;
   const flatValue = lastEdited === 'flat' ? rawText : syncedFlat;
 
+  if (grammarFormat === 'REGEX') {
+    return <RegexEditor value={rawText} setValue={setRawText} format={grammarFormat} setFormat={setGrammarFormat} parserOnly={parserOnly} />
+  }
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: '100%',
@@ -342,9 +449,7 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
         padding: '0 8px', height: '28px', background: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border-subtle)', flexShrink: 0
       }}>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.04em' }}>
-          Set Grammar:
-        </span>
+        <GrammarFormatSelect value={grammarFormat} onChange={setGrammarFormat} parserOnly={parserOnly} />
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
             onClick={() => setShowHelp(!showHelp)}
@@ -424,6 +529,14 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
             <div>
               <strong style={{ color: 'var(--text-primary)' }}>• Nonterminals:</strong> Must start with an <strong style={{ color: 'var(--chrome-active-border, #3b82f6)' }}>uppercase letter</strong> (<code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>S</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>Expr</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>Term_1</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>T'</code>).
             </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Formats:</strong> Select Regex or a Chomsky grammar format (Type 0 unrestricted, Type 1 context-sensitive, Type 2 context-free, or Type 3 regular). The status bar reports validity, inferred type, productions, nonterminals, and terminals.
+            </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Production layout:</strong> In Grouped Productions, alternatives may share one rule using <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>|</code> or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>∣</code>. Press Enter after <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>|</code> to continue an indented alternative. Numbered Productions uses one alternative per line; pipes are automatically removed there for Type 2 and Type 3.
+            </div>
             
             <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '6px 8px' }}>
               <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '3px' }}>
@@ -444,7 +557,15 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
             </div>
 
             <div>
-              <strong style={{ color: 'var(--text-primary)' }}>• Arrows &amp; Epsilon:</strong> Written as <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>-&gt;</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>::=</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>→</code>, or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>:</code>. For empty string use <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>ε</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>eps</code>, or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>\epsilon</code>.
+              <strong style={{ color: 'var(--text-primary)' }}>• Arrows &amp; Epsilon:</strong> Arrows may be <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>-&gt;</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>::=</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>=&gt;</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>→</code>, or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>:</code>. For the empty string use <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>ε</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>λ</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>eps</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>epsilon</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>\epsilon</code>, or empty quotes <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>""</code>.
+            </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Symbols and whitespace:</strong> Whitespace separates symbols. Write <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>id</code> as one terminal, but <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>i d</code> as two terminals. Quotes force punctuation or multiple characters to remain one terminal, such as <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>"=="</code> or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>'if'</code>. Known operators such as <code>&lt;=</code>, <code>&gt;=</code>, <code>==</code>, <code>!=</code>, <code>&amp;&amp;</code>, and <code>||</code> remain single symbols.
+            </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Editing assistance:</strong> The editor normalizes <code>∣</code> to <code>|</code>, converts <code>eps</code>/<code>epsilon</code> to <code>ε</code>, capitalizes a lowercase first nonterminal for Type 2/3, offers ghost completions for arrows and alternatives, and provides an <strong>Insert ε</strong> button.
             </div>
 
             <div style={{ background: 'var(--bg-primary)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.69rem' }}>
@@ -467,6 +588,7 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
             setLastEdited={setLastEdited}
             setFocusedProduction={setFocusedProduction}
             setFlatError={setFlatError}
+            grammarFormat={grammarFormat}
           />
         )}
 
@@ -483,22 +605,23 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
             setLastEdited={setLastEdited}
             setFocusedProduction={setFocusedProduction}
             setFlatError={setFlatError}
+            grammarFormat={grammarFormat}
           />
         )}
       </div>
 
       <div style={{
         padding: '3px 8px',
-        background: flatError ? 'var(--status-reject-soft)' : (cfg ? 'var(--status-accept-soft)' : (rawText.trim() ? 'var(--status-reject-soft)' : 'transparent')),
-        color: flatError ? 'var(--status-reject)' : (cfg ? 'var(--status-accept)' : (rawText.trim() ? 'var(--status-reject)' : 'var(--text-muted)')),
+        background: flatError ? 'var(--status-reject-soft)' : (grammar ? 'var(--status-accept-soft)' : (rawText.trim() ? 'var(--status-reject-soft)' : 'transparent')),
+        color: flatError ? 'var(--status-reject)' : (grammar ? 'var(--status-accept)' : (rawText.trim() ? 'var(--status-reject)' : 'var(--text-muted)')),
         fontSize: '0.68rem', fontWeight: 600, borderTop: '1px solid var(--border-subtle)',
         flexShrink: 0, fontFamily: 'var(--font-mono)'
       }}>
         {flatError 
           ? `✗ ${flatError}` 
-          : (cfg ? (
-            <>✓ Valid | <span title="Production(s)">{cfg.productions.length} Prod</span> | <span title="Non-Terminal(s)">{cfg.nonterminals.size} NT</span> | <span title="Terminal(s)">{cfg.terminals.size} T</span></>
-          ) : (rawText.trim() ? `✗ Invalid CFG: ${useGrammarStore.getState().diagnostics[0]?.message || ''}` : ''))}
+          : (grammar ? (
+            <>✓ Valid {classification ? `(${classification.inferredType.replace('_', ' ')})` : ''} | <span title="Production(s)">{grammar.productions.length} Prod</span> | <span title="Non-Terminal(s)">{grammar.nonterminals.size} NT</span> | <span title="Terminal(s)">{grammar.terminals.size} T</span></>
+          ) : (rawText.trim() ? `✗ Invalid ${FORMAT_OPTIONS.find((option) => option.value === grammarFormat)?.label}: ${useGrammarStore.getState().diagnostics[0]?.message || ''}` : ''))}
       </div>
     </div>
   );

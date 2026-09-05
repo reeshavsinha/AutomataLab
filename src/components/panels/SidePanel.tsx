@@ -17,8 +17,10 @@ import ComputationTreePanel from './ComputationTreePanel'
 import TapePanel from './TapePanel'
 import DeltaTablePanel from './DeltaTablePanel'
 import OutputTracePanel from './OutputTracePanel'
+import WatchersPanel from './WatchersPanel'
+import SubmachinesPanel from './SubmachinesPanel'
 
-type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta' | 'output'
+type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'watchers' | 'submachines' | 'delta' | 'output'
 
 const WIDTH_KEY = 'automatalab-panel-width'
 const MIN_WIDTH = 220
@@ -57,7 +59,7 @@ function InfoPanel() {
   )
 }
 
-export default function SidePanel() {
+export default function SidePanel({ isDemoMode = false }: { isDemoMode?: boolean }) {
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const panelCollapsed = useUIStore((s) => s.panelCollapsed)
@@ -66,6 +68,7 @@ export default function SidePanel() {
   const machineType = machine.type
   const isPDA = isPDAType(machineType)
   const isTM = isTMType(machineType)
+  const supportsSubmachines = machineType === 'TM'
   const isTransducer = isTransducerType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
@@ -88,6 +91,8 @@ export default function SidePanel() {
     { id: 'validation', label: 'Validate', title: 'Validation — errors and warnings (click to locate)' },
     ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack', title: 'PDA stack + instantaneous description' }] : []),
     ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape', title: 'Turing tape, head, and instantaneous description' }] : []),
+    ...(!isDemoMode && isTM ? [{ id: 'watchers' as Tab, label: 'Watch', title: 'Conditional pause watchers for TM execution' }] : []),
+    ...(!isDemoMode && supportsSubmachines ? [{ id: 'submachines' as Tab, label: 'Calls', title: 'Embedded TM submachine snapshots and call repair' }] : []),
     ...(isTransducer ? [{ id: 'output' as Tab, label: 'Output', title: 'Transducer output trace' }] : []),
     ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', title: 'Computation tree / trellis of branches' }] : []),
     { id: 'info',       label: 'Info',     title: 'Machine summary and simulation status' },
@@ -113,10 +118,14 @@ export default function SidePanel() {
       setActivePanel('delta')
     } else if (activePanel === 'tape' && !isTM) {
       setActivePanel('delta')
+    } else if (activePanel === 'watchers' && (isDemoMode || !isTM)) {
+      setActivePanel('delta')
+    } else if (activePanel === 'submachines' && (isDemoMode || !supportsSubmachines)) {
+      setActivePanel('delta')
     } else if (activePanel === 'output' && !isTransducer) {
       setActivePanel('delta')
     }
-  }, [activePanel, isPDA, isTM, isTransducer, hasTree, setActivePanel])
+  }, [activePanel, isPDA, isTM, isTransducer, hasTree, supportsSubmachines, isDemoMode, setActivePanel])
 
   // Collapsed → a thin reopen strip so the canvas can use the full width
   // (UX audit NAV-1).
@@ -291,6 +300,8 @@ export default function SidePanel() {
         {activePanel === 'validation' && <ValidationPanel />}
         {activePanel === 'stack'      && <StackPanel />}
         {activePanel === 'tape'       && <TapePanel />}
+        {activePanel === 'watchers'   && <WatchersPanel />}
+        {activePanel === 'submachines' && <SubmachinesPanel />}
         {activePanel === 'tree'       && <ComputationTreePanel />}
         {activePanel === 'output'     && <OutputTracePanel />}
         {activePanel === 'info'       && <InfoPanel />}

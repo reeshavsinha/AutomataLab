@@ -126,6 +126,11 @@ export default function HistoryLog() {
                   <span style={{ color: 'var(--text-primary)' }}>{to || '∅'}</span>
                 </>
               )}
+              {entry.activeSubmachinePath && entry.activeSubmachinePath.length > 0 && (
+                <span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '10px' }}>
+                  [{entry.activeSubmachinePath.join(' › ')}]
+                </span>
+              )}
             </span>
 
             {/* Status on last step */}
