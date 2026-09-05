@@ -20,6 +20,9 @@ export interface CanvasApi {
   deleteSelection: () => void
   selectAll: () => void
   addState: () => void
+  startTransition: () => void
+  completeTransition: () => void
+  transitionModeActive: boolean
   zoomIn: () => void
   zoomOut: () => void
   fit: () => void
@@ -35,6 +38,54 @@ export interface SimApi {
   seekTo: (target: number) => void
   reset: () => void
   isPlaying: boolean
+}
+
+export type CommandContext = 'global' | 'canvas' | 'simulation'
+
+export interface CommandDefinition {
+  id: string
+  label: string
+  shortcut: string
+  /** Canonical individual keys used for conflict resolution; shortcut is display text. */
+  shortcuts?: string[]
+  contexts: CommandContext[]
+  /** Higher priority wins when multiple context handlers are active. */
+  priority: number
+}
+
+/** The discoverable shortcut contract shared by keyboard handlers and help text. */
+export const COMMAND_REGISTRY: readonly CommandDefinition[] = [
+  { id: 'file.new', label: 'New document', shortcut: 'Ctrl/Cmd+N', contexts: ['global'], priority: 100 },
+  { id: 'file.open', label: 'Open document', shortcut: 'Ctrl/Cmd+O', contexts: ['global'], priority: 100 },
+  { id: 'file.save', label: 'Save document', shortcut: 'Ctrl/Cmd+S', contexts: ['global'], priority: 100 },
+  { id: 'canvas.add-state', label: 'Create state at canvas cursor', shortcut: 'N', contexts: ['canvas'], priority: 30 },
+  { id: 'canvas.transition-start', label: 'Start transition from selected state', shortcut: 'T', contexts: ['canvas'], priority: 40 },
+  { id: 'canvas.transition-complete', label: 'Complete transition to selected state', shortcut: 'S / Enter', shortcuts: ['S', 'Enter'], contexts: ['canvas'], priority: 50 },
+  { id: 'canvas.delete', label: 'Delete selection', shortcut: 'Delete', contexts: ['canvas'], priority: 30 },
+  { id: 'simulation.play', label: 'Play or pause simulation', shortcut: 'Space / P', shortcuts: ['Space', 'P'], contexts: ['simulation'], priority: 30 },
+  { id: 'simulation.step', label: 'Advance simulation', shortcut: 'ArrowRight / S', shortcuts: ['ArrowRight', 'S'], contexts: ['simulation'], priority: 30 },
+  { id: 'simulation.step-back', label: 'Step simulation back', shortcut: 'ArrowLeft', contexts: ['simulation'], priority: 30 },
+  { id: 'simulation.reset', label: 'Reset simulation', shortcut: 'R', contexts: ['simulation'], priority: 30 },
+  { id: 'global.cancel', label: 'Cancel current mode or dialog', shortcut: 'Escape', contexts: ['global', 'canvas', 'simulation'], priority: 100 },
+]
+
+export function findShortcutConflicts(commands: readonly CommandDefinition[] = COMMAND_REGISTRY): CommandDefinition[][] {
+  const groups = new Map<string, CommandDefinition[]>()
+  for (const command of commands) {
+    for (const shortcut of command.shortcuts ?? [command.shortcut]) {
+      const key = shortcut.toLowerCase()
+      const group = groups.get(key) ?? []
+      group.push(command)
+      groups.set(key, group)
+    }
+  }
+  return [...groups.values()].filter((group) => group.length > 1 && group.some((a) => group.some((b) => a !== b && a.contexts.some((context) => b.contexts.includes(context)))))
+}
+
+export function resolveCommand(shortcut: string, context: CommandContext, commands: readonly CommandDefinition[] = COMMAND_REGISTRY): CommandDefinition | null {
+  return commands
+    .filter((command) => (command.shortcuts ?? [command.shortcut]).some((key) => key.toLowerCase() === shortcut.toLowerCase()) && command.contexts.includes(context))
+    .sort((a, b) => b.priority - a.priority)[0] ?? null
 }
 
 interface CommandStore {

@@ -3,7 +3,7 @@ import { useGrammarStore } from '@/store/grammarStore';
 import { useMachineStore } from '@/store/machineStore';
 import { EarleySimulation } from '@/engines/parser/earley';
 import { SyntaxTreeNode } from '@/engines/parser/model';
-import { tokenizeGrammarString } from '@/engines/grammar/parser';
+import { tokenizeInputString } from '@/engines/grammar/parser';
 
 export function GrammarDerivationTab() {
   const { cfg, getSession, updateSession } = useGrammarStore();
@@ -46,7 +46,7 @@ export function GrammarDerivationTab() {
     if (session.leftmost && session.leftmost.length > 0) return;
 
     try {
-      const tokens = derivationInput.trim() ? tokenizeGrammarString(derivationInput, cfg.nonterminals, cfg.terminals) : [];
+      const tokens = derivationInput.trim() ? tokenizeInputString(derivationInput, cfg.terminals) : [];
       const sim = new EarleySimulation(cfg);
       sim.initialize(tokens);
       while (sim.status === 'running') {

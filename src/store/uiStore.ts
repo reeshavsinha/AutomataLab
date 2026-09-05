@@ -6,14 +6,14 @@
 import { create } from 'zustand'
 
 export type Theme = 'dark' | 'light'
-export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
+export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta' | 'output'
 /** Top-level modal dialogs that can be opened from both the menu bar and toolbar. */
-export type ModalKind = 'help' | 'export' | 'convert' | 'batch' | 'analysis'
+export type ModalKind = 'help' | 'manual' | 'theory' | 'export' | 'convert' | 'batch' | 'analysis'
 
 const THEME_KEY = 'automatalab-theme'
 const PANEL_KEY = 'automatalab-active-panel'
 const COLLAPSE_KEY = 'automatalab-panel-collapsed'
-const ALL_PANELS: ActivePanel[] = ['history', 'validation', 'info', 'stack', 'tree', 'tape', 'delta']
+const ALL_PANELS: ActivePanel[] = ['history', 'validation', 'info', 'stack', 'tree', 'tape', 'delta', 'output']
 
 /** Read the persisted theme, defaulting to light (the app's original look). */
 function getInitialTheme(): Theme {
@@ -55,6 +55,8 @@ export interface ClipboardData {
     isText?: boolean
     /** TM/LBA — preserved so copy/paste keeps reject states. */
     isReject?: boolean
+    /** Moore — preserved so copy/paste keeps state output. */
+    output?: string
     oldId: string
   }[]
   transitions: {
@@ -72,6 +74,8 @@ export interface ClipboardData {
     reads?: string[]
     writes?: string[]
     directions?: ('L' | 'R' | 'S')[]
+    /** Mealy — preserved so copy/paste keeps transition output. */
+    output?: string
   }[]
 }
 

@@ -22,8 +22,8 @@ export function GrammarSampleTab() {
     setIsGenerating(true);
     updateSession(machine.id, { samples: [] });
 
-    const maxLength = Math.max(1, Number(maxLengthStr) || 1);
-    const maxSteps = Math.max(10, Number(maxStepsStr) || 10);
+    const maxLength = Math.min(100, Math.max(1, Number(maxLengthStr) || 1));
+    const maxSteps = Math.min(20_000, Math.max(10, Number(maxStepsStr) || 10));
 
     // Simple Breadth-First generation
     setTimeout(() => {
@@ -94,6 +94,8 @@ export function GrammarSampleTab() {
           <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Max Length</label>
           <input
             type="number"
+            min={1}
+            max={100}
             value={maxLengthStr}
             onChange={e => updateSession(machine.id, { maxLengthStr: e.target.value })}
             style={{ width: 80, padding: '4px 8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
@@ -107,7 +109,7 @@ export function GrammarSampleTab() {
             onChange={e => updateSession(machine.id, { maxStepsStr: e.target.value })}
             style={{ width: 100, padding: '4px 8px', background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, color: 'var(--text-primary)' }}
             min={10}
-            max={100000}
+            max={20000}
           />
         </div>
         <button 

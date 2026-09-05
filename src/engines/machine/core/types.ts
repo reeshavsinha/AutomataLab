@@ -4,7 +4,7 @@
 // NO React imports in this file or any engine file.
 // ============================================================
 
-export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA' | 'TM' | 'LBA' | 'CFG' | 'CSG' | 'CFG_PARSER'
+export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'MEALY' | 'MOORE' | 'DPDA' | 'NPDA' | 'TM' | 'LBA' | 'CFG' | 'CSG' | 'CFG_PARSER'
 
 // ─── Machine definition types ────────────────────────────────
 
@@ -24,6 +24,8 @@ export interface AutomataState {
   description?: string
   /** TM/LBA only — halt-and-reject state. */
   isReject?: boolean
+  /** Moore only — output emitted while the machine occupies this state. */
+  output?: string
   /** Text annotation node type */
   isText?: boolean
   /** Explicit box size (text annotation nodes only) */
@@ -49,6 +51,8 @@ export interface Transition {
   write?: string
   /** TM/LBA only — head move direction after writing. */
   direction?: 'L' | 'R' | 'S'
+  /** Mealy only — output emitted when this transition consumes an input symbol. */
+  output?: string
   /** Multi-tape TM only — per-tape symbols read (index = tape). Tape 0 falls back to `read`. */
   reads?: string[]
   /** Multi-tape TM only — per-tape symbols written. Tape 0 falls back to `write`. */
@@ -68,6 +72,10 @@ export interface MachineDefinition {
   transitions: Transition[]
   /** Input alphabet Σ. */
   alphabet: string[]
+  /** Mealy/Moore only — output alphabet Γ. */
+  outputAlphabet?: string[]
+  /** Optional output emitted before the first input symbol (used for conversions). */
+  initialOutput?: string
   /**
    * PDA only — declared stack alphabet Γ. Optional and declarative: when set, the
    * validator warns if a pop/push uses a symbol outside it. The engine itself does
@@ -105,7 +113,7 @@ export interface MachineDefinition {
 
 // ─── Simulation types ────────────────────────────────────────
 
-export type SimulationStatus = 'idle' | 'running' | 'accepted' | 'rejected' | 'stuck' | 'error'
+export type SimulationStatus = 'idle' | 'running' | 'completed' | 'accepted' | 'rejected' | 'stuck' | 'error'
 
 /**
  * A windowed snapshot of one Turing-machine tape for rendering. The engine
@@ -155,6 +163,9 @@ export interface Configuration {
   remainingInput: string
   /** TM/LBA tapes for this branch (length 1 single-tape, N multi-tape). Undefined for FA/PDA. */
   tapes?: TapeSnapshot[]
+  /** Latest output and accumulated output trace for a transducer branch. */
+  output?: string
+  outputTrace?: string[]
   /**
    * Number of *additional* parent branches that reached this same configuration
    * this step and were merged into it (per-level dedup, first-parent-wins). 0/undefined
@@ -171,6 +182,16 @@ export interface HistoryEntry {
   symbol: string
   transitionIds: string[]
   status: SimulationStatus
+  /** Configuration data captured for academic trace exports. */
+  inputIndex?: number
+  consumedInput?: string
+  remainingInput?: string
+  stack?: string[]
+  tapes?: TapeSnapshot[]
+  /** Output emitted by this step, when running a transducer. */
+  output?: string
+  /** Outputs emitted since initialization, including Moore's initial state output. */
+  outputTrace?: string[]
 }
 
 export interface StepResult {
@@ -179,6 +200,10 @@ export interface StepResult {
   consumedInput: string
   remainingInput: string
   symbol: string
+  /** Output emitted by this step, if any. */
+  output?: string
+  /** Complete output trace after this step, if this is a transducer. */
+  outputTrace?: string[]
   transitionIds: string[]
   historyEntry: HistoryEntry
   /** Per-branch configurations after this step (computation tree / PDA branches). */
@@ -200,10 +225,12 @@ export interface Automaton {
   // Introspection
   getCurrentConfigurations(): Configuration[]
   getExecutionHistory(): HistoryEntry[]
-  isAccepted(): boolean | null // null = still running/idle
+  isAccepted(): boolean | null // null = still running/idle or transducer (no verdict)
 
   // State
   getStatus(): SimulationStatus
+  /** Output trace for Mealy/Moore engines; absent for recognizer machines. */
+  getOutputTrace?: () => string[]
 }
 
 // ─── Validation types ────────────────────────────────────────

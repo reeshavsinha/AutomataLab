@@ -18,12 +18,16 @@ import UpdateBanner from '@/components/layout/UpdateBanner'
 import UnsavedChangesGuard from '@/components/layout/UnsavedChangesGuard'
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary'
 import HelpModal from '@/components/layout/HelpModal'
+import ManualModal from '@/components/layout/ManualModal'
+import TheoryModal from '@/components/layout/TheoryModal'
 import ExportModal from '@/components/layout/ExportModal'
 import ConversionsModal from '@/components/conversions/ConversionsModal'
 import BatchRunnerModal from '@/components/controls/BatchRunnerModal'
 import AnalysisModal from '@/components/analysis/AnalysisModal'
 import { useGrammarStore } from '@/store/grammarStore'
 import { useParserStore } from '@/store/parserStore'
+import { isAutomatonType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
 
 const isSimulatorDeployment = import.meta.env.VITE_SIMULATOR_MODE === 'true';
 
@@ -34,9 +38,12 @@ function TabSyncListener() {
   const lastMachineTabId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!machine) return;
+    if (!machine) {
+      useParserStore.getState().setIsPlaying(false);
+      return;
+    }
     
-    const isAutomaton = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA'].includes(machine.type);
+    const isAutomaton = isAutomatonType(machine.type);
     
     if (machine.type === 'CFG_PARSER') {
       if (lastParserTabId.current !== machine.id) {
@@ -44,10 +51,13 @@ function TabSyncListener() {
         lastParserTabId.current = machine.id;
       }
     } else if (isAutomaton) {
+      useParserStore.getState().setIsPlaying(false);
       if (lastMachineTabId.current !== machine.id) {
         useSimulationStore.getState().resetSimulation();
         lastMachineTabId.current = machine.id;
       }
+    } else {
+      useParserStore.getState().setIsPlaying(false);
     }
 
     // When the active tab changes (or undo/redo alters the active tab),
@@ -82,6 +92,9 @@ export default function App() {
   
   const activeMachineType = useMachineStore((s) => s.machine?.type)
   const machineId = useMachineStore((s) => s.machine?.id)
+  const activeIsParser = isParserType(activeMachineType)
+  const activeIsGrammar = isGrammarType(activeMachineType)
+  const activeIsAutomaton = isAutomatonType(activeMachineType)
 
   // Reflect the active theme onto <html> so the CSS token overrides apply.
   useEffect(() => {
@@ -117,19 +130,19 @@ export default function App() {
       
       const k = e.key.toLowerCase();
       const canvas = useCommandStore.getState().canvas;
+      const machine = useMachineStore.getState().machine;
+      const canEdit = useSimulationStore.getState().status !== 'running';
       
       const target = e.target as HTMLElement;
       // Monaco editor handles key events on a hidden textarea or `.view-lines`
-      const isInput = target instanceof HTMLInputElement || 
-                      target instanceof HTMLTextAreaElement || 
-                      target.isContentEditable ||
-                      target.classList.contains('inputarea');
+      const isInput = shouldSuppressGlobalShortcut(target) || target.classList.contains('inputarea');
       const hasSelection = (window.getSelection()?.toString().length || 0) > 0;
       
       if (isInput) return;
       if (hasSelection && (k === 'c' || k === 'x')) return;
 
       if (k === 'z') {
+        if (!machine || !canEdit) return;
         e.preventDefault();
         if (e.shiftKey) {
           useMachineStore.getState().redo();
@@ -137,6 +150,7 @@ export default function App() {
           useMachineStore.getState().undo();
         }
       } else if (k === 'y') {
+        if (!machine || !canEdit) return;
         e.preventDefault();
         useMachineStore.getState().redo();
       } else {
@@ -144,9 +158,11 @@ export default function App() {
           e.preventDefault();
           canvas?.copy();
         } else if (k === 'x') {
+          if (!machine || !canEdit) return;
           e.preventDefault();
           canvas?.cut();
         } else if (k === 'v') {
+          if (!machine || !canEdit) return;
           e.preventDefault();
           canvas?.paste();
         }
@@ -165,9 +181,9 @@ export default function App() {
     const machineId = state.machine?.id;
     const preferredRoute = machineId ? state.tabRoutes[machineId] : null;
 
-    const isParser = activeMachineType === 'CFG_PARSER';
-    const isGrammar = activeMachineType === 'CFG' || activeMachineType === 'CSG';
-    const isMachine = activeMachineType === 'DFA' || activeMachineType === 'NFA' || activeMachineType === 'ENFA' || activeMachineType === 'DPDA' || activeMachineType === 'NPDA' || activeMachineType === 'TM' || activeMachineType === 'LBA';
+    const isParser = isParserType(activeMachineType);
+    const isGrammar = isGrammarType(activeMachineType);
+    const isMachine = isAutomatonType(activeMachineType);
 
     if (isParser && route !== '#/parser') {
       window.location.hash = '#/parser';
@@ -207,12 +223,16 @@ export default function App() {
     content = null;
   } else if (route === '' || route === '#/') {
     content = <WorkspaceHub />;
-  } else if (route === '#/machine') {
+  } else if (route === '#/machine' && activeIsAutomaton) {
     content = <ErrorBoundary key={machineId} fallbackName="Machine Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace /></ErrorBoundary>;
-  } else if (route === '#/grammar') {
+  } else if (route === '#/grammar' && activeIsGrammar) {
     content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace" onRevert={() => { window.location.hash = ''; }}><GrammarWorkspace /></ErrorBoundary>;
-  } else if (route === '#/parser') {
+  } else if (route === '#/parser' && activeIsParser) {
     content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace" onRevert={() => { window.location.hash = ''; }}><ParserWorkspace /></ErrorBoundary>;
+  } else if (machineId) {
+    // The Anti-Trap effect will redirect on the next tick. Render nothing during
+    // the mismatch so a workspace never observes an incompatible machine type.
+    content = null;
   } else {
     // Fallback or legacy route
     content = <WorkspaceHub />;
@@ -240,10 +260,12 @@ export default function App() {
 
       {/* Modals */}
       {activeModal === 'help' && <HelpModal onClose={closeModal} />}
-      {activeModal === 'export' && <ExportModal onClose={closeModal} />}
-      {activeModal === 'convert' && <ConversionsModal onClose={closeModal} />}
-      {activeModal === 'batch' && <BatchRunnerModal onClose={closeModal} />}
-      {activeModal === 'analysis' && <AnalysisModal onClose={closeModal} />}
+      {activeModal === 'manual' && <ManualModal onClose={closeModal} />}
+      {activeModal === 'theory' && <TheoryModal onClose={closeModal} />}
+      {machineId && activeModal === 'export' && <ExportModal onClose={closeModal} />}
+      {machineId && activeModal === 'convert' && <ConversionsModal onClose={closeModal} />}
+      {machineId && activeModal === 'batch' && <BatchRunnerModal onClose={closeModal} />}
+      {machineId && activeModal === 'analysis' && <AnalysisModal onClose={closeModal} />}
 
 
     </div>

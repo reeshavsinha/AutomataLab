@@ -124,14 +124,16 @@ function orderedStates(machine: MachineDefinition) {
   )
 }
 
-/** Decorate a state label for δ-tables: `→` start, `*` accept, `⊘` reject. */
+/** Decorate a state label for δ-tables. Transducers only have a start role. */
 function decorate(machine: MachineDefinition, id: string): string {
   const s = machine.states.find((st) => st.id === id)
   if (!s) return id
   let prefix = ''
   if (s.isStart) prefix += '→ '
-  if (s.isAccept) prefix += '* '
-  if (s.isReject) prefix += '⊘ '
+  if (machine.type !== 'MEALY' && machine.type !== 'MOORE') {
+    if (s.isAccept) prefix += '* '
+    if (s.isReject) prefix += '⊘ '
+  }
   return prefix + s.label
 }
 
@@ -162,7 +164,8 @@ function faCell(
     if (t.from !== stateId) continue
     const match = epsilon ? t.symbols.some(isEpsilon) : t.symbols.includes(symbol)
     if (match) {
-      const lbl = labels.get(t.to) ?? t.to
+      const target = labels.get(t.to) ?? t.to
+      const lbl = machine.type === 'MEALY' ? `${target} / ${t.output ?? ''}` : target
       if (!targets.includes(lbl)) targets.push(lbl)
     }
   }
@@ -258,23 +261,166 @@ export function deltaTableToLatex(machine: MachineDefinition): string {
   return lines.join('\n')
 }
 
-// ─── execution trace ────────────────────────────────────────────
-
 function resolveStates(labels: Map<string, string>, ids: string[]): string {
   if (ids.length === 0) return '∅'
   return ids.map((id) => labels.get(id) ?? id).join(' ')
 }
 
+export interface ConfigurationMatrix {
+  columns: string[]
+  rows: string[][]
+  /** Explains whether tape columns represent independent tapes. */
+  note?: string
+}
+
+export interface ExportHistoryMeta {
+  /** The simulator's total completed step count, including evicted entries. */
+  totalSteps?: number
+}
+
+function formatTape(tape: NonNullable<HistoryEntry['tapes']>[number]): string {
+  const right = tape.left + tape.cells.length - 1
+  const cells = tape.cells
+    .map((cell, index) => index === tape.head ? `⟦${cell}⟧` : cell)
+    .join('')
+  const bounds = tape.leftBound !== undefined || tape.rightBound !== undefined
+    ? `; bounds ${tape.leftBound ?? '−∞'}..${tape.rightBound ?? '∞'}`
+    : ''
+  return `[${tape.left}..${right}; head ${tape.left + tape.head}${bounds}] ${cells}`
+}
+
+/** Build a model-aware configuration matrix without inventing stack/tape columns for FA runs. */
+export function configurationMatrix(machine: MachineDefinition, history: HistoryEntry[], meta: ExportHistoryMeta = {}): ConfigurationMatrix {
+  const isPDA = isPDAType(machine.type)
+  const isTM = isTMType(machine.type)
+  const isTransducer = machine.type === 'MEALY' || machine.type === 'MOORE'
+  const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 0
+  const columns = ['Step', 'State']
+  if (!isTM) columns.push('Input position', 'Consumed input', 'Remaining input')
+  if (isPDA) columns.push('Stack')
+  if (isTM) {
+    for (let index = 0; index < tapeCount; index++) {
+      columns.push(`Tape ${index + 1} head`, `Tape ${index + 1}`)
+    }
+  }
+  if (isTransducer) columns.push('Output')
+  columns.push('Status')
+
+  const labels = labelMap(machine)
+  const rows: string[][] = []
+  const startState = machine.states.find((state) => state.isStart)
+  const initialOutput = machine.type === 'MOORE'
+    ? startState?.output ?? ''
+    : machine.initialOutput ?? ''
+  if (isTransducer && initialOutput) {
+    rows.push(columns.map((column) => {
+      if (column === 'Step') return 'init'
+      if (column === 'State') return startState ? (labels.get(startState.id) ?? startState.id) : ''
+      if (column === 'Input position') return '0'
+      if (column === 'Output') return initialOutput
+      if (column === 'Status') return 'initialized'
+      return ''
+    }))
+  }
+  rows.push(...history.map((entry) => {
+    const stateIds = entry.toStateIds.length > 0 ? entry.toStateIds : entry.fromStateIds
+    const row = [String(entry.step), resolveStates(labels, stateIds)]
+    if (!isTM) row.push(
+      entry.inputIndex === undefined ? '' : String(entry.inputIndex),
+      entry.consumedInput ?? '',
+      entry.remainingInput ?? '',
+    )
+    if (isPDA) row.push((entry.stack ?? []).join(' '))
+    if (isTM) {
+      for (let index = 0; index < tapeCount; index++) {
+        const tape = entry.tapes?.[index]
+        row.push(tape ? String(tape.left + tape.head) : '', tape ? formatTape(tape) : '')
+      }
+    }
+    if (isTransducer) row.push(entry.output ?? '')
+    row.push(entry.status)
+    return row
+  }))
+
+  return {
+    columns,
+    rows,
+    ...((isTM || meta.totalSteps !== undefined) ? {
+      note: [
+        ...(isTM && tapeCount > 1 ? ['Tape columns are independent tapes; each column has its own head. They are not multi-track cells.'] : []),
+        ...(isTM ? ['Each tape value is a bounded render window with absolute coordinates.'] : []),
+        ...(meta.totalSteps !== undefined && meta.totalSteps > history.length
+          ? [`Retained history window: ${history.length === 0 ? 'no entries' : `${history[0].step}–${history[history.length - 1].step}`} of ${meta.totalSteps} total steps.`]
+          : []),
+      ].join(' '),
+    } : {}),
+  }
+}
+
+export function configurationMatrixToCSV(machine: MachineDefinition, history: HistoryEntry[], meta: ExportHistoryMeta = {}): string {
+  const matrix = configurationMatrix(machine, history, meta)
+  return toCSV([matrix.columns, ...matrix.rows, ...(matrix.note ? [[`Note: ${matrix.note}`]] : [])])
+}
+
+function markdownCell(value: string): string {
+  return value.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ')
+}
+
+export function configurationMatrixToMarkdown(machine: MachineDefinition, history: HistoryEntry[], meta: ExportHistoryMeta = {}): string {
+  const matrix = configurationMatrix(machine, history, meta)
+  const lines = [
+    `# Configuration matrix — ${machine.name}`,
+    '',
+    `| ${matrix.columns.join(' | ')} |`,
+    `| ${matrix.columns.map(() => '---').join(' | ')} |`,
+    ...matrix.rows.map((row) => `| ${row.map(markdownCell).join(' | ')} |`),
+  ]
+  if (matrix.note) lines.push('', `> ${matrix.note}`)
+  return lines.join('\n')
+}
+
+export function configurationMatrixToLatex(machine: MachineDefinition, history: HistoryEntry[], meta: ExportHistoryMeta = {}): string {
+  const matrix = configurationMatrix(machine, history, meta)
+  const colSpec = `|${'l|'.repeat(matrix.columns.length)}`
+  const lines = [
+    '% AutomataLab — configuration matrix',
+    `% Machine: ${machine.name} (${machine.type})`,
+    ...(matrix.note ? [`% ${matrix.note}`] : []),
+    `\\begin{tabular}{${colSpec}}`,
+    '\\hline',
+    matrix.columns.map(latexEscape).join(' & ') + ' \\\\',
+    '\\hline',
+    ...matrix.rows.map((row) => row.map(latexEscape).join(' & ') + ' \\\\'),
+    '\\hline',
+    '\\end{tabular}',
+  ]
+  return lines.join('\n')
+}
+
+// ─── execution trace ────────────────────────────────────────────
+
 export function traceToCSV(machine: MachineDefinition, history: HistoryEntry[]): string {
   const labels = labelMap(machine)
-  const header = ['Step', 'Read', 'From', 'To', 'Status']
-  const rows = history.map((h) => [
+  const isTransducer = machine.type === 'MEALY' || machine.type === 'MOORE'
+  const header = isTransducer
+    ? ['Step', 'Read', 'From', 'To', 'Output', 'Status']
+    : ['Step', 'Read', 'From', 'To', 'Status']
+  const rows: string[][] = []
+  const startState = machine.states.find((state) => state.isStart)
+  const initialOutput = machine.type === 'MOORE'
+    ? startState?.output ?? ''
+    : machine.initialOutput ?? ''
+  if (isTransducer && initialOutput) {
+    rows.push(['init', '—', startState ? (labels.get(startState.id) ?? startState.id) : '', startState ? (labels.get(startState.id) ?? startState.id) : '', initialOutput, 'initialized'])
+  }
+  rows.push(...history.map((h) => [
     String(h.step),
     h.symbol === '' ? EPSILON : h.symbol,
     resolveStates(labels, h.fromStateIds),
     resolveStates(labels, h.toStateIds),
+    ...(isTransducer ? [h.output ?? ''] : []),
     h.status,
-  ])
+  ]))
   return toCSV([header, ...rows])
 }
 
@@ -284,15 +430,28 @@ export function traceToJSON(
   input: string
 ): string {
   const labels = labelMap(machine)
+  const isTransducer = machine.type === 'MEALY' || machine.type === 'MOORE'
   const payload = {
     machine: { name: machine.name, type: machine.type },
     input,
+    ...(isTransducer ? {
+      initialOutput: machine.type === 'MOORE'
+        ? machine.states.find((state) => state.isStart)?.output ?? ''
+        : machine.initialOutput ?? '',
+    } : {}),
+    ...(isTransducer ? { outputTrace: history.length > 0 ? history[history.length - 1].outputTrace ?? [] : [] } : {}),
     steps: history.map((h) => ({
       step: h.step,
       read: h.symbol,
       from: h.fromStateIds.map((id) => labels.get(id) ?? id),
       to: h.toStateIds.map((id) => labels.get(id) ?? id),
       transitionIds: h.transitionIds,
+      ...(h.inputIndex !== undefined ? { inputIndex: h.inputIndex } : {}),
+      ...(h.consumedInput !== undefined ? { consumedInput: h.consumedInput } : {}),
+      ...(h.remainingInput !== undefined ? { remainingInput: h.remainingInput } : {}),
+      ...(h.stack ? { stack: h.stack } : {}),
+      ...(h.tapes ? { tapes: h.tapes } : {}),
+      ...(h.output !== undefined ? { output: h.output, outputTrace: h.outputTrace ?? [] } : {}),
       status: h.status,
     })),
   }
@@ -323,6 +482,7 @@ export function treeToJSON(machine: MachineDefinition, treeNodes: Configuration[
 const MIME: Record<string, string> = {
   csv: 'text/csv',
   json: 'application/json',
+  md: 'text/markdown',
   tex: 'text/plain',
   txt: 'text/plain',
   svg: 'image/svg+xml',

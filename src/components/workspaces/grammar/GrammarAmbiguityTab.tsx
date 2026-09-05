@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 import { BacktrackingSimulation } from '@/engines/parser/backtracking';
-import { tokenizeGrammarString } from '@/engines/grammar/parser';
+import { tokenizeInputString } from '@/engines/grammar/parser';
 
 export function GrammarAmbiguityTab() {
   const { cfg } = useGrammarStore();
@@ -68,7 +68,7 @@ export function GrammarAmbiguityTab() {
       let counterexample = '';
 
       for (const str of samples) {
-        const tokens = str === 'ε' ? [] : tokenizeGrammarString(str, cfg.nonterminals, cfg.terminals);
+        const tokens = str === 'ε' ? [] : tokenizeInputString(str, cfg.terminals);
         
         let parseCount = 0;
         let opsCount = 0;

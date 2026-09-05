@@ -7,6 +7,9 @@ import { describe, it, expect } from 'vitest'
 import {
   deltaTableToCSV,
   deltaTableToLatex,
+  configurationMatrix,
+  configurationMatrixToMarkdown,
+  configurationMatrixToLatex,
   traceToCSV,
   traceToJSON,
   treeToJSON,
@@ -77,6 +80,51 @@ describe('traceToCSV / traceToJSON', () => {
     expect(obj.input).toBe('b')
     expect(obj.machine.type).toBe('DFA')
     expect(obj.steps[0]).toMatchObject({ read: 'b', from: ['q0'], to: ['q1'], status: 'accepted' })
+  })
+})
+
+describe('configuration matrix exports', () => {
+  it('omits PDA/TM-only columns for finite automata', () => {
+    const matrix = configurationMatrix(dfa, [{
+      step: 0,
+      fromStateIds: ['q0'],
+      toStateIds: ['q1'],
+      symbol: 'b',
+      transitionIds: ['t1'],
+      status: 'accepted',
+      inputIndex: 1,
+      consumedInput: 'b',
+      remainingInput: '',
+    }])
+    expect(matrix.columns).toEqual(['Step', 'State', 'Input position', 'Consumed input', 'Remaining input', 'Status'])
+    expect(matrix.rows[0]).toEqual(['0', 'q1', '1', 'b', '', 'accepted'])
+  })
+
+  it('keeps independent multi-tape snapshots in separate columns', () => {
+    const tm: MachineDefinition = {
+      ...dfa,
+      type: 'TM',
+      tapeCount: 2,
+      tapeAlphabet: ['a', '_'],
+    }
+    const history: HistoryEntry[] = [{
+      step: 0,
+      fromStateIds: ['q0'],
+      toStateIds: ['q1'],
+      symbol: 'a',
+      transitionIds: ['t1'],
+      status: 'running',
+      tapes: [
+        { cells: ['a', '_'], head: 0, left: 0 },
+        { cells: ['_', 'a'], head: 1, left: 0 },
+      ],
+    }]
+    const matrix = configurationMatrix(tm, history)
+    expect(matrix.columns).toContain('Tape 1')
+    expect(matrix.columns).toContain('Tape 2')
+    expect(matrix.note).toContain('independent tapes')
+    expect(configurationMatrixToMarkdown(tm, history)).toContain('Tape 2')
+    expect(configurationMatrixToLatex(tm, history)).toContain('configuration matrix')
   })
 })
 

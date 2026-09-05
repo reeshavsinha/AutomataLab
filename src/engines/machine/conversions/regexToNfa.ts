@@ -23,10 +23,16 @@ type Node =
   | { kind: 'opt'; node: Node }
 
 const OPERATORS = new Set(['|', '*', '+', '?', '(', ')'])
+const MAX_REGEX_LENGTH = 10_000
+const MAX_REGEX_NESTING = 256
 
 function parseRegex(input: string): Node {
   const src = input.replace(/\s+/g, '')
+  if (src.length > MAX_REGEX_LENGTH) {
+    throw new Error(`Regular expression is too long (maximum ${MAX_REGEX_LENGTH} characters).`)
+  }
   let pos = 0
+  let groupDepth = 0
   const peek = () => src[pos]
   const eof = () => pos >= src.length
 
@@ -50,7 +56,12 @@ function parseRegex(input: string): Node {
 
   const parseRepeat = (): Node => {
     let node = parseAtom()
+    let repeatDepth = 0
     while (peek() === '*' || peek() === '+' || peek() === '?') {
+      repeatDepth++
+      if (repeatDepth > MAX_REGEX_NESTING) {
+        throw new Error(`Regular expression nesting is too deep (maximum ${MAX_REGEX_NESTING}).`)
+      }
       const op = src[pos++]
       node = op === '*' ? { kind: 'star', node } : op === '+' ? { kind: 'plus', node } : { kind: 'opt', node }
     }
@@ -61,10 +72,15 @@ function parseRegex(input: string): Node {
     const c = peek()
     if (c === undefined) return { kind: 'empty' }
     if (c === '(') {
+      groupDepth++
+      if (groupDepth > MAX_REGEX_NESTING) {
+        throw new Error(`Regular expression nesting is too deep (maximum ${MAX_REGEX_NESTING}).`)
+      }
       pos++
       const inner = parseUnion()
       if (peek() !== ')') throw new Error('Unbalanced parentheses: missing ")".')
       pos++
+      groupDepth--
       return inner
     }
     if (c === 'ε' || c === 'λ') {

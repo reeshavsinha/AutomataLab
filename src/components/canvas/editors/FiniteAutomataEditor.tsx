@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
+import { isTransducerType } from '@/engines/machine/core/utils'
 
 interface FiniteAutomataEditorProps {
   stateId: string
@@ -14,9 +15,12 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
   const outgoingTransitions = machine.transitions.filter((t) => t.from === stateId)
   const otherStates = machine.states.filter((s) => s.id !== stateId)
   const isENFA = machine.type === 'ENFA'
+  const isMealy = machine.type === 'MEALY'
+  const isTransducer = isTransducerType(machine.type)
 
   const [newTo, setNewTo] = useState(otherStates[0]?.id ?? '')
   const [newSymbols, setNewSymbols] = useState('')
+  const [newOutput, setNewOutput] = useState('')
   const [newSymbolsDropdownOpen, setNewSymbolsDropdownOpen] = useState(false)
   const newSymbolsInputRef = useRef<HTMLInputElement>(null)
 
@@ -28,9 +32,12 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
       .split(/[,，\s]+/)
       .map((s) => s.trim())
       .filter(Boolean)
-    addTransition(stateId, newTo, symbols)
+    if (isMealy && !newOutput.trim()) return
+    const added = addTransition(stateId, newTo, symbols)
+    if (isMealy) updateTransition(added.id, { output: newOutput.trim() })
     setNewSymbols('')
-  }, [stateId, newTo, newSymbols, addTransition])
+    setNewOutput('')
+  }, [stateId, newTo, newSymbols, newOutput, isMealy, addTransition, updateTransition])
 
   const handleUpdateSymbols = useCallback(
     (transId: string, raw: string) => {
@@ -46,7 +53,7 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
   )
 
   if (!state) return null
-  const canAdd = !!newSymbols.trim() && !!newTo
+  const canAdd = !!newSymbols.trim() && !!newTo && (!isMealy || !!newOutput.trim())
 
   return (
     <>
@@ -67,7 +74,10 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
                 toLabel={toLabel}
                 symbols={t.symbols}
                 isENFA={isENFA}
+                isMealy={isMealy}
+                output={t.output}
                 onChangeSymbols={(raw) => handleUpdateSymbols(t.id, raw)}
+                onChangeOutput={(output) => updateTransition(t.id, { output: output.trim() || undefined })}
                 onDelete={() => deleteTransition(t.id)}
               />
             )
@@ -119,6 +129,20 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
               )}
             </div>
 
+            {isMealy && (
+              <>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>/</span>
+                <input
+                  type="text"
+                  value={newOutput}
+                  onChange={(e) => setNewOutput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddTransition()}
+                  placeholder="output"
+                  style={{ ...pdaInputStyle, width: '80px' }}
+                />
+              </>
+            )}
+
             <button
               onClick={handleAddTransition}
               disabled={!canAdd}
@@ -133,6 +157,7 @@ export default function FiniteAutomataEditor({ stateId, onClose }: FiniteAutomat
           </div>
           <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
             Separate multiple symbols with commas. Use ε for epsilon transitions (ε-NFA only).
+            {isTransducer && isMealy && ' Mealy labels use input / output.'}
           </div>
         </div>
       )}
@@ -145,14 +170,20 @@ function TransitionRow({
   toLabel,
   symbols,
   isENFA,
+  isMealy,
+  output,
   onChangeSymbols,
+  onChangeOutput,
   onDelete,
 }: {
   fromLabel: string
   toLabel: string
   symbols: string[]
   isENFA: boolean
+  isMealy: boolean
+  output?: string
   onChangeSymbols: (raw: string) => void
+  onChangeOutput: (output: string) => void
   onDelete: () => void
 }) {
   const [draft, setDraft] = useState(symbols.join(', '))
@@ -201,6 +232,19 @@ function TransitionRow({
           }}
           onFocus={(e) => (e.target.style.borderColor = 'var(--border-strong)')}
         />
+        {isMealy && (
+          <>
+            <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>/</span>
+            <input
+              type="text"
+              value={output ?? ''}
+              onChange={(e) => onChangeOutput(e.target.value)}
+              onBlur={(e) => onChangeOutput(e.target.value)}
+              placeholder="output"
+              style={{ ...pdaInputStyle, width: '72px' }}
+            />
+          </>
+        )}
         {isENFA && (
           <EpsilonInserter
             targetRef={inputRef}

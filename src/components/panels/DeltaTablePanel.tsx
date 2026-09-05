@@ -70,11 +70,11 @@ const iconBtn: React.CSSProperties = {
 }
 
 /** ▶ start ◎ accept ⊘ reject — mirrors the canvas role glyphs. */
-function roleGlyphs(s: AutomataState): string {
+function roleGlyphs(s: AutomataState, showFinalStateRoles: boolean): string {
   let g = ''
   if (s.isStart) g += '▶'
-  if (s.isAccept) g += '◎'
-  if (s.isReject) g += '⊘'
+  if (showFinalStateRoles && s.isAccept) g += '◎'
+  if (showFinalStateRoles && s.isReject) g += '⊘'
   return g
 }
 
@@ -88,6 +88,8 @@ export default function DeltaTablePanel() {
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
   const isENFA = machine.type === 'ENFA'
+  const isMealy = machine.type === 'MEALY'
+  const showFinalStateRoles = !isMealy && machine.type !== 'MOORE'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
   const multiTape = isTM && tapeCount > 1
   const blank = machine.blankSymbol || BLANK
@@ -166,7 +168,7 @@ export default function DeltaTablePanel() {
       <div style={{ flex: 1, overflow: 'auto' }}>
         {orderedStates.map((state) => {
           const rows = byFrom.get(state.id) ?? []
-          const glyphs = roleGlyphs(state)
+          const glyphs = roleGlyphs(state, showFinalStateRoles)
           return (
             <div key={state.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
               {/* Group header — click to locate the state on the canvas */}
@@ -220,6 +222,7 @@ export default function DeltaTablePanel() {
                     isPDA={isPDA}
                     isTM={isTM}
                     isENFA={isENFA}
+                    isMealy={isMealy}
                     blank={blank}
                     onLocate={() => locateTransition(t.id)}
                     onChange={(patch) => updateTransition(t.id, patch)}
@@ -243,6 +246,7 @@ export default function DeltaTablePanel() {
                   isPDA={isPDA}
                   isTM={isTM}
                   isENFA={isENFA}
+                  isMealy={isMealy}
                   blank={blank}
                   onAdd={(to, patch) => {
                     const { symbols, ...rest } = patch
@@ -267,6 +271,7 @@ function DeltaRow({
   isPDA,
   isTM,
   isENFA,
+  isMealy,
   blank,
   onLocate,
   onChange,
@@ -277,12 +282,14 @@ function DeltaRow({
   isPDA: boolean
   isTM: boolean
   isENFA: boolean
+  isMealy: boolean
   blank: string
   onLocate: () => void
   onChange: (patch: Partial<Transition>) => void
   onDelete: () => void
 }) {
   const [symbols, setSymbols] = useState(transition.symbols.join(', '))
+  const [output, setOutput] = useState(transition.output ?? '')
   const [read, setRead] = useState(transition.read ?? '')
   const [pop, setPop] = useState(transition.pop ?? '')
   const [push, setPush] = useState(transition.push ?? '')
@@ -392,6 +399,7 @@ function DeltaRow({
             />
           </>
         ) : (
+          <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, position: 'relative' }}>
             <input
               ref={symbolRef}
@@ -415,6 +423,20 @@ function DeltaRow({
               />
             )}
           </div>
+          {isMealy && (
+            <>
+              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>/</span>
+              <input
+                value={output}
+                onChange={(e) => setOutput(e.target.value)}
+                onBlur={() => onChange({ output: output.trim() || undefined })}
+                placeholder="output"
+                title="Transition output"
+                style={{ ...cellInput, width: '64px' }}
+              />
+            </>
+          )}
+          </>
         )}
       </div>
     </div>
@@ -489,6 +511,7 @@ function AddRow({
   isPDA,
   isTM,
   isENFA,
+  isMealy,
   blank,
   onAdd,
 }: {
@@ -497,12 +520,14 @@ function AddRow({
   isPDA: boolean
   isTM: boolean
   isENFA: boolean
+  isMealy: boolean
   blank: string
   onAdd: (to: string, patch: Partial<Transition>) => void
 }) {
   const [open, setOpen] = useState(false)
   const [to, setTo] = useState(states[0]?.id ?? fromId)
   const [symbols, setSymbols] = useState('')
+  const [output, setOutput] = useState('')
   const [read, setRead] = useState('')
   const [pop, setPop] = useState('')
   const [push, setPush] = useState('')
@@ -513,6 +538,7 @@ function AddRow({
 
   const reset = () => {
     setSymbols('')
+    setOutput('')
     setRead('')
     setPop('')
     setPush('')
@@ -521,7 +547,7 @@ function AddRow({
   }
 
   const isFA = !isPDA && !isTM
-  const canAdd = !!to && (isFA ? splitSymbols(symbols).length > 0 : true)
+  const canAdd = !!to && (isFA ? splitSymbols(symbols).length > 0 && (!isMealy || !!output.trim()) : true)
 
   const submit = () => {
     if (!canAdd) return
@@ -530,7 +556,7 @@ function AddRow({
     } else if (isPDA) {
       onAdd(to, { read: read.trim(), pop: pop.trim(), push: push.trim() })
     } else {
-      onAdd(to, { symbols: splitSymbols(symbols) })
+      onAdd(to, { symbols: splitSymbols(symbols), ...(isMealy ? { output: output.trim() } : {}) })
     }
     reset()
   }
@@ -589,6 +615,7 @@ function AddRow({
             <input value={push} onChange={(e) => setPush(convertEpsilon(e.target.value))} placeholder="ε" title="Push" style={cellInput} />
           </>
         ) : (
+          <>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, position: 'relative' }}>
             <input
               ref={symbolRef}
@@ -609,6 +636,20 @@ function AddRow({
               />
             )}
           </div>
+          {isMealy && (
+            <>
+              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>/</span>
+              <input
+                value={output}
+                onChange={(e) => setOutput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
+                placeholder="output"
+                title="Transition output"
+                style={{ ...cellInput, width: '64px' }}
+              />
+            </>
+          )}
+          </>
         )}
       </div>
 

@@ -14,10 +14,12 @@ import { useCommandStore } from '@/store/commandStore'
 import { useFileActions } from '@/hooks/useFileActions'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
-import { isPDAType, isTMType, generateId } from '@/engines/machine/core/utils'
+import { isPDAType, isTMType, isTransducerType, generateId } from '@/engines/machine/core/utils'
+import { isGraphMachineType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
 import { useHistoryStore } from '@/store/historyStore'
 import type { MachineType, MachineDefinition } from '@/engines/machine/core/types'
-import { EXAMPLES } from '@/utils/examples'
+import { EXAMPLE_TYPES_BY_WORKSPACE } from '@/utils/examples'
+import ExamplePicker from '@/components/toolbar/ExamplePicker'
 import { cfgToPda } from '@/engines/machine/conversions'
 import {
   NewIcon, OpenIcon, SaveIcon, ExportIcon,
@@ -57,7 +59,7 @@ function Sep() {
 export default function Toolbar() {
   const isDemoMode = import.meta.env.VITE_SIMULATOR_MODE === 'true' || window.location.href.includes('demo=true')
   const {
-    machine, setMachineName, setMachineType, setAlphabet,
+    machine, setMachineName, setMachineType, setAlphabet, setOutputAlphabet,
     setStackAlphabet, setTapeAlphabet,
     setBlankSymbol, setStepLimit, setTapeCount,
     loadMachine, undo, redo, insertTab
@@ -80,17 +82,18 @@ export default function Toolbar() {
   const canEdit = status !== 'running'
   const canUndo = (historyStack?.past.length ?? 0) > 0 && canEdit
   const canRedo = (historyStack?.future.length ?? 0) > 0 && canEdit
-  const isDone = status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
+  const isDone = status === 'completed' || status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
   const isIdle = status === 'idle'
   const isPlaying = !!sim?.isPlaying
 
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
+  const isTransducer = isTransducerType(machine.type)
   const isPlainTM = machine.type === 'TM'
-  const isGraph = !['CFG', 'CSG', 'CFG_PARSER'].includes(machine.type)
+  const isGraph = isGraphMachineType(machine.type)
 
-  const isGrammarContext = ['CFG', 'CSG'].includes(machine.type)
-  const isParserContext = machine.type === 'CFG_PARSER'
+  const isGrammarContext = isGrammarType(machine.type)
+  const isParserContext = isParserType(machine.type)
   const isMachineContext = isGraph
   const hasGrammar = !!machine.grammarText && machine.grammarText.trim().length > 0;
 
@@ -141,6 +144,8 @@ export default function Toolbar() {
   const [tapesInput, setTapesInput] = useState(machine.tapeCount != null ? String(machine.tapeCount) : '')
   const [gammaInput, setGammaInput] = useState((machine.stackAlphabet ?? machine.tapeAlphabet ?? []).join(', '))
   const [gammaFocused, setGammaFocused] = useState(false)
+  const [outputAlphabetInput, setOutputAlphabetInput] = useState(machine.outputAlphabet?.join(', ') || '')
+  const [outputAlphabetFocused, setOutputAlphabetFocused] = useState(false)
 
   useEffect(() => {
     if (!alphaFocused) setAlphabetInput(machine.alphabet?.join(', ') || '')
@@ -155,6 +160,10 @@ export default function Toolbar() {
   useEffect(() => {
     if (!gammaFocused) setGammaInput((machine.stackAlphabet ?? machine.tapeAlphabet ?? []).join(', '))
   }, [machine.id, machine.stackAlphabet, machine.tapeAlphabet, gammaFocused])
+
+  useEffect(() => {
+    if (!outputAlphabetFocused) setOutputAlphabetInput((machine.outputAlphabet ?? []).join(', '))
+  }, [machine.id, machine.outputAlphabet, outputAlphabetFocused])
 
   const commitGamma = () => {
     const syms = gammaInput.split(',').map((s) => s.trim()).filter(Boolean)
@@ -255,55 +264,22 @@ export default function Toolbar() {
 
       <div style={{ flex: 1, minWidth: 8 }} />
 
-      {/* Examples Gallery */}
-      <select
-        className="tb-select"
-        style={{ marginRight: '16px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontWeight: 600 }}
-        value=""
-        onChange={(e) => {
-          const ex = EXAMPLES[e.target.value];
-          if (ex) {
-            loadMachine({ ...ex, id: generateId('machine') } as any, true);
-            setTimeout(requestFitView, 50); // allow layout to settle
-            toast.success(`Loaded example: ${ex.name}`);
-          }
-          e.target.value = '';
+      {/* Examples Gallery — custom picker (native <select> cannot show 50 items
+          usefully in this 24px toolbar, and is clipped by workspace overflow). */}
+      <ExamplePicker
+        types={
+          isParserContext
+            ? EXAMPLE_TYPES_BY_WORKSPACE.parser
+            : isGrammarContext
+              ? EXAMPLE_TYPES_BY_WORKSPACE.grammar
+              : EXAMPLE_TYPES_BY_WORKSPACE.machine
+        }
+        onSelect={(_key, ex) => {
+          loadMachine({ ...ex, id: generateId('machine') } as MachineDefinition, true)
+          setTimeout(requestFitView, 50)
+          toast.success(`Loaded example: ${ex.name}`)
         }}
-        title="Load built-in example"
-      >
-        <option value="" disabled>Load Example...</option>
-        {isMachineContext && (
-          <>
-            <option value="dfaEvenZeros">DFA: Even 0s</option>
-            <option value="nfaEndsIn11">NFA: Ends in 11</option>
-            <option value="npdaBalancedParens">NPDA: Balanced Parens</option>
-            <option value="tmAnBnCn">TM: aⁿ bⁿ cⁿ</option>
-          </>
-        )}
-        {isGrammarContext && (
-          <>
-            <option value="palindromeCfg">CFG: Palindromes</option>
-            <option value="dyckLanguage">CFG: Balanced Parens</option>
-            <option value="equal01Cfg">CFG: Equal 0s and 1s</option>
-            <option value="booleanExprCfg">CFG: Boolean Logic</option>
-            <option value="wwrEvenPalindromes">CFG: Even Palindromes</option>
-            <option value="anBnCnCsg">CSG: aⁿ bⁿ cⁿ</option>
-            <option value="wwCopyCsg">CSG: Copy Language (ww)</option>
-            <option value="powersOf2Csg">CSG: Powers of 2</option>
-          </>
-        )}
-        {isParserContext && (
-          <>
-            <option value="arithmeticCfg">Parser: Arithmetic</option>
-            <option value="jsonParser">Parser: Tiny JSON</option>
-            <option value="lispParser">Parser: LISP S-Expr</option>
-            <option value="sqlParser">Parser: SQL Subset</option>
-            <option value="xmlParser">Parser: HTML/XML</option>
-            <option value="regexParser">Parser: RegEx</option>
-            <option value="cBlocksParser">Parser: C-Style Blocks</option>
-          </>
-        )}
-      </select>
+      />
 
       {/* Machine config (compact, right-aligned) */}
       <input
@@ -329,6 +305,8 @@ export default function Toolbar() {
             <option value="DFA">DFA</option>
             <option value="NFA">NFA</option>
             <option value="ENFA">ε-NFA</option>
+            <option value="MEALY">Mealy</option>
+            <option value="MOORE">Moore</option>
             <option value="DPDA">DPDA</option>
             <option value="NPDA">NPDA</option>
             <option value="TM">TM</option>
@@ -351,6 +329,27 @@ export default function Toolbar() {
             }}
             onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
           />
+
+          {isTransducer && (
+            <>
+              <span className="tb-label" title="Output alphabet Γ">Γ</span>
+              <input
+                className="tb-field"
+                type="text"
+                value={outputAlphabetInput}
+                onChange={(e) => setOutputAlphabetInput(e.target.value)}
+                onFocus={() => setOutputAlphabetFocused(true)}
+                onBlur={() => {
+                  setOutputAlphabetFocused(false)
+                  setOutputAlphabet(outputAlphabetInput.split(',').map((s) => s.trim()).filter(Boolean))
+                }}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                placeholder="0, 1"
+                title="Output alphabet Γ (comma-separated)"
+                style={{ width: 86 }}
+              />
+            </>
+          )}
 
           {(isPDA || isTM) && (
             <>
@@ -391,6 +390,7 @@ export default function Toolbar() {
             className="tb-field"
             type="number"
             min={1}
+            max={100000}
             value={limitInput}
             onChange={(e) => setLimitInput(e.target.value)}
             onBlur={() => setStepLimit(limitInput.trim() === '' ? undefined : Number(limitInput))}

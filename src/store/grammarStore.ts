@@ -60,8 +60,9 @@ export const useGrammarStore = create<GrammarStore>((set, get) => {
           // Push old state to history before mutating
           useHistoryStore.getState().pushState('machine', active.id, s.machine, 'grammar-typing');
           tabs[s.activeTabIndex] = { ...active, grammarText: text };
+          return { tabs, machine: tabs[s.activeTabIndex], dirtyTabs: { ...s.dirtyTabs, [active.id]: true } };
         }
-        return { tabs, machine: tabs[s.activeTabIndex], dirtyTabs: { ...s.dirtyTabs, [active?.id]: true } };
+        return {};
       });
       get().setRawTextWithoutSync(text);
     },
@@ -95,4 +96,16 @@ export const useGrammarStore = create<GrammarStore>((set, get) => {
       setRawText(newText);
     }
   };
+});
+
+// Per-tab lab sessions are transient. Remove entries as soon as their tabs close
+// so repeated open/close cycles do not retain derivations and samples forever.
+useMachineStore.subscribe((state) => {
+  const openIds = new Set(state.tabs.map((tab) => tab.id));
+  const sessions = useGrammarStore.getState().sessions;
+  const staleIds = Object.keys(sessions).filter((id) => !openIds.has(id));
+  if (staleIds.length === 0) return;
+  const next = { ...sessions };
+  for (const id of staleIds) delete next[id];
+  useGrammarStore.setState({ sessions: next });
 });

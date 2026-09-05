@@ -10,6 +10,7 @@ import FiniteAutomataEditor from '@/components/canvas/editors/FiniteAutomataEdit
 import PDAEditor from '@/components/canvas/editors/PDAEditor'
 import TMEditor from '@/components/canvas/editors/TMEditor'
 import LBAEditor from '@/components/canvas/editors/LBAEditor'
+import Dialog from '@/components/common/Dialog'
 
 interface TransitionEditorProps {
   /** stateId whose outgoing transitions we are editing */
@@ -58,20 +59,10 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
   }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.7)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 2000,
-      }}
-      onClick={onClose}
-    >
-      <div
-        style={{
+    <Dialog
+      onClose={onClose}
+      label={`Outgoing transitions for ${state.label}`}
+      cardStyle={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-strong)',
           borderRadius: 'var(--radius-lg)',
@@ -83,9 +74,8 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      }}
+    >
         {/* Header */}
         <div style={{
           padding: '14px 16px',
@@ -104,6 +94,7 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
           </div>
           <button
             onClick={onClose}
+            aria-label="Close outgoing transitions editor"
             style={{
               background: 'transparent',
               border: 'none',
@@ -143,7 +134,6 @@ export default function TransitionEditor({ stateId, onClose }: TransitionEditorP
             Done
           </button>
         </div>
-      </div>
-    </div>
+    </Dialog>
   )
 }

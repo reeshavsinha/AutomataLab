@@ -27,6 +27,7 @@ interface SimulationStore {
   consumedInput: string
   remainingInput: string
   currentSymbol: string
+  outputTrace: string[]
   status: SimulationStatus
   history: HistoryEntry[]
   stepCount: number
@@ -60,6 +61,7 @@ interface SimulationStore {
     consumedInput: string
     remainingInput: string
     currentSymbol: string
+    outputTrace?: string[]
     status: SimulationStatus
     historyEntry: HistoryEntry
     configurations: Configuration[]
@@ -80,6 +82,7 @@ interface SimulationStore {
     consumedInput: string
     remainingInput: string
     currentSymbol: string
+    outputTrace: string[]
     status: SimulationStatus
     history: HistoryEntry[]
     stepCount: number
@@ -100,6 +103,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   consumedInput: '',
   remainingInput: '',
   currentSymbol: '',
+  outputTrace: [],
   status: 'idle',
   history: [],
   stepCount: 0,
@@ -123,6 +127,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: result.consumedInput,
       remainingInput: result.remainingInput,
       currentSymbol: result.currentSymbol,
+      outputTrace: result.outputTrace ?? s.outputTrace,
       status: result.status,
       // Bounded ring: keep only the most recent MAX_HISTORY entries so the array
       // copy (and the History panel's DOM) stay constant-cost on long runs.
@@ -147,6 +152,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: full.consumedInput,
       remainingInput: full.remainingInput,
       currentSymbol: full.currentSymbol,
+      outputTrace: full.outputTrace,
       status: full.status,
       history: full.history.length > MAX_HISTORY ? full.history.slice(-MAX_HISTORY) : full.history,
       stepCount: full.stepCount,
@@ -166,6 +172,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: '',
       remainingInput: '',
       currentSymbol: '',
+      outputTrace: [],
       status: 'idle',
       history: [],
       stepCount: 0,

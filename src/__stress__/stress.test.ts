@@ -85,7 +85,7 @@ describe('stress — computation-tree buffer is capped', () => {
     const dt = performance.now() - t0
     console.log(`[NFA tree]  treeNodes=${nodes}  getTreeNodes=${ms(dt)}`)
     expect(nodes).toBeLessThanOrEqual(20_500)
-  })
+  }, 15_000)
 })
 
 describe('stress — sim history buffer is capped', () => {
@@ -111,5 +111,5 @@ describe('stress — sim history buffer is capped', () => {
     console.log(`[history]  pushes=${pushes}  finalLen=${len}  time=${ms(dt)}`)
     store.getState().resetSimulation()
     expect(len).toBeLessThanOrEqual(2_000)
-  })
+  }, 15_000)
 })

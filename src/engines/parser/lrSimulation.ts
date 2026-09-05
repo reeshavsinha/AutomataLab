@@ -74,7 +74,9 @@ export class LRSimulation implements ParserEngine {
       return cloneSyntaxTree(item as SyntaxTreeNode)!;
     });
     clone.tree = cloneSyntaxTree(this.tree);
-    clone.derivationSteps = this.derivationSteps.map(step => [...step]);
+    clone.derivationSteps = this.derivationSteps.length > 0
+      ? [[...this.derivationSteps[this.derivationSteps.length - 1]]]
+      : [];
     return clone;
   }
 

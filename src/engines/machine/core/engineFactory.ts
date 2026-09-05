@@ -13,6 +13,7 @@ import { DPDAEngine } from '../dpda/DPDAEngine'
 import { NPDAEngine } from '../npda/NPDAEngine'
 import { TMEngine } from '../tm/TMEngine'
 import { LBAEngine } from '../lba/LBAEngine'
+import { TransducerEngine } from '../transducer/TransducerEngine'
 import type { Automaton, MachineDefinition, SimulationStatus } from './types'
 
 /** Construct the engine for a machine definition's type (defaults to DFA). */
@@ -24,6 +25,8 @@ export function createEngine(definition: MachineDefinition): Automaton {
     case 'NPDA': return new NPDAEngine(definition)
     case 'TM':   return new TMEngine(definition)
     case 'LBA':  return new LBAEngine(definition)
+    case 'MEALY':
+    case 'MOORE': return new TransducerEngine(definition)
     default:     return new DFAEngine(definition)
   }
 }
@@ -31,9 +34,13 @@ export function createEngine(definition: MachineDefinition): Automaton {
 export interface RunOutcome {
   input: string
   status: SimulationStatus
-  /** true = accepted, false = rejected/stuck, null = could not run (error). */
+  /** Recognizer verdict; null for transducers and runs that could not start. */
   accepted: boolean | null
   steps: number
+  outputTrace?: string[]
+  tapes?: import('./types').TapeSnapshot[]
+  trace?: string[]
+  limited?: boolean
 }
 
 /**
@@ -44,7 +51,8 @@ export interface RunOutcome {
 export function runToCompletion(
   definition: MachineDefinition,
   input: string,
-  maxSteps = 100_000
+  maxSteps = 100_000,
+  options: { captureTrace?: boolean; captureTapes?: boolean } = {}
 ): RunOutcome {
   const engine = createEngine(definition)
   engine.initialize(input)
@@ -59,5 +67,19 @@ export function runToCompletion(
   }
 
   const status = engine.getStatus()
-  return { input, status, accepted: engine.isAccepted(), steps }
+  const outputTrace = engine.getOutputTrace?.()
+  const tapes = options.captureTapes ? engine.getCurrentConfigurations()[0]?.tapes : undefined
+  const trace = options.captureTrace
+    ? engine.getExecutionHistory().map((entry) => `${entry.status}:${entry.symbol}`)
+    : undefined
+  return {
+    input,
+    status,
+    accepted: engine.isAccepted(),
+    steps,
+    ...(outputTrace ? { outputTrace } : {}),
+    ...(tapes ? { tapes } : {}),
+    ...(trace ? { trace } : {}),
+    ...(status === 'stuck' || (status === 'running' && steps >= maxSteps) ? { limited: true } : {}),
+  }
 }

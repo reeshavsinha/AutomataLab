@@ -5,7 +5,7 @@
 // ============================================================
 
 import type { MachineDefinition, ValidationError } from '@/engines/machine/core/types'
-import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, tmTapeOps } from '@/engines/machine/core/utils'
+import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, isTransducerType, tmTapeOps } from '@/engines/machine/core/utils'
 
 export function validateMachine(machine: MachineDefinition): ValidationError[] {
   const errors: ValidationError[] = []
@@ -30,7 +30,9 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
 
   // ── FR-8.2: At least one accept state ─────────────────────
   const acceptStates = machine.states.filter((s) => s.isAccept && !s.isText)
-  if (acceptStates.length === 0) {
+  // Mealy/Moore machines are transducers, not recognizers. Their result is an
+  // output sequence, so final-state acceptance is neither required nor used.
+  if (acceptStates.length === 0 && !isTransducerType(machine.type)) {
     errors.push({
       severity: 'warning',
       code: 'NO_ACCEPT_STATE',
@@ -38,8 +40,8 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
     })
   }
 
-  // ── FR-8.3: DFA determinism check ─────────────────────────
-  if (machine.type === 'DFA') {
+  // ── FR-8.3: deterministic transition check ────────────────
+  if (machine.type === 'DFA' || machine.type === 'MEALY' || machine.type === 'MOORE') {
     for (const state of machine.states.filter((s) => !s.isText)) {
       const symbolCount = new Map<string, number>()
       for (const t of machine.transitions) {
@@ -53,8 +55,12 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
         if (count > 1) {
           errors.push({
             severity: 'error',
-            code: 'DFA_NONDETERMINISTIC',
-            message: `State "${state.label}" has ${count} transitions on symbol "${sym}". DFA must be deterministic.`,
+            code: machine.type === 'MEALY'
+              ? 'MEALY_NONDETERMINISTIC'
+              : machine.type === 'MOORE'
+                ? 'MOORE_NONDETERMINISTIC'
+                : 'DFA_NONDETERMINISTIC',
+            message: `State "${state.label}" has ${count} transitions on symbol "${sym}". ${machine.type} must be deterministic.`,
             stateId: state.id,
           })
         }
@@ -68,8 +74,12 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
           if (!symbolCount.has(sym)) {
             errors.push({
               severity: 'warning',
-              code: 'DFA_MISSING_TRANSITION',
-              message: `State "${state.label}" has no move on "${sym}". A partial DFA rejects here (as if going to a trap state). Use "Complete DFA" to add an explicit trap.`,
+              code: machine.type === 'MEALY'
+                ? 'MEALY_MISSING_TRANSITION'
+                : machine.type === 'MOORE'
+                  ? 'MOORE_MISSING_TRANSITION'
+                  : 'DFA_MISSING_TRANSITION',
+              message: `State "${state.label}" has no move on "${sym}". A partial ${machine.type} stops with no output here.`,
               stateId: state.id,
             })
           }
@@ -134,7 +144,64 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
     validateTM(machine, errors)
   }
 
+  if (isTransducerType(machine.type)) {
+    validateTransducer(machine, errors)
+  }
+
   return errors
+}
+
+function validateTransducer(machine: MachineDefinition, errors: ValidationError[]): void {
+  const outputAlphabet = new Set(machine.outputAlphabet ?? [])
+  if (!machine.outputAlphabet || machine.outputAlphabet.length === 0) {
+    errors.push({
+      severity: 'warning',
+      code: 'TRANSDUCER_NO_OUTPUT_ALPHABET',
+      message: 'No output alphabet declared. Add Γ so output symbols can be checked.',
+    })
+  }
+
+  if (machine.type === 'MEALY') {
+    for (const transition of machine.transitions) {
+      // An explicit empty/epsilon/lambda output is valid: it means this
+      // transition emits no symbol. `undefined` still means the field is
+      // missing altogether.
+      if (transition.output === undefined) {
+        errors.push({
+          severity: 'error',
+          code: 'MEALY_MISSING_OUTPUT',
+          message: 'Every Mealy transition must define an output symbol or ε/λ for no output.',
+          transitionId: transition.id,
+        })
+      } else if (outputAlphabet.size > 0 && !isEpsilon(transition.output.trim()) && !outputAlphabet.has(transition.output)) {
+        errors.push({
+          severity: 'warning',
+          code: 'TRANSDUCER_OUTPUT_NOT_IN_GAMMA',
+          message: `Output "${transition.output}" is not in the declared output alphabet Γ.`,
+          transitionId: transition.id,
+        })
+      }
+    }
+  } else {
+    for (const state of machine.states.filter((s) => !s.isText)) {
+      // An explicit empty/epsilon/lambda output is valid for Moore states.
+      if (state.output === undefined) {
+        errors.push({
+          severity: 'error',
+          code: 'MOORE_MISSING_OUTPUT',
+          message: 'Every Moore state must define an output symbol or ε/λ for no output, including the initial state.',
+          stateId: state.id,
+        })
+      } else if (outputAlphabet.size > 0 && !isEpsilon(state.output.trim()) && !outputAlphabet.has(state.output)) {
+        errors.push({
+          severity: 'warning',
+          code: 'TRANSDUCER_OUTPUT_NOT_IN_GAMMA',
+          message: `Output "${state.output}" is not in the declared output alphabet Γ.`,
+          stateId: state.id,
+        })
+      }
+    }
+  }
 }
 
 // ─── PDA validation ──────────────────────────────────────────

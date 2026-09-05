@@ -3,14 +3,19 @@
 // ============================================================
 
 import type { AutomataState, MachineDefinition, Transition } from '@/engines/machine/core/types'
-import { generateId, isPDAType } from '@/engines/machine/core/utils'
+import { generateId, isPDAType, isTransducerType } from '@/engines/machine/core/utils'
+import { getWorkspaceForMachineType, isMachineType } from '@/engines/machine/core/capabilities'
+import { AUTOMATALAB_FILE_FORMAT_VERSION, readFileFormatVersion } from '@/utils/fileFormat'
 import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { parseJFLAP } from '@/utils/jflap'
 import { toast } from '@/store/toastStore'
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
-const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA']
+const MAX_TAPE_COUNT = 9
+const MAX_PROJECT_BYTES = 10 * 1024 * 1024
+const MAX_STATES = 5_000
+const MAX_TRANSITIONS = 20_000
 
 /** Copy only the known state fields, dropping anything unexpected from the file. */
 function sanitizeState(raw: any): AutomataState {
@@ -24,6 +29,7 @@ function sanitizeState(raw: any): AutomataState {
   }
   if (raw?.isReject) state.isReject = true
   if (raw?.isText) state.isText = true
+  if (typeof raw?.output === 'string') state.output = raw.output
   if (typeof raw?.description === 'string' && raw.description !== '') state.description = raw.description
   if (Number.isFinite(raw?.width)) state.width = Number(raw.width)
   if (Number.isFinite(raw?.height)) state.height = Number(raw.height)
@@ -47,6 +53,7 @@ function sanitizeTransition(raw: any): Transition {
   if (typeof raw?.read === 'string') t.read = raw.read
   if (typeof raw?.pop === 'string') t.pop = raw.pop
   if (typeof raw?.push === 'string') t.push = raw.push
+  if (typeof raw?.output === 'string') t.output = raw.output
   if (typeof raw?.write === 'string') t.write = raw.write
   if (raw?.direction === 'L' || raw?.direction === 'R' || raw?.direction === 'S') {
     t.direction = raw.direction
@@ -63,6 +70,9 @@ function sanitizeTransition(raw: any): Transition {
 }
 
 export function parseMachineJson(jsonString: string): MachineDefinition {
+  if (jsonString.length > MAX_PROJECT_BYTES) {
+    throw new Error('Failed to load project: File is larger than 10 MB.')
+  }
   let raw: any
   try {
     raw = JSON.parse(jsonString)
@@ -75,27 +85,64 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
     throw new Error('Failed to load project: Expected a machine object.')
   }
   // Minimal validation
-  if (!raw.states || !raw.transitions || !raw.type) {
+  if (!Array.isArray(raw.states) || !Array.isArray(raw.transitions) || !raw.type) {
     throw new Error('Failed to load project: Missing required fields (states, transitions, type).')
   }
+  if (raw.states.length > MAX_STATES || raw.transitions.length > MAX_TRANSITIONS) {
+    throw new Error(
+      `Failed to load project: Maximum size is ${MAX_STATES.toLocaleString()} states and ${MAX_TRANSITIONS.toLocaleString()} transitions.`
+    )
+  }
 
-  if (!VALID_TYPES.includes(raw.type)) {
+  if (!isMachineType(raw.type)) {
     throw new Error(`Failed to load project: Unknown machine type "${raw.type}".`)
+  }
+
+  const fileVersion = readFileFormatVersion(raw.version)
+  if (fileVersion > AUTOMATALAB_FILE_FORMAT_VERSION) {
+    throw new Error(
+      `Failed to load project: File format version ${fileVersion} is newer than this application supports.`
+    )
   }
 
   // Ensure a unique id on load, and prevent prototype pollution / injection by
   // explicitly rebuilding every state and transition from known fields only.
   const def: MachineDefinition = {
     id: generateId('machine'),
-    version: Number.isFinite(raw.version) ? Number(raw.version) : 1,
+    version: fileVersion,
     // Force string-typed metadata: a numeric/boolean `name` would otherwise flow
     // through and crash later (e.g. `fileStem` calls String.prototype.replace).
     name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : 'Imported Machine',
     type: raw.type,
     language: typeof raw.language === 'string' ? raw.language : '',
-    states: Array.isArray(raw.states) ? raw.states.map(sanitizeState) : [],
+    states: Array.isArray(raw.states)
+      ? raw.states.map(sanitizeState).map((state: AutomataState) =>
+        isTransducerType(raw.type) ? { ...state, isAccept: false, isReject: false } : state
+      )
+      : [],
     transitions: Array.isArray(raw.transitions) ? raw.transitions.map(sanitizeTransition) : [],
     alphabet: Array.isArray(raw.alphabet) ? raw.alphabet.map(String) : [],
+  }
+  if (Array.isArray(raw.outputAlphabet) && raw.outputAlphabet.length > 0) {
+    def.outputAlphabet = raw.outputAlphabet.map(String)
+  }
+  if (typeof raw.initialOutput === 'string') {
+    def.initialOutput = raw.initialOutput
+  }
+  if (typeof raw.grammarText === 'string') def.grammarText = raw.grammarText
+  if (typeof raw.parserAlgorithm === 'string') def.parserAlgorithm = raw.parserAlgorithm
+  if (typeof raw.parserInput === 'string') def.parserInput = raw.parserInput
+  if (raw.activeViewMode === 'table' || raw.activeViewMode === 'automaton') {
+    def.activeViewMode = raw.activeViewMode
+  }
+  if (typeof raw.grammarDerivationInput === 'string') {
+    def.grammarDerivationInput = raw.grammarDerivationInput
+  }
+  if (typeof raw.grammarSamplerMaxLength === 'string') {
+    def.grammarSamplerMaxLength = raw.grammarSamplerMaxLength
+  }
+  if (typeof raw.grammarSamplerMaxSteps === 'string') {
+    def.grammarSamplerMaxSteps = raw.grammarSamplerMaxSteps
   }
   // Optional declared alphabets Γ (additive — old files omit them).
   if (Array.isArray(raw.stackAlphabet) && raw.stackAlphabet.length > 0) {
@@ -109,9 +156,12 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
     def.blankSymbol = raw.blankSymbol
   }
   if (Number.isFinite(raw.stepLimit) && raw.stepLimit > 0) {
-    def.stepLimit = Number(raw.stepLimit)
+    def.stepLimit = Math.min(100_000, Math.floor(Number(raw.stepLimit)))
   }
   if (Number.isFinite(raw.tapeCount) && raw.tapeCount > 1) {
+    if (raw.tapeCount > MAX_TAPE_COUNT) {
+      throw new Error(`Failed to load project: Tape count cannot exceed ${MAX_TAPE_COUNT}.`)
+    }
     def.tapeCount = Math.floor(Number(raw.tapeCount))
   }
 
@@ -158,11 +208,7 @@ export async function saveMachine(machine: MachineDefinition, options?: { gramma
   const grammarOnly = options?.grammarOnly ?? false;
   
   // Inject metadata for future migrations
-  const toSave = {
-    ...machine,
-    version: '1.0.0',
-    workspaceType: machine.type.includes('CFG') ? 'grammar' : 'automata'
-  };
+  const toSave = toPersistedMachine(machine)
   
   const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toSave, null, 2);
   const extension = grammarOnly ? '.txt' : FILE_EXTENSION;
@@ -217,7 +263,7 @@ export async function saveMachineToPath(machine: MachineDefinition, path: string
     throw new Error('Saving to a path is only supported in the desktop app')
   }
   const grammarOnly = options?.grammarOnly ?? false;
-  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(machine, null, 2);
+  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toPersistedMachine(machine), null, 2);
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs')
     await writeTextFile(path, contentToWrite)
@@ -342,7 +388,66 @@ function checkImportWarnings(def: MachineDefinition) {
   }
 }
 
+/** Open file picker to load a plain text file (.txt). Returns the string content and filename, or null if cancelled. */
+export async function loadTextFile(options?: { title?: string; extensions?: string[] }): Promise<{ content: string; filename: string } | null> {
+  const extensions = options?.extensions ?? ['txt']
+  if (isTauri()) {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { readTextFile } = await import('@tauri-apps/plugin-fs')
+      const path = await open({
+        multiple: false,
+        title: options?.title ?? 'Open Text File',
+        filters: [{
+          name: 'Text File',
+          extensions,
+        }],
+      })
+      if (!path) return null
+      const filePath = Array.isArray(path) ? path[0] : path
+      const content = await readTextFile(filePath)
+      const filename = filePath.split(/[\\/]/).pop() || 'file.txt'
+      return { content, filename }
+    } catch (err) {
+      console.error('Failed to read text file:', err)
+      return null
+    }
+  } else {
+    // Web fallback
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = extensions.map((e) => `.${e}`).join(',')
+      input.onchange = () => {
+        const file = input.files?.[0]
+        if (!file) {
+          resolve(null)
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const content = (e.target?.result as string) || ''
+          resolve({ content, filename: file.name })
+        }
+        reader.onerror = () => resolve(null)
+        reader.readAsText(file)
+      }
+      input.oncancel = () => resolve(null)
+      input.click()
+    })
+  }
+}
+
 /** Export machine as plain JSON string (for clipboard or other uses) */
 export function exportMachineJSON(machine: MachineDefinition): string {
-  return JSON.stringify(machine, null, 2)
+  return JSON.stringify(toPersistedMachine(machine), null, 2)
+}
+
+/** Add the stable file metadata without changing the in-memory machine object. */
+function toPersistedMachine(machine: MachineDefinition) {
+  return {
+    ...machine,
+    version: AUTOMATALAB_FILE_FORMAT_VERSION,
+    workspaceType: getWorkspaceForMachineType(machine.type),
+  }
 }

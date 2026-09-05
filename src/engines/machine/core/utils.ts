@@ -15,7 +15,13 @@ import type {
 export const EPSILON = 'ε'
 
 export function isEpsilon(symbol: string | undefined): boolean {
-  return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'λ' || symbol === 'lambda'
+  return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'epsilon' || symbol === 'λ' || symbol === 'lambda'
+}
+
+/** Canonical transducer output: every epsilon/lambda spelling means no output. */
+export function normalizeTransducerOutput(value: string | null | undefined): string {
+  const output = value?.trim() ?? ''
+  return isEpsilon(output) ? '' : output
 }
 
 /** The default Turing-machine blank tape symbol. */
@@ -33,6 +39,32 @@ export const FA_TYPES = ['DFA', 'NFA', 'ENFA'] as const
 
 export function isFAType(type: string): boolean {
   return (FA_TYPES as readonly string[]).includes(type)
+}
+
+export const TRANSDUCER_TYPES = ['MEALY', 'MOORE'] as const
+
+export function isTransducerType(type: string): boolean {
+  return (TRANSDUCER_TYPES as readonly string[]).includes(type)
+}
+
+/**
+ * Parse the compact Mealy edge notation used on the canvas. Each comma
+ * separated entry is an input/output pair, for example `0 / 1, 1 / 0`.
+ * Keeping this parser here prevents the slash from being treated as another
+ * input symbol by generic FA label parsing.
+ */
+export function parseMealyLabel(value: string): Array<{ input: string; output: string }> | null {
+  const pairs = value
+    .split(',')
+    .map((part) => {
+      const separator = part.indexOf('/')
+      if (separator < 0) return null
+      const input = part.slice(0, separator).trim()
+      const output = part.slice(separator + 1).trim()
+      return input && output ? { input, output } : null
+    })
+  if (pairs.length === 0 || pairs.some((pair) => pair === null)) return null
+  return pairs as Array<{ input: string; output: string }>
 }
 
 /**

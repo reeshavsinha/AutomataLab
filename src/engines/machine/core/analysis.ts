@@ -161,6 +161,7 @@ function checkProduct(
     return { result: true, counterexample: null }
   }
 
+  const MAX_PRODUCT_STATES = 50_000
   const queue: { q1: string; q2: string; path: string }[] = [{ q1: s1Id, q2: s2Id, path: '' }]
   const visited = new Set<string>()
   visited.add(`${s1Id},${s2Id}`)
@@ -184,6 +185,9 @@ function checkProduct(
       
       const key = `${next1},${next2}`
       if (!visited.has(key)) {
+        if (visited.size >= MAX_PRODUCT_STATES) {
+          throw new Error(`Analysis is too complex (product exceeded ${MAX_PRODUCT_STATES.toLocaleString()} states).`)
+        }
         visited.add(key)
         queue.push({ q1: next1, q2: next2, path: path + a })
       }

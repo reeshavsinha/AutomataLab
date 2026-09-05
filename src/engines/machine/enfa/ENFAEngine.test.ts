@@ -10,6 +10,16 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { ENFAEngine } from './ENFAEngine'
 import type { MachineDefinition } from '../core/types'
+import { MAX_TREE_NODES } from '../core/computationTree'
+
+class TreeCapProbeEngine extends ENFAEngine {
+  expandAtTreeCap(): Map<string, string> {
+    this.treeNodes.length = MAX_TREE_NODES
+    const level = new Map([['q0', 'root']])
+    this._epsilonExpandLineage(level, 0)
+    return level
+  }
+}
 
 // ε-NFA: accepts "a" or "b" (simpler machine with ε-transitions)
 // q0 --ε--> q1, q0 --ε--> q2
@@ -111,5 +121,28 @@ describe('ENFAEngine', () => {
 
     const result = lambdaEngine.step()
     expect(result.status).toBe('accepted')
+  })
+
+  it('terminates epsilon-cycle expansion after the computation-tree cap', () => {
+    const cyclicDefinition: MachineDefinition = {
+      id: 'tree-cap-cycle',
+      name: 'Tree cap epsilon cycle',
+      type: 'ENFA',
+      language: '',
+      alphabet: [],
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'q1', label: 'q1', x: 100, y: 0, isStart: false, isAccept: false },
+      ],
+      transitions: [
+        { id: 't0', from: 'q0', to: 'q1', symbols: ['ε'] },
+        { id: 't1', from: 'q1', to: 'q1', symbols: ['ε'] },
+      ],
+    }
+
+    const cappedEngine = new TreeCapProbeEngine(cyclicDefinition)
+    const level = cappedEngine.expandAtTreeCap()
+
+    expect(level.size).toBe(1)
   })
 })

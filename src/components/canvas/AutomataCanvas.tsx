@@ -22,7 +22,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import { useCommandStore } from '@/store/commandStore'
-import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType } from '@/engines/machine/core/utils'
+import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType, isTransducerType } from '@/engines/machine/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -76,10 +76,11 @@ function buildNodes(
       data: {
         label: s.label,
         isStart: s.isStart,
-        isAccept: s.isAccept,
-        isReject: s.isReject ?? false,
+        isAccept: isTransducerType(machine.type) ? false : s.isAccept,
+        isReject: isTransducerType(machine.type) ? false : s.isReject ?? false,
+        output: s.output,
         description: s.description,
-        isTransitionTarget: transitionMode !== null && transitionMode.fromStateId !== s.id && !s.isText,
+        isTransitionTarget: transitionMode !== null && !s.isText,
       },
       draggable: true,
       selected: selectedStateIds.includes(s.id),
@@ -130,8 +131,9 @@ function buildEdges(
       pdaLabelMap.get(key)!.push(formatPdaLabel(t.read, t.pop, t.push))
     } else {
       for (const sym of t.symbols) {
-        if (!edgeMap.get(key)!.includes(sym)) {
-          edgeMap.get(key)!.push(sym)
+        const label = machine.type === 'MEALY' ? `${sym} / ${t.output ?? ''}` : sym
+        if (!edgeMap.get(key)!.includes(label)) {
+          edgeMap.get(key)!.push(label)
         }
       }
     }
@@ -158,6 +160,7 @@ function buildEdges(
         hasReverse,
         controlPointOffset: edgeOffsetMap.get(key),
         isPDA,
+        isMealy: machine.type === 'MEALY',
         pdaLabels,
         isTM,
         tmLabels,
@@ -193,6 +196,7 @@ function areNodesEqual(nodesA: Node[], nodesB: Node[]): boolean {
     if (dA.isStart !== dB.isStart) { return false; }
     if (dA.isAccept !== dB.isAccept) { return false; }
     if ((dA.isReject ?? false) !== (dB.isReject ?? false)) { return false; }
+    if ((dA.output ?? '') !== (dB.output ?? '')) { return false; }
     if ((dA.description ?? '') !== (dB.description ?? '')) { return false; }
     if ((dA.isTransitionTarget ?? false) !== (dB.isTransitionTarget ?? false)) { return false; }
   }
@@ -279,6 +283,7 @@ function AutomataCanvasInner() {
   const showMinimap = machine.states.filter((s) => !s.isText).length > 5
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
+  const lastCanvasCursor = useRef<{ x: number; y: number } | null>(null)
   const [canvasTool, setCanvasTool] = useState<CanvasTool>('select')
   const [flash, setFlash] = useState<{ kind: 'accept' | 'reject'; id: number } | null>(null)
 
@@ -327,6 +332,8 @@ function AutomataCanvasInner() {
     onPointerMove,
     onNodeClick,
     onConnect,
+    startDrawing,
+    completeDrawing,
     cancelDrawing,
   } = useTransitionDrawing(canvasTool, setCanvasTool)
 
@@ -361,7 +368,10 @@ function AutomataCanvasInner() {
     if (status === 'running') return
     let x = 0
     let y = 0
-    if (rfInstance && reactFlowWrapper.current) {
+    if (lastCanvasCursor.current) {
+      x = lastCanvasCursor.current.x
+      y = lastCanvasCursor.current.y
+    } else if (rfInstance && reactFlowWrapper.current) {
       const rect = reactFlowWrapper.current.getBoundingClientRect()
       const pos = rfInstance.screenToFlowPosition({
         x: rect.left + rect.width / 2,
@@ -373,6 +383,31 @@ function AutomataCanvasInner() {
     addState(x, y)
   }, [status, rfInstance, addState])
 
+  const handleStartTransition = useCallback(() => {
+    if (status === 'running') return
+    const selected = selectedStateIds.filter((id) => machine.states.some((state) => state.id === id && !state.isText))
+    if (selected.length !== 1) return
+    startDrawing(selected[0])
+  }, [machine.states, selectedStateIds, startDrawing, status])
+
+  const handleCompleteTransition = useCallback(() => {
+    if (status === 'running' || !transitionMode) return
+    const selected = selectedStateIds.filter((id) => machine.states.some((state) => state.id === id && !state.isText))
+    if (selected.length !== 1) return
+    completeDrawing(selected[0])
+  }, [completeDrawing, machine.states, selectedStateIds, status, transitionMode])
+
+  const cycleTransitionTarget = useCallback((direction: 1 | -1) => {
+    if (!transitionMode) return
+    const states = machine.states.filter((state) => !state.isText)
+    if (states.length === 0) return
+    const current = selectedStateIds.length === 1 ? selectedStateIds[0] : transitionMode.fromStateId
+    const index = Math.max(0, states.findIndex((state) => state.id === current))
+    const next = states[(index + direction + states.length) % states.length]
+    setSelectedStateIds([next.id])
+    setSelectedTransitionIds([])
+  }, [machine.states, selectedStateIds, setSelectedStateIds, setSelectedTransitionIds, transitionMode])
+
   // Keyboard Shortcuts hook
   useCanvasKeyboard({
     handleCopy,
@@ -381,6 +416,10 @@ function AutomataCanvasInner() {
     handleSelectAll,
     handleDeleteSelected,
     handleAddStateAtCenter,
+    startTransition: handleStartTransition,
+    completeTransition: handleCompleteTransition,
+    cycleTransitionTarget,
+    transitionModeActive: transitionMode !== null,
     cancelTransitionMode: useCallback(() => {
       cancelDrawing()
       setContextMenu(null)
@@ -391,8 +430,10 @@ function AutomataCanvasInner() {
 
   // Structural tools auto-reset on running sim
   useEffect(() => {
-    if (status === 'running' && canvasTool !== 'select') setCanvasTool('select')
-  }, [status, canvasTool])
+    if (status !== 'running') return
+    if (transitionMode) cancelDrawing()
+    if (canvasTool !== 'select') setCanvasTool('select')
+  }, [status, canvasTool, cancelDrawing, transitionMode])
 
   useEffect(() => {
     if (status === 'accepted') setFlash({ kind: 'accept', id: Date.now() })
@@ -446,6 +487,9 @@ function AutomataCanvasInner() {
       deleteSelection: handleDeleteSelected,
       selectAll: handleSelectAll,
       addState: handleAddStateAtCenter,
+      startTransition: handleStartTransition,
+      completeTransition: handleCompleteTransition,
+      transitionModeActive: transitionMode !== null,
       zoomIn: () => rfInstance?.zoomIn?.(),
       zoomOut: () => rfInstance?.zoomOut?.(),
       fit: () => fitToContent(),
@@ -453,7 +497,7 @@ function AutomataCanvasInner() {
       hasClipboard,
     })
     return () => setCanvasApi(null)
-  }, [setCanvasApi, handleCopy, handleCut, handlePaste, handleDeleteSelected, handleSelectAll, handleAddStateAtCenter, rfInstance, fitToContent, hasSelection, hasClipboard])
+  }, [setCanvasApi, handleCopy, handleCut, handlePaste, handleDeleteSelected, handleSelectAll, handleAddStateAtCenter, handleStartTransition, handleCompleteTransition, transitionMode, rfInstance, fitToContent, hasSelection, hasClipboard])
 
   // Node Drag Stop position persistence
   const onNodeDragStop = useCallback(
@@ -467,6 +511,7 @@ function AutomataCanvasInner() {
   const onPaneClick = useCallback((event: React.MouseEvent) => {
     if (status !== 'running' && (canvasTool === 'addState' || canvasTool === 'addText') && rfInstance) {
       const pos = rfInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+      lastCanvasCursor.current = pos
       if (canvasTool === 'addState') {
         addState(pos.x, pos.y)
       } else {
@@ -484,6 +529,13 @@ function AutomataCanvasInner() {
       cancelDrawing()
     }
   }, [clearSelection, transitionMode, setRfNodes, setRfEdges, status, canvasTool, rfInstance, addState, addTextState, startRenaming, cancelDrawing, setContextMenu, setSelectionModeActive])
+
+  const handleCanvasPointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (rfInstance) {
+      lastCanvasCursor.current = rfInstance.screenToFlowPosition({ x: event.clientX, y: event.clientY })
+    }
+    onPointerMove(event)
+  }, [onPointerMove, rfInstance])
 
   // Transition mode banner
   const fromStateName = transitionMode
@@ -504,7 +556,7 @@ function AutomataCanvasInner() {
     <div
       ref={reactFlowWrapper}
       style={{ width: '100%', height: '100%', position: 'relative' }}
-      onPointerMove={onPointerMove}
+      onPointerMove={handleCanvasPointerMove}
     >
       {drawLinePath && (
         <svg style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', pointerEvents: 'none', zIndex: 1000 }}>

@@ -6,6 +6,8 @@ import {
   minimizeDfa,
   regexToNfa,
   cfgToPda,
+  mealyToMoore,
+  mooreToMealy,
   type ConversionResult,
   type ConversionMode,
 } from '@/engines/machine/conversions'
@@ -187,6 +189,26 @@ function CFGInput({
 }
 
 export const CONVERSION_PLUGINS: ConversionPlugin[] = [
+  {
+    kind: 'moore-to-mealy',
+    label: 'Moore → Mealy',
+    description: 'Move destination-state outputs onto transitions.',
+    mode: 'transform',
+    appliesTo: ['MOORE'],
+    resultType: 'MEALY',
+    execute: (machine: MachineDefinition) => mooreToMealy(machine),
+    animationBuilder: defaultAnimationBuilder,
+  },
+  {
+    kind: 'mealy-to-moore',
+    label: 'Mealy → Moore',
+    description: 'Split states when incoming transitions emit different outputs.',
+    mode: 'transform',
+    appliesTo: ['MEALY'],
+    resultType: 'MOORE',
+    execute: (machine: MachineDefinition) => mealyToMoore(machine),
+    animationBuilder: defaultAnimationBuilder,
+  },
   {
     kind: 'enfa-to-nfa',
     label: 'ε-NFA → NFA',

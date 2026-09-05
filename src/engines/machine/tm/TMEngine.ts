@@ -53,6 +53,9 @@ export class TMEngine implements Automaton {
   /** Per-tape range of indices ever written/visited — drives each render window. */
   protected usedMin: number[] = []
   protected usedMax: number[] = []
+  /** Incremental fingerprints of non-blank tape cells for O(1) loop keys. */
+  protected tapeHashesA: number[] = []
+  protected tapeHashesB: number[] = []
   /** Direction each tape head moved on the most recent applied transition (history cue for the panel). */
   protected lastDirections: TapeDir[] = []
   /** Head movement bounds, applied to EVERY tape (LBA narrows these; base TM leaves them infinite). */
@@ -81,13 +84,25 @@ export class TMEngine implements Automaton {
     this.heads = []
     this.usedMin = []
     this.usedMax = []
+    this.tapeHashesA = []
+    this.tapeHashesB = []
     for (let i = 0; i < this.tapeCount; i++) {
       const tape = new Map<number, string>()
       // The input is seeded onto tape 0; all other tapes start blank.
       if (i === 0) {
-        for (let j = 0; j < chars.length; j++) tape.set(j, chars[j])
+        for (let j = 0; j < chars.length; j++) {
+          if (!isBlank(chars[j], this.blank)) tape.set(j, chars[j])
+        }
       }
       this.tapes.push(tape)
+      let hashA = 0
+      let hashB = 0
+      for (const [index, symbol] of tape) {
+        hashA ^= this._cellHash(index, symbol, 0x811c9dc5)
+        hashB ^= this._cellHash(index, symbol, 0x9e3779b9)
+      }
+      this.tapeHashesA.push(hashA >>> 0)
+      this.tapeHashesB.push(hashB >>> 0)
       this.heads.push(0)
       this.usedMin.push(0)
       this.usedMax.push(i === 0 ? Math.max(0, chars.length - 1) : 0)
@@ -162,9 +177,12 @@ export class TMEngine implements Automaton {
     // TM the bounds are ±∞, so this branch never trips.
     if (nextHeads.some((nh) => nh < this.leftBound || nh > this.rightBound)) {
       this.status = 'rejected'
-      const entry = this._historyEntry(this.currentStateId, t, 'rejected')
+      // The rejected boundary move was considered but never fired. Keep the
+      // trace truthful by recording the retained configuration without a
+      // transition id or an apparent ε move.
+      const entry = this._historyEntry(this.currentStateId, null, 'rejected')
       this.history.push(entry)
-      return this._stepResult('rejected', t, entry)
+      return this._makeResult('rejected')
     }
 
     // ── Apply the transition on every tape: write under the head, then move ──
@@ -203,6 +221,8 @@ export class TMEngine implements Automaton {
     this.heads = []
     this.usedMin = []
     this.usedMax = []
+    this.tapeHashesA = []
+    this.tapeHashesB = []
     this.lastDirections = []
     this.status = 'idle'
     this.history = []
@@ -248,9 +268,23 @@ export class TMEngine implements Automaton {
 
   protected _writeSymbol(tapeIndex: number, sym: string): void {
     const tape = this.tapes[tapeIndex]
-    tape.set(this.heads[tapeIndex], sym)
-    this.usedMin[tapeIndex] = Math.min(this.usedMin[tapeIndex], this.heads[tapeIndex])
-    this.usedMax[tapeIndex] = Math.max(this.usedMax[tapeIndex], this.heads[tapeIndex])
+    const head = this.heads[tapeIndex]
+    const previous = tape.get(head) ?? this.blank
+    if (!isBlank(previous, this.blank)) {
+      this.tapeHashesA[tapeIndex] ^= this._cellHash(head, previous, 0x811c9dc5)
+      this.tapeHashesB[tapeIndex] ^= this._cellHash(head, previous, 0x9e3779b9)
+    }
+    if (isBlank(sym, this.blank)) {
+      tape.delete(head)
+    } else {
+      tape.set(head, sym)
+      this.tapeHashesA[tapeIndex] ^= this._cellHash(head, sym, 0x811c9dc5)
+      this.tapeHashesB[tapeIndex] ^= this._cellHash(head, sym, 0x9e3779b9)
+    }
+    this.tapeHashesA[tapeIndex] >>>= 0
+    this.tapeHashesB[tapeIndex] >>>= 0
+    this.usedMin[tapeIndex] = Math.min(this.usedMin[tapeIndex], head)
+    this.usedMax[tapeIndex] = Math.max(this.usedMax[tapeIndex], head)
   }
 
   protected _isAccept(stateId: string): boolean {
@@ -311,7 +345,9 @@ export class TMEngine implements Automaton {
       parentId: null,
       stateId: this.currentStateId!,
       stack: [],
-      inputIndex: 0,
+      // A TM has no FA-style input cursor; this is its absolute primary-head
+      // position for consumers that need a numeric configuration coordinate.
+      inputIndex: this.heads[0] ?? 0,
       status,
       consumedInput: '',
       remainingInput: '',
@@ -374,11 +410,17 @@ export class TMEngine implements Automaton {
   }
 
   protected _configKey(): string {
-    const parts = [this.currentStateId, this.heads.join(',')]
-    for (const tape of this.tapes) {
-      const entries = Array.from(tape.entries()).filter(([_, sym]) => !isBlank(sym, this.blank)).sort((a, b) => a[0] - b[0])
-      parts.push(JSON.stringify(entries))
+    return `${this.currentStateId}|${this.heads.join(',')}|${this.tapeHashesA.join(',')}|${this.tapeHashesB.join(',')}`
+  }
+
+  /** Stable 32-bit hash for one sparse tape cell. */
+  private _cellHash(index: number, symbol: string, seed: number): number {
+    let hash = seed >>> 0
+    const text = `${index}:${symbol}`
+    for (let i = 0; i < text.length; i++) {
+      hash ^= text.charCodeAt(i)
+      hash = Math.imul(hash, 0x01000193)
     }
-    return parts.join('|')
+    return hash >>> 0
   }
 }

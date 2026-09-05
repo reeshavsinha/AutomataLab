@@ -120,4 +120,35 @@ describe('DPDAEngine — lifecycle', () => {
     expect(engine.isAccepted()).toBeNull()
     expect(engine.getCurrentConfigurations()).toEqual([])
   })
+
+  it('stops before a single transition can exceed the stack-depth cap', () => {
+    const pushOverflow: MachineDefinition = {
+      id: 'dpda-stack-overflow',
+      name: 'stack overflow guard',
+      type: 'DPDA',
+      language: '',
+      alphabet: [],
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+      ],
+      transitions: [
+        {
+          id: 'push',
+          from: 'q0',
+          to: 'q0',
+          symbols: [],
+          read: '',
+          pop: '',
+          push: 'A'.repeat(10_001),
+        },
+      ],
+    }
+
+    const engine = new DPDAEngine(pushOverflow)
+    engine.initialize('')
+    const result = engine.step()
+
+    expect(result.status).toBe('stuck')
+    expect(result.stack).toEqual([])
+  })
 })

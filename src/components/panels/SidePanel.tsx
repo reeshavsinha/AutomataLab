@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { isPDAType, isTMType, supportsComputationTree } from '@/engines/machine/core/utils'
+import { isPDAType, isTMType, isTransducerType, supportsComputationTree } from '@/engines/machine/core/utils'
 import { validateMachine } from '@/utils/validator'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
@@ -16,8 +16,9 @@ import StackPanel from './StackPanel'
 import ComputationTreePanel from './ComputationTreePanel'
 import TapePanel from './TapePanel'
 import DeltaTablePanel from './DeltaTablePanel'
+import OutputTracePanel from './OutputTracePanel'
 
-type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
+type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta' | 'output'
 
 const WIDTH_KEY = 'automatalab-panel-width'
 const MIN_WIDTH = 220
@@ -65,6 +66,7 @@ export default function SidePanel() {
   const machineType = machine.type
   const isPDA = isPDAType(machineType)
   const isTM = isTMType(machineType)
+  const isTransducer = isTransducerType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
   const [isCompressed, setIsCompressed] = useState(false)
@@ -86,6 +88,7 @@ export default function SidePanel() {
     { id: 'validation', label: 'Validate', title: 'Validation — errors and warnings (click to locate)' },
     ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack', title: 'PDA stack + instantaneous description' }] : []),
     ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape', title: 'Turing tape, head, and instantaneous description' }] : []),
+    ...(isTransducer ? [{ id: 'output' as Tab, label: 'Output', title: 'Transducer output trace' }] : []),
     ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', title: 'Computation tree / trellis of branches' }] : []),
     { id: 'info',       label: 'Info',     title: 'Machine summary and simulation status' },
   ]
@@ -110,8 +113,10 @@ export default function SidePanel() {
       setActivePanel('delta')
     } else if (activePanel === 'tape' && !isTM) {
       setActivePanel('delta')
+    } else if (activePanel === 'output' && !isTransducer) {
+      setActivePanel('delta')
     }
-  }, [activePanel, isPDA, isTM, hasTree, setActivePanel])
+  }, [activePanel, isPDA, isTM, isTransducer, hasTree, setActivePanel])
 
   // Collapsed → a thin reopen strip so the canvas can use the full width
   // (UX audit NAV-1).
@@ -287,6 +292,7 @@ export default function SidePanel() {
         {activePanel === 'stack'      && <StackPanel />}
         {activePanel === 'tape'       && <TapePanel />}
         {activePanel === 'tree'       && <ComputationTreePanel />}
+        {activePanel === 'output'     && <OutputTracePanel />}
         {activePanel === 'info'       && <InfoPanel />}
       </div>
     </aside>

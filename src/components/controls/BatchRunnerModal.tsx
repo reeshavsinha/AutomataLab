@@ -1,16 +1,29 @@
 // ============================================================
 // BatchRunnerModal — test many strings against the current machine at once.
-// Paste a list (optionally tagged `accept:` / `reject:`); get a pass/fail table
-// and a CSV export. (UX audit #7 / FR-4.7.)
+// Paste a list (optionally tagged `accept:` / `reject:`); get a scored table
+// and deterministic CSV/JSON/Markdown/LaTeX reports. (UX audit #7 / FR-4.7.)
 // ============================================================
 
 import { useMemo, useState, useRef } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
-import { parseBatchCases, runBatch, batchSummary, type BatchResult } from '@/utils/batch'
+import {
+  firstFailingCase,
+  countSuiteExpectations,
+  parseTestSuite,
+  runMachineSuiteAsync,
+  suiteResultsToCSV,
+  suiteResultsToJSON,
+  suiteResultsToLatex,
+  suiteResultsToMarkdown,
+  type SuiteResult,
+} from '@/utils/testSuite'
 import { downloadText, fileStem } from '@/utils/exporters'
+import { loadTextFile } from '@/utils/fileManager'
+import { toast } from '@/store/toastStore'
 import Dialog from '@/components/common/Dialog'
 import EpsilonInserter from '@/components/canvas/EpsilonInserter'
+import { isTransducerType } from '@/engines/machine/core/utils'
 
 const PLACEHOLDER = `aabb
 abab
@@ -19,46 +32,89 @@ accept: aabb
 reject: abc
 ε`
 
-function verdictColor(r: BatchResult): string {
+function verdictColor(r: SuiteResult): string {
+  if (r.classification === 'limit') return 'var(--status-running)'
+  if (r.actualStatus === 'completed') return 'var(--status-accept)'
   if (r.accepted === null) return 'var(--text-muted)'
   if (r.accepted) return 'var(--status-accept)'
-  return r.status === 'stuck' ? 'var(--status-running)' : 'var(--status-reject)'
+  return r.actualStatus === 'stuck' ? 'var(--status-running)' : 'var(--status-reject)'
 }
 
-function verdictText(r: BatchResult): string {
+function verdictText(r: SuiteResult): string {
+  if (r.classification === 'limit') return 'limit'
+  if (r.actualStatus === 'completed') return 'complete'
+  if (r.classification === 'error') return 'error'
   if (r.accepted === null) return 'error'
   if (r.accepted) return 'accept'
-  return r.status === 'stuck' ? 'stuck' : 'reject'
+  return r.actualStatus === 'stuck' ? 'stuck' : 'reject'
 }
 
 export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
   const [text, setText] = useState('')
-  const [results, setResults] = useState<BatchResult[] | null>(null)
+  const [results, setResults] = useState<SuiteResult[] | null>(null)
+  const [isRunning, setIsRunning] = useState(false)
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const [epsOpen, setEpsOpen] = useState(false)
+  const isTransducer = isTransducerType(machine.type)
 
   const blocking = useMemo(() => hasBlockingErrors(validateMachine(machine)), [machine])
-  const summary = results ? batchSummary(results) : null
-
-  const run = () => {
+  const summary = results
+    ? {
+        total: results.length,
+        accepted: results.filter((result) => result.accepted === true).length,
+        rejected: results.filter((result) => result.accepted === false).length,
+        expected: countSuiteExpectations(results),
+        passed: results.filter((result) => result.pass === true).length,
+        failed: results.filter((result) => result.classification !== 'pass').length,
+      }
+    : null
+  const run = async () => {
     if (blocking) return
-    setResults(runBatch(machine, parseBatchCases(text)))
+    try {
+      setIsRunning(true)
+      setProgress({ completed: 0, total: 0 })
+      const suite = parseTestSuite(text)
+      setProgress({ completed: 0, total: suite.cases.length })
+      setResults(await runMachineSuiteAsync(machine, suite, {
+        onProgress: (completed, total) => setProgress({ completed, total }),
+      }))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invalid test suite.')
+    } finally {
+      setIsRunning(false)
+      setProgress(null)
+    }
   }
 
-  const exportCSV = async () => {
+  const exportReport = async (format: 'csv' | 'json' | 'md' | 'tex') => {
     if (!results) return
-    const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
-    const header = ['Input', 'Result', 'Expected', 'Pass', 'Steps']
-    const rows = results.map((r) => [
-      r.raw,
-      verdictText(r),
-      r.expected ?? '',
-      r.pass === null ? '' : r.pass ? 'PASS' : 'FAIL',
-      String(r.steps),
-    ])
-    const csv = [header, ...rows].map((row) => row.map(esc).join(',')).join('\r\n')
-    await downloadText(`${fileStem(machine)}-batch.csv`, csv, 'csv')
+    const content = format === 'csv'
+      ? suiteResultsToCSV(results)
+      : format === 'json'
+        ? suiteResultsToJSON(results)
+        : format === 'md'
+          ? suiteResultsToMarkdown(results)
+          : suiteResultsToLatex(results)
+    const extension = format
+    await downloadText(`${fileStem(machine)}-batch.${extension}`, content, extension)
+  }
+
+  const handleLoadFile = async () => {
+    try {
+      const res = await loadTextFile({
+        title: 'Load Batch Test File',
+        extensions: ['txt', 'csv', 'json'],
+      })
+      if (res && res.content) {
+        setText(res.content)
+        setResults(null)
+        toast.success(`Loaded ${res.filename}`)
+      }
+    } catch (err) {
+      toast.error('Failed to load text file')
+    }
   }
 
   return (
@@ -132,7 +188,10 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
             <textarea
               ref={textareaRef}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => {
+                setText(e.target.value)
+                setResults(null)
+              }}
               placeholder={PLACEHOLDER}
               spellCheck={false}
               rows={6}
@@ -158,7 +217,7 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <button
               onClick={run}
-              disabled={blocking || text.trim() === ''}
+              disabled={blocking || text.trim() === '' || isRunning}
               style={{
                 background: 'var(--bg-elevated)',
                 border: '1px solid var(--border-strong)',
@@ -166,15 +225,37 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
                 color: 'var(--text-primary)',
                 fontSize: '13px',
                 padding: '6px 16px',
-                cursor: blocking || text.trim() === '' ? 'not-allowed' : 'pointer',
-                opacity: blocking || text.trim() === '' ? 0.4 : 1,
+                cursor: blocking || text.trim() === '' || isRunning ? 'not-allowed' : 'pointer',
+                opacity: blocking || text.trim() === '' || isRunning ? 0.4 : 1,
+                fontWeight: 600,
               }}
             >
-              Run batch
+              {isRunning ? 'Running…' : 'Run batch'}
+            </button>
+            {progress && (
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                {progress.completed}/{progress.total}
+              </span>
+            )}
+            <button
+              onClick={handleLoadFile}
+              title="Load a .txt, .csv, or .json test suite"
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                color: 'var(--text-secondary)',
+                fontSize: '12px',
+                padding: '6px 12px',
+                cursor: 'pointer',
+              }}
+            >
+              Load suite
             </button>
             {results && results.length > 0 && (
+              <>
               <button
-                onClick={exportCSV}
+                onClick={() => exportReport('csv')}
                 style={{
                   background: 'transparent',
                   border: '1px solid var(--border-default)',
@@ -187,10 +268,55 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
               >
                 Export CSV
               </button>
+              <button
+                onClick={() => exportReport('md')}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                Markdown
+              </button>
+              <button
+                onClick={() => exportReport('json')}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                JSON
+              </button>
+              <button
+                onClick={() => exportReport('tex')}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                LaTeX
+              </button>
+              </>
             )}
             {summary && (
               <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginLeft: 'auto' }}>
-                {summary.total} run · {summary.accepted} accept · {summary.rejected} reject
+                {isTransducer
+                  ? `${summary.total} run · output generated`
+                  : `${summary.total} run · ${summary.accepted} accept · ${summary.rejected} reject`}
                 {summary.expected > 0 && (
                   <>
                     {' · '}
@@ -212,17 +338,20 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
                     <th style={thStyle}>Input</th>
                     <th style={thStyle}>Result</th>
                     <th style={thStyle}>Expected</th>
-                    <th style={{ ...thStyle, textAlign: 'center' }}></th>
+                    <th style={thStyle}>Category</th>
+                    <th style={{ ...thStyle, textAlign: 'center' }}>Check</th>
                     <th style={{ ...thStyle, textAlign: 'right' }}>Steps</th>
+                    {isTransducer && <th style={thStyle}>Output</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {results.map((r, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--border-subtle)' }}>
-                      <td style={{ ...tdStyle, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{r.raw}</td>
+                      <td style={{ ...tdStyle, color: 'var(--text-primary)', wordBreak: 'break-all' }}>{r.input || 'ε'}</td>
                       <td style={{ ...tdStyle, color: verdictColor(r) }}>{verdictText(r)}</td>
                       <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{r.expected ?? '—'}</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
+                      <td style={{ ...tdStyle, color: 'var(--text-muted)' }}>{r.category}</td>
+                      <td style={{ ...tdStyle, textAlign: 'center' }} title={r.classification}>
                         {r.pass === null ? (
                           <span style={{ color: 'var(--text-muted)' }}>·</span>
                         ) : r.pass ? (
@@ -232,10 +361,19 @@ export default function BatchRunnerModal({ onClose }: { onClose: () => void }) {
                         )}
                       </td>
                       <td style={{ ...tdStyle, textAlign: 'right', color: 'var(--text-muted)' }}>{r.steps}</td>
+                      {isTransducer && <td style={{ ...tdStyle, color: 'var(--text-secondary)' }}>{r.outputTrace?.join(' ') || '∅'}</td>}
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {results && firstFailingCase(results) && (
+            <div style={{ fontSize: '11px', color: 'var(--status-reject)' }}>
+              Counterexample: <code>{firstFailingCase(results)!.input || 'ε'}</code>
+              {' '}({firstFailingCase(results)!.classification})
+              {firstFailingCase(results)!.error ? ` — ${firstFailingCase(results)!.error}` : ''}
             </div>
           )}
 
