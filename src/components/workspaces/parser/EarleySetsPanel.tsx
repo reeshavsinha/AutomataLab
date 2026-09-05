@@ -14,21 +14,10 @@ export function EarleySetsPanel() {
     <div style={{ padding: 16, height: '100%', overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Earley State Sets</h3>
       
-      <div style={{
-        background: 'rgba(59, 130, 246, 0.1)',
-        border: '1px solid var(--blue-500)',
-        color: 'var(--blue-400)',
-        padding: '2px 8px',
-        borderRadius: '4px',
-        fontSize: '0.65rem',
-        fontFamily: 'var(--font-mono)',
-        fontWeight: 600,
-        whiteSpace: 'nowrap',
-        marginBottom: '16px',
-        alignSelf: 'flex-start'
-      }}>
-        Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span>
-      </div>
+      <details style={{ marginBottom: '16px', alignSelf: 'flex-start', fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+        <summary title="Show augmented root" style={{ cursor: 'pointer', listStyle: 'none', width: 20, height: 20, textAlign: 'center', border: '1px solid var(--border-default)', borderRadius: '50%' }}>i</summary>
+        <div style={{ marginTop: 6, padding: '5px 8px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid var(--blue-500)', borderRadius: 4 }}>Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span></div>
+      </details>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {simulation.stateSets.map((set, setIdx) => {

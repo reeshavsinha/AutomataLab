@@ -27,12 +27,14 @@ export class ParserBuilder {
         lalr: { table: null, hasConflict: false },
       }
     };
+    const warnings: string[] = [];
 
     try {
       model.parsers.ll1.table = generateLL1Table(cfg, analysis);
       model.parsers.ll1.hasConflict = model.parsers.ll1.table.hasConflict;
     } catch (e) {
       console.warn("Failed to generate LL1", e);
+      warnings.push(`LL(1): ${e instanceof Error ? e.message : String(e)}`);
     }
 
     try {
@@ -40,6 +42,7 @@ export class ParserBuilder {
       model.parsers.lr0.hasConflict = model.parsers.lr0.table.hasConflict;
     } catch (e) {
       console.warn("Failed to generate LR0", e);
+      warnings.push(`LR(0): ${e instanceof Error ? e.message : String(e)}`);
     }
 
     try {
@@ -47,6 +50,7 @@ export class ParserBuilder {
       model.parsers.slr.hasConflict = model.parsers.slr.table.hasConflict;
     } catch (e) {
       console.warn("Failed to generate SLR1", e);
+      warnings.push(`SLR(1): ${e instanceof Error ? e.message : String(e)}`);
     }
 
     try {
@@ -54,6 +58,7 @@ export class ParserBuilder {
       model.parsers.clr.hasConflict = model.parsers.clr.table.hasConflict;
     } catch (e) {
       console.warn("Failed to generate CLR1", e);
+      warnings.push(`CLR(1): ${e instanceof Error ? e.message : String(e)}`);
     }
 
     try {
@@ -61,8 +66,9 @@ export class ParserBuilder {
       model.parsers.lalr.hasConflict = model.parsers.lalr.table.hasConflict;
     } catch (e) {
       console.warn("Failed to generate LALR1", e);
+      warnings.push(`LALR(1): ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    return { model };
+    return { model, diagnostics: warnings.length > 0 ? warnings.join('\n') : undefined };
   }
 }

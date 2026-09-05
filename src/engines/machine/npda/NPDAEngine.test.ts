@@ -159,4 +159,36 @@ describe('NPDAEngine — nondeterministic branching', () => {
     expect(engine.isAccepted()).toBe(false)
     expect(guard).toBeLessThan(5000)
   })
+
+  it('treats a non-BMP Unicode symbol as one input symbol', () => {
+    const unicodeMachine: MachineDefinition = {
+      id: 'unicode-npda',
+      name: 'Unicode NPDA',
+      type: 'NPDA',
+      language: '',
+      alphabet: ['😀'],
+      states: [
+        { id: 's', label: 's', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'f', label: 'f', x: 100, y: 0, isStart: false, isAccept: true },
+      ],
+      transitions: [
+        { id: 'emoji', from: 's', to: 'f', symbols: [], read: '😀', pop: '', push: '' },
+      ],
+    }
+
+    expect(run(unicodeMachine, '😀')).toBe(true)
+  })
+
+  it('can be initialized and run again without stale visited configurations', () => {
+    const engine = new NPDAEngine(anbn)
+    const runAgain = () => {
+      engine.initialize('ab')
+      let guard = 0
+      while (engine.getStatus() === 'running' && guard++ < 100) engine.step()
+      return engine.isAccepted()
+    }
+
+    expect(runAgain()).toBe(true)
+    expect(runAgain()).toBe(true)
+  })
 })

@@ -2,6 +2,7 @@
 import React from "react";
 import { useMachineStore, isPristineTab } from "@/store/machineStore";
 import { useFileActions } from "@/hooks/useFileActions";
+import { isAutomatonType, isGrammarType, isParserType } from "@/engines/machine/core/capabilities";
 import "./WorkspaceHub.css";
 
 const cards = [
@@ -58,17 +59,17 @@ export default function WorkspaceHub() {
     }
 
     if (card.hash === '#/machine') {
-      const isMachine = machine && ['DFA', 'NFA', 'ENFA', 'PDA', 'DPDA', 'NPDA', 'TM', 'LBA'].includes(machine.type);
+      const isMachine = machine && isAutomatonType(machine.type);
       if (!isMachine) {
         addTab('DFA');
       }
     } else if (card.hash === '#/grammar') {
-      const isGrammar = machine && ['CFG', 'CSG'].includes(machine.type);
+      const isGrammar = machine && isGrammarType(machine.type);
       if (!isGrammar) {
         addTab('CFG');
       }
     } else if (card.hash === '#/parser') {
-      const isParser = machine && machine.type === 'CFG_PARSER';
+      const isParser = machine && isParserType(machine.type);
       if (!isParser) {
         addTab('CFG_PARSER');
       }

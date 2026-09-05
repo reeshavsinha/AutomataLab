@@ -48,6 +48,70 @@ describe('validateMachine — start/accept rules', () => {
   })
 })
 
+describe('validateMachine — Mealy/Moore output rules', () => {
+  it('requires Mealy transition outputs', () => {
+    const m = machine({
+      type: 'MEALY',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'] }],
+    })
+    expect(codes(m)).toContain('MEALY_MISSING_OUTPUT')
+  })
+
+  it('requires output on every Moore state', () => {
+    const m = machine({
+      type: 'MOORE',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+    })
+    expect(codes(m)).toContain('MOORE_MISSING_OUTPUT')
+  })
+
+  it.each(['', 'ε', 'eps', 'epsilon', 'λ', 'lambda'])(
+    'accepts Mealy epsilon/lambda output "%s" as no output',
+    (output) => {
+      const m = machine({
+        type: 'MEALY',
+        alphabet: ['a'],
+        outputAlphabet: ['0'],
+        states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+        transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'], output }],
+      })
+      expect(codes(m)).not.toContain('MEALY_MISSING_OUTPUT')
+      expect(hasBlockingErrors(validateMachine(m))).toBe(false)
+    },
+  )
+
+  it.each(['', 'ε', 'eps', 'epsilon', 'λ', 'lambda'])(
+    'accepts Moore epsilon/lambda state output "%s" as no output',
+    (output) => {
+      const m = machine({
+        type: 'MOORE',
+        alphabet: ['a'],
+        outputAlphabet: ['0'],
+        states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false, output }],
+        transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'] }],
+      })
+      expect(codes(m)).not.toContain('MOORE_MISSING_OUTPUT')
+      expect(hasBlockingErrors(validateMachine(m))).toBe(false)
+    },
+  )
+
+  it('does not require final states for transducers', () => {
+    const m = machine({
+      type: 'MEALY',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+      transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'], output: '0' }],
+    })
+    expect(codes(m)).not.toContain('NO_ACCEPT_STATE')
+  })
+})
+
 describe('validateMachine — DFA rules', () => {
   it('flags nondeterminism (two transitions on one symbol)', () => {
     const m = machine({

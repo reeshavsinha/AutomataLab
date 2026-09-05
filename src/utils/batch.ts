@@ -21,11 +21,13 @@ export interface BatchCase {
 
 export interface BatchResult extends BatchCase {
   status: SimulationStatus
-  /** true = accepted, false = rejected/stuck, null = errored. */
+  /** Recognizer verdict; null for transducer runs, which only produce output. */
   accepted: boolean | null
   steps: number
   /** Did the outcome match the expectation? null when no expectation given. */
   pass: boolean | null
+  /** Output trace emitted by a Mealy/Moore run, when applicable. */
+  outputTrace?: string[]
 }
 
 /** Tokens that denote the empty string (ε) as a whole test case. */
@@ -73,7 +75,14 @@ export function runBatch(machine: MachineDefinition, cases: BatchCase[]): BatchR
     if (c.expected !== null && outcome.accepted !== null) {
       pass = c.expected === 'accept' ? outcome.accepted === true : outcome.accepted === false
     }
-    return { ...c, status: outcome.status, accepted: outcome.accepted, steps: outcome.steps, pass }
+    return {
+      ...c,
+      status: outcome.status,
+      accepted: outcome.accepted,
+      steps: outcome.steps,
+      pass,
+      ...(outcome.outputTrace ? { outputTrace: outcome.outputTrace } : {}),
+    }
   })
 }
 
@@ -93,7 +102,7 @@ export function batchSummary(results: BatchResult[]): {
   let failed = 0
   for (const r of results) {
     if (r.accepted === true) accepted++
-    else rejected++
+    else if (r.accepted === false) rejected++
     if (r.pass !== null) {
       expected++
       if (r.pass) passed++
@@ -102,3 +111,32 @@ export function batchSummary(results: BatchResult[]): {
   }
   return { total: results.length, accepted, rejected, expected, passed, failed }
 }
+
+// New callers should use the unified suite contract. These re-exports keep the
+// original batch module as a stable entry point for existing UI integrations.
+export {
+  parseTestSuite,
+  parseSuiteText,
+  parseSuiteCSV,
+  parseSuiteJSON,
+  runMachineSuite,
+  runParserSuite,
+  suiteToJSON,
+  suiteToCSV,
+  suiteResultsToCSV,
+  suiteResultsToJSON,
+  suiteResultsToMarkdown,
+  suiteResultsToLatex,
+  firstFailingCase,
+  generateDeterministicRandomCases,
+  validateTestSuite,
+} from './testSuite'
+export type {
+  SuiteCase,
+  TestSuite,
+  SuiteResult,
+  TestCategory,
+  ResultClassification,
+  MismatchField,
+} from './testSuite'
+export { MAX_SUITE_CASES, MAX_SUITE_STEPS } from './testSuite'

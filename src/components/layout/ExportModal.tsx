@@ -11,7 +11,7 @@ import { useSimulationStore } from '@/store/simulationStore'
 import { useGrammarStore } from '@/store/grammarStore'
 import { useParserStore } from '@/store/parserStore'
 import { useUIStore } from '@/store/uiStore'
-import { supportsComputationTree } from '@/engines/machine/core/utils'
+import { isTransducerType, supportsComputationTree } from '@/engines/machine/core/utils'
 import { exportMachineJSON } from '@/utils/fileManager'
 import JSZip from 'jszip'
 
@@ -25,6 +25,9 @@ function getUniqueFilename(base: string, ext: string) {
 import {
   deltaTableToCSV,
   deltaTableToLatex,
+  configurationMatrixToCSV,
+  configurationMatrixToMarkdown,
+  configurationMatrixToLatex,
   traceToCSV,
   traceToJSON,
   treeToJSON,
@@ -35,14 +38,14 @@ import {
   ll1TableToCSV,
   lrTableToCSV,
 } from '@/utils/exporters'
-import { exportDiagramSVG, exportDiagramPNG, copyDiagramSVG, copyDiagramPNG, copyMachineJSON } from '@/utils/diagramExport'
+import { exportDiagramSVG, exportDiagramPNG, copyDiagramSVG, copyDiagramPNG, copyMachineJSON, diagramPngBlob } from '@/utils/diagramExport'
 import { exportJFLAP } from '@/utils/jflap'
 import { toast } from '@/store/toastStore'
 import Dialog from '@/components/common/Dialog'
 
 export default function ExportModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
-  const { history, treeNodes, inputString } = useSimulationStore()
+  const { history, treeNodes, inputString, stepCount } = useSimulationStore()
   const grammarAnalysis = useGrammarStore(s => s.analysis)
   const parserModel = useParserStore(s => s.model)
   const parserAlg = useParserStore(s => s.algorithm)
@@ -55,6 +58,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const isGrammarTab = machine?.type === 'CFG' || machine?.type === 'CSG'
   const isParserTab = machine?.type === 'CFG_PARSER'
   const isGraphTab = !isGrammarTab && !isParserTab
+  const isTransducer = isTransducerType(machine.type)
 
   const isLRParser = isParserTab && ['LR0', 'SLR1', 'CLR1', 'LALR1'].includes(parserAlg);
   const isLL1Parser = isParserTab && parserAlg === 'LL1';
@@ -76,7 +80,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     ? (machine?.states?.some((s) => !s.isText) ?? false)
     : parserHasStates;
 
-  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'tex' | 'jff' | 'txt') => {
+  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'md' | 'tex' | 'jff' | 'txt') => {
     try {
       const out = await downloadText(name, content, ext)
       if (out) toast.success(`Exported ${name}`)
@@ -237,6 +241,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
   const exportZip = async () => {
     try {
       const zip = new JSZip()
+      const omitted: string[] = []
       
       // Add Grammar
       if (machine?.grammarText) {
@@ -270,6 +275,27 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         const { renderFullSvg } = await import('@/utils/diagramExport')
         const { svg } = renderFullSvg(machine, theme === 'dark')
         zip.file(`${stem}_graph.svg`, svg)
+        try {
+          zip.file(`${stem}_graph.png`, await diagramPngBlob(machine, theme === 'dark'))
+        } catch {
+          omitted.push('graph PNG (rasterisation failed)')
+        }
+        zip.file(`${stem}.autolab.json`, exportMachineJSON(machine))
+        zip.file(`${stem}_delta.csv`, deltaTableToCSV(machine))
+        zip.file(`${stem}_delta.tex`, deltaTableToLatex(machine))
+        if (!isTransducer) zip.file(`${stem}.jff`, exportJFLAP(machine))
+      }
+
+      if (isGraphTab && hasTrace && machine) {
+        const historyMeta = { totalSteps: stepCount }
+        zip.file(`${stem}_trace.csv`, traceToCSV(machine, history))
+        zip.file(`${stem}_trace.json`, traceToJSON(machine, history, inputString))
+        zip.file(`${stem}_configurations.csv`, configurationMatrixToCSV(machine, history, historyMeta))
+        zip.file(`${stem}_configurations.md`, configurationMatrixToMarkdown(machine, history, historyMeta))
+        zip.file(`${stem}_configurations.tex`, configurationMatrixToLatex(machine, history, historyMeta))
+      }
+      if (isGraphTab && hasTree && machine) {
+        zip.file(`${stem}_tree.json`, treeToJSON(machine, treeNodes))
       }
 
       if (isParserTab && hasDiagram) {
@@ -289,10 +315,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
         }
         
         if (canvas) {
-          const { toPng } = await import('html-to-image')
+          const { toPng, toSvg } = await import('html-to-image')
           const dataUrl = await toPng(canvas, { backgroundColor: theme === 'dark' ? '#1e1e24' : '#ffffff', pixelRatio: 3 })
           const base64 = dataUrl.split(',')[1]
           zip.file(`${stem}_${parserAlg.toLowerCase()}_graph.png`, base64, { base64: true })
+          const svgUrl = await toSvg(canvas, { backgroundColor: theme === 'dark' ? '#1e1e24' : '#ffffff', pixelRatio: 3 })
+          zip.file(`${stem}_${parserAlg.toLowerCase()}_graph.svg`, decodeURIComponent(svgUrl.split(',')[1]))
         }
         
         if (switchedView && machine) {
@@ -308,17 +336,27 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
       if (isParserTab && parserHasTree) {
         const treeCanvas = document.querySelector('.react-flow.syntax-tree-viewer')
         if (treeCanvas) {
-          const { toPng } = await import('html-to-image')
+          const { toPng, toSvg } = await import('html-to-image')
           const dataUrl = await toPng(treeCanvas as HTMLElement, { backgroundColor: theme === 'dark' ? '#1e1e24' : '#ffffff', pixelRatio: 3 })
           const base64 = dataUrl.split(',')[1]
           zip.file(`${stem}_${parserAlg.toLowerCase()}_tree.png`, base64, { base64: true })
+          const svgUrl = await toSvg(treeCanvas as HTMLElement, { backgroundColor: theme === 'dark' ? '#1e1e24' : '#ffffff', pixelRatio: 3 })
+          zip.file(`${stem}_${parserAlg.toLowerCase()}_tree.svg`, decodeURIComponent(svgUrl.split(',')[1]))
         }
       }
+
+      zip.file('manifest.json', JSON.stringify({
+        format: 'AutomataLab export bundle',
+        workspace: isGraphTab ? 'machine' : isParserTab ? 'parser' : 'grammar',
+        machine: { name: machine.name, type: machine.type },
+        history: { retainedSteps: history.length, totalSteps: stepCount },
+        omitted,
+      }, null, 2))
 
       const content = await zip.generateAsync({ type: 'blob' })
       const filename = getUniqueFilename(`${stem}_export`, 'zip')
       const path = await downloadBlob(filename, content, 'zip')
-      if (path) toast.success(`Exported complete zip package`)
+      if (path) toast.success(omitted.length === 0 ? 'Exported complete ZIP package' : `Exported ZIP package with ${omitted.length} omitted artifact(s)`)
     } catch (e) {
       console.error(e)
       toast.error('Failed to create ZIP file')
@@ -390,6 +428,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                     }
                   }} 
                 />
+                <ExportButton label="Download ZIP Bundle" onClick={exportZip} />
               </Section>
             </>
           )}
@@ -449,6 +488,9 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
 
           {isGraphTab && (
             <>
+              <Section title="Export bundle" hint="All currently available machine, trace, and diagram artifacts in one ZIP.">
+                <ExportButton label="Download ZIP Bundle" onClick={exportZip} />
+              </Section>
               <Section title="Transition table (δ)" hint="Every move, grouped by source state.">
                 <ExportButton label="CSV" onClick={() => save(deltaTableToCSV(machine), `${stem}-delta.csv`, 'csv')} />
                 <ExportButton label="LaTeX" onClick={() => save(deltaTableToLatex(machine), `${stem}-delta.tex`, 'tex')} />
@@ -467,6 +509,15 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
               </Section>
 
               <Section
+                title="Configuration matrix"
+                hint={hasTrace ? 'State, input, stack/tape, output, and status columns tailored to this model.' : 'Run a simulation first.'}
+              >
+                <ExportButton label="CSV" disabled={!hasTrace} onClick={() => save(configurationMatrixToCSV(machine, history, { totalSteps: stepCount }), `${stem}-configurations.csv`, 'csv')} />
+                <ExportButton label="Markdown" disabled={!hasTrace} onClick={() => save(configurationMatrixToMarkdown(machine, history, { totalSteps: stepCount }), `${stem}-configurations.md`, 'md')} />
+                <ExportButton label="LaTeX" disabled={!hasTrace} onClick={() => save(configurationMatrixToLatex(machine, history, { totalSteps: stepCount }), `${stem}-configurations.tex`, 'tex')} />
+              </Section>
+
+              <Section
                 title="Computation tree"
                 hint={
                   supportsComputationTree(machine.type)
@@ -482,7 +533,11 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
               <Section title="Machine definition" hint="The full diagram + δ as a reloadable file.">
                 <ExportButton label="Download JSON" onClick={() => save(exportMachineJSON(machine), `${stem}.autolab.json`, 'json')} />
                 <ExportButton label="Copy JSON" onClick={() => copyData(() => copyMachineJSON(machine), 'Machine JSON')} />
-                <ExportButton label="JFLAP (.jff)" onClick={() => save(exportJFLAP(machine), `${stem}.jff`, 'jff')} />
+                <ExportButton
+                  label={isTransducer ? 'JFLAP unavailable for transducers' : 'JFLAP (.jff)'}
+                  disabled={isTransducer}
+                  onClick={() => save(exportJFLAP(machine), `${stem}.jff`, 'jff')}
+                />
               </Section>
             </>
           )}

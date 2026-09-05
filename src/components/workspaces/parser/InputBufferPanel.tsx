@@ -1,66 +1,104 @@
 import React, { useState, useRef } from 'react';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
 import { useGrammarStore } from '@/store/grammarStore';
+import { loadTextFile } from '@/utils/fileManager';
+import { toast } from '@/store/toastStore';
+import { downloadText, fileStem } from '@/utils/exporters';
+import {
+  firstFailingCase,
+  countSuiteExpectations,
+  parseTestSuite,
+  runParserSuiteAsync,
+  suiteResultsToCSV,
+  suiteResultsToJSON,
+  suiteResultsToLatex,
+  suiteResultsToMarkdown,
+  type SuiteResult,
+} from '@/utils/testSuite';
+import type { ParserAlgorithm } from '@/engines/parser/runner';
+import { useMachineStore } from '@/store/machineStore';
+import Dialog from '@/components/common/Dialog';
 
-// ── Grammar-aware tokenizer ──────────────────────────────────
-// Builds tokens using longest-match against the grammar's terminals.
-// Falls back to single character for unrecognized symbols.
-function tokenizeInput(raw: string, terminals: Set<string>): string[] {
-  const sorted = [...terminals].sort((a, b) => b.length - a.length);
-  const tokens: string[] = [];
-  let i = 0;
-  while (i < raw.length) {
-    if (raw[i] === ' ' || raw[i] === '\t') { i++; continue; }
-    let matched = false;
-    for (const t of sorted) {
-      if (raw.startsWith(t, i)) {
-        tokens.push(t);
-        i += t.length;
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      tokens.push(raw[i]);
-      i++;
-    }
-  }
-  return tokens;
-}
+const parserBatchButtonStyle: React.CSSProperties = {
+  background: 'transparent',
+  border: '1px solid var(--border-default)',
+  borderRadius: '4px',
+  color: 'var(--text-secondary)',
+  padding: '5px 10px',
+  cursor: 'pointer',
+  fontFamily: 'var(--font-mono)',
+  fontSize: '11px',
+};
 
-// ── Parser Batch Modal ────────────────────────────────────────
+// ── Parser Batch Modal: uses the same pure suite runner as Machine Studio ──
 function ParserBatchModal({ onClose }: { onClose: () => void }) {
-  const { initializeSim, seekToEnd } = useParserStore();
-  const { cfg } = useGrammarStore();
+  const { model, algorithm } = useParserStore();
+  const machine = useMachineStore((s) => s.machine);
   const [text, setText] = useState('');
-  const [results, setResults] = useState<{ input: string; status: string }[] | null>(null);
+  const [results, setResults] = useState<SuiteResult[] | null>(null);
+  const [isRunning, setIsRunning] = useState(false);
+  const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
 
-  const run = () => {
-    if (!cfg) return;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('#'));
-    const out: { input: string; status: string }[] = [];
-    for (const line of lines) {
-      useParserStore.getState().setRawInput(line);
-      useParserStore.getState().initializeSim();
-      useParserStore.getState().seekToEnd();
-      const sim = useParserStore.getState().simulation;
-      out.push({ input: line, status: sim?.status ?? 'error' });
+  const handleLoadFile = async () => {
+    try {
+      const res = await loadTextFile({
+        title: 'Load Parser Batch File',
+        extensions: ['txt', 'csv', 'json'],
+      });
+      if (res && res.content) {
+        setText(res.content);
+        setResults(null);
+        toast.success(`Loaded ${res.filename}`);
+      }
+    } catch (err) {
+      toast.error('Failed to load text file');
     }
-    setResults(out);
+  };
+
+  const run = async () => {
+    if (!model) return;
+    try {
+      const suite = parseTestSuite(text);
+      setIsRunning(true);
+      setProgress({ completed: 0, total: suite.cases.length });
+      setResults(await runParserSuiteAsync(model, algorithm as ParserAlgorithm, suite, {
+        onProgress: (completed, total) => setProgress({ completed, total }),
+      }));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Invalid parser test suite.');
+    } finally {
+      setIsRunning(false);
+      setProgress(null);
+    }
   };
 
   const statusColor = (s: string) => s === 'accepted' ? '#22c55e' : s === 'rejected' ? '#ef4444' : '#a78bfa';
 
+  const exportReport = async (format: 'csv' | 'json' | 'md' | 'tex') => {
+    if (!results) return;
+    const content = format === 'csv'
+      ? suiteResultsToCSV(results)
+      : format === 'json'
+        ? suiteResultsToJSON(results)
+        : format === 'md'
+          ? suiteResultsToMarkdown(results)
+          : suiteResultsToLatex(results);
+    const extension = format;
+    const out = await downloadText(
+      `${fileStem(machine)}-batch.${extension}`,
+      content,
+      extension,
+    );
+    if (out) toast.success(`Exported parser batch ${extension.toUpperCase()}`);
+  };
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000
-    }} onClick={onClose}>
-      <div style={{
-        background: 'var(--bg-primary)', border: '1px solid var(--border-strong)', borderRadius: '8px',
-        padding: '24px', width: '520px', maxWidth: '92vw', color: 'var(--text-primary)',
-        fontFamily: 'var(--font-mono)', fontSize: '13px', boxShadow: 'var(--shadow-lg)'
-      }} onClick={e => e.stopPropagation()}>
+    <Dialog onClose={onClose} label="Batch parser test" zIndex={3000} cardStyle={{
+      background: 'var(--bg-primary)', border: '1px solid var(--border-strong)', borderRadius: '8px',
+      padding: '24px', width: '520px', maxWidth: '92vw', color: 'var(--text-primary)',
+      fontFamily: 'var(--font-mono)', fontSize: '13px', boxShadow: 'var(--shadow-lg)'
+    }}>
+      <div>
         <div style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px', color: 'var(--text-primary)' }}>
           Batch Parser Test
         </div>
@@ -69,7 +107,10 @@ function ParserBatchModal({ onClose }: { onClose: () => void }) {
         </div>
         <textarea
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={e => {
+            setText(e.target.value);
+            setResults(null);
+          }}
           placeholder={'id*id\nid+id*id\n# this is a comment\na+b'}
           style={{
             width: '100%', height: '120px', background: 'var(--bg-secondary)',
@@ -78,17 +119,36 @@ function ParserBatchModal({ onClose }: { onClose: () => void }) {
             resize: 'vertical', outline: 'none'
           }}
         />
-        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={{
-            background: 'transparent', border: '1px solid var(--border-default)', borderRadius: '4px',
-            color: 'var(--text-secondary)', padding: '5px 14px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '12px'
-          }}>Cancel</button>
-          <button onClick={run} disabled={!cfg} style={{
-            background: 'var(--text-primary)', border: '1px solid var(--text-primary)', borderRadius: '4px',
-            color: 'var(--bg-primary)', padding: '5px 14px', cursor: cfg ? 'pointer' : 'not-allowed',
-            fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, opacity: cfg ? 1 : 0.5
-          }}>Run Batch</button>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            onClick={handleLoadFile}
+            title="Load a .txt, .csv, or .json test suite"
+            style={{
+              background: 'transparent',
+              border: '1px solid var(--border-default)',
+              borderRadius: '4px',
+              color: 'var(--text-secondary)',
+              padding: '5px 12px',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-mono)',
+              fontSize: '12px',
+            }}
+          >
+            Load suite
+          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={onClose} style={{
+              background: 'transparent', border: '1px solid var(--border-default)', borderRadius: '4px',
+              color: 'var(--text-secondary)', padding: '5px 14px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '12px'
+            }}>Cancel</button>
+            <button onClick={run} disabled={!model || isRunning} style={{
+              background: 'var(--text-primary)', border: '1px solid var(--text-primary)', borderRadius: '4px',
+              color: 'var(--bg-primary)', padding: '5px 14px', cursor: model ? 'pointer' : 'not-allowed',
+              fontFamily: 'var(--font-mono)', fontSize: '12px', fontWeight: 600, opacity: model && !isRunning ? 1 : 0.5
+            }}>{isRunning ? 'Running…' : 'Run Batch'}</button>
+          </div>
         </div>
+        {progress && <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>{progress.completed}/{progress.total}</div>}
         {results && (
           <div style={{ marginTop: '16px', maxHeight: '200px', overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
@@ -96,23 +156,44 @@ function ParserBatchModal({ onClose }: { onClose: () => void }) {
                 <tr>
                   <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>Input</th>
                   <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>Result</th>
+                  <th style={{ textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>Check</th>
+                  <th style={{ textAlign: 'right', padding: '4px 8px', borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>Steps</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map((r, i) => (
                   <tr key={i} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
                     <td style={{ padding: '4px 8px', color: 'var(--text-primary)' }}>{r.input || 'ε'}</td>
-                    <td style={{ padding: '4px 8px', color: statusColor(r.status), fontWeight: 600 }}>
-                      {r.status.toUpperCase()}
+                    <td style={{ padding: '4px 8px', color: statusColor(r.actualStatus), fontWeight: 600 }}>
+                      {r.actualStatus.toUpperCase()}
                     </td>
+                    <td style={{ padding: '4px 8px', color: r.classification === 'pass' ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+                      {r.classification.toUpperCase()}
+                    </td>
+                    <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-secondary)' }}>{r.steps}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            <div style={{ display: 'flex', gap: '6px', marginTop: '10px' }}>
+              <button onClick={() => exportReport('csv')} style={parserBatchButtonStyle}>Export CSV</button>
+              <button onClick={() => exportReport('md')} style={parserBatchButtonStyle}>Markdown</button>
+              <button onClick={() => exportReport('json')} style={parserBatchButtonStyle}>JSON</button>
+              <button onClick={() => exportReport('tex')} style={parserBatchButtonStyle}>LaTeX</button>
+            </div>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+              {results.length} run · {countSuiteExpectations(results) > 0 ? `${results.filter((result) => result.pass === true).length}/${countSuiteExpectations(results)} passed` : 'no expectations'}
+            </div>
+            {firstFailingCase(results) && (
+              <div style={{ marginTop: '8px', fontSize: '11px', color: '#ef4444' }}>
+                Counterexample: <code>{firstFailingCase(results)!.input || 'ε'}</code>
+                {' '}({firstFailingCase(results)!.classification})
+              </div>
+            )}
           </div>
         )}
       </div>
-    </div>
+    </Dialog>
   );
 }
 

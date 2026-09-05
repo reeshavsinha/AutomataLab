@@ -10,12 +10,14 @@ import { useMachineStore } from '@/store/machineStore'
 import { useCommandStore } from '@/store/commandStore'
 import { isTMType } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
 
 const DEFAULT_STEP_LIMIT = 10_000
 
 const STATUS_LABELS: Record<string, string> = {
   idle:     'Idle',
   running:  'Running',
+  completed: 'Complete',
   accepted: 'Accepted',
   rejected: 'Rejected',
   stuck:    'Stuck',
@@ -29,6 +31,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_TITLES: Record<string, string> = {
   idle:     'Not started.',
   running:  'Running…',
+  completed: 'Complete: the full input was consumed and the output sequence was produced.',
   accepted: 'Accepted: halted in an accepting configuration with the input consumed.',
   rejected: 'Rejected: the run halted without accepting — either no transition applied (a trap / dead configuration) or the input was consumed in a non-accepting state.',
   stuck:    'Stuck: the run hit the step limit before it could accept or reject (often a non-halting computation), so it was halted as a guard — not an explicit reject.',
@@ -58,9 +61,10 @@ export default function SimulationControls() {
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
   const stepLimit = useMachineStore((s) => s.machine.stepLimit)
+  const transitionModeActive = useCommandStore((s) => s.canvas?.transitionModeActive ?? false)
   const [isPlaying, setIsPlaying] = useState(false)
 
-  const isDone = status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
+  const isDone = status === 'completed' || status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
   const isIdle = status === 'idle'
 
   const handlePlay = useCallback(() => {
@@ -131,13 +135,14 @@ export default function SimulationControls() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
-      if (isInput) return
+      if (shouldSuppressGlobalShortcut(target)) return
       // Let Ctrl/Cmd combos (e.g. Ctrl+S = Save) through to their own handlers —
       // the single-letter sim shortcuts below are bare-key only.
       if (e.ctrlKey || e.metaKey) return
 
       const keyLower = e.key.toLowerCase()
+      // A drawing command owns the keyboard until it is completed or cancelled.
+      if (transitionModeActive) return
 
       if (e.key === ' ' || keyLower === 'p' || (e.altKey && keyLower === 'p')) {
         if (e.key === ' ') {
@@ -166,7 +171,7 @@ export default function SimulationControls() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount])
+  }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount, transitionModeActive])
 
   // Publish the transport controls to the command bus so the classic top
   // toolbar / Simulate menu can drive the same (single) engine instance.
@@ -179,7 +184,7 @@ export default function SimulationControls() {
   const statusLabel = STATUS_LABELS[status] ?? 'Idle'
 
   const statusColor =
-    status === 'accepted' ? '#4ade80' :
+    status === 'completed' || status === 'accepted' ? '#4ade80' :
     status === 'error' || status === 'rejected' ? '#f87171' :
     '#fb923c';
 

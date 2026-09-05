@@ -5,8 +5,12 @@
 // ============================================================
 
 import type { AutomataState, MachineDefinition, MachineType, Transition } from '@/engines/machine/core/types'
-import { generateId, isEpsilon, EPSILON, isPDAType, isTMType } from '@/engines/machine/core/utils'
+import { generateId, isEpsilon, EPSILON, isPDAType, isTMType, isTransducerType, normalizeTransducerOutput } from '@/engines/machine/core/utils'
 import type { TapeDir } from '@/engines/machine/core/utils'
+
+const MAX_JFLAP_BYTES = 10 * 1024 * 1024
+const MAX_JFLAP_STATES = 5_000
+const MAX_JFLAP_TRANSITIONS = 20_000
 
 function getChildText(parent: Element, tagName: string): string | null {
   const child = Array.from(parent.children).find((c) => c.tagName === tagName)
@@ -34,6 +38,9 @@ function getChildTextsByTape(parent: Element, tagName: string, tapeCount: number
 }
 
 export function parseJFLAP(xmlString: string): MachineDefinition {
+  if (xmlString.length > MAX_JFLAP_BYTES) {
+    throw new Error('Invalid JFLAP file: File is larger than 10 MB.')
+  }
   const parser = new DOMParser()
   const doc = parser.parseFromString(xmlString, 'text/xml')
 
@@ -53,16 +60,19 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
   }
 
   const jflapType = typeNode.textContent.trim()
+  const normalizedJflapType = jflapType.toLowerCase()
   let type: MachineType
-  if (jflapType === 'fa') type = 'NFA'
-  else if (jflapType === 'pda') type = 'NPDA'
-  else if (jflapType === 'turing') type = 'TM'
+  if (normalizedJflapType === 'fa') type = 'NFA'
+  else if (normalizedJflapType === 'mealy') type = 'MEALY'
+  else if (normalizedJflapType === 'moore') type = 'MOORE'
+  else if (normalizedJflapType === 'pda') type = 'NPDA'
+  else if (normalizedJflapType === 'turing') type = 'TM'
   else throw new Error(`Unsupported JFLAP type: ${jflapType}`)
 
   const tapesNode = structure.querySelector('tapes')
   const tapeCount = tapesNode && tapesNode.textContent ? parseInt(tapesNode.textContent, 10) : 1
-  if (tapeCount > 4) {
-    throw new Error('Invalid JFLAP file: AutomataLab supports a maximum of 4 tapes.')
+  if (!Number.isInteger(tapeCount) || tapeCount < 1 || tapeCount > 4) {
+    throw new Error('Invalid JFLAP file: tape count must be an integer from 1 to 4.')
   }
 
   const automaton = structure.querySelector('automaton')
@@ -75,19 +85,31 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
 
   // Parse states
   const stateNodes = Array.from(automaton.querySelectorAll('state'))
+  if (stateNodes.length > MAX_JFLAP_STATES) {
+    throw new Error(`Invalid JFLAP file: More than ${MAX_JFLAP_STATES.toLocaleString()} states.`)
+  }
   for (const node of stateNodes) {
     const id = node.getAttribute('id') || generateId('state')
     const name = node.getAttribute('name') || `q${id}`
-    const x = parseFloat(getChildText(node, 'x') || '0')
-    const y = parseFloat(getChildText(node, 'y') || '0')
+    const rawX = parseFloat(getChildText(node, 'x') || '0')
+    const rawY = parseFloat(getChildText(node, 'y') || '0')
+    const x = Number.isFinite(rawX) ? rawX : 0
+    const y = Number.isFinite(rawY) ? rawY : 0
     const isStart = Array.from(node.children).some(c => c.tagName === 'initial')
-    const isAccept = Array.from(node.children).some(c => c.tagName === 'final')
+    const isAccept = !isTransducerType(type) && Array.from(node.children).some(c => c.tagName === 'final')
 
-    states.push({ id, label: name, x, y, isStart, isAccept })
+    const state: AutomataState = { id, label: name, x, y, isStart, isAccept }
+    if (type === 'MOORE') {
+      state.output = normalizeTransducerOutput(getChildText(node, 'output'))
+    }
+    states.push(state)
   }
 
   // Parse transitions
   const transitionNodes = Array.from(automaton.querySelectorAll('transition'))
+  if (transitionNodes.length > MAX_JFLAP_TRANSITIONS) {
+    throw new Error(`Invalid JFLAP file: More than ${MAX_JFLAP_TRANSITIONS.toLocaleString()} transitions.`)
+  }
   for (const node of transitionNodes) {
     const from = getChildText(node, 'from')
     const to = getChildText(node, 'to')
@@ -100,10 +122,14 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
       symbols: []
     }
 
-    if (type === 'NFA') {
+    if (type === 'NFA' || isTransducerType(type)) {
       const read = getChildText(node, 'read')
       // JFLAP uses empty tags <read/> for epsilon
       t.symbols = [read === null || read === '' ? EPSILON : read]
+      if (type === 'MEALY') {
+        // JFLAP stores Mealy output separately from the input label.
+        t.output = normalizeTransducerOutput(getChildText(node, 'transout'))
+      }
     } else if (type === 'NPDA') {
       const read = getChildText(node, 'read')
       const pop = getChildText(node, 'pop')
@@ -142,14 +168,16 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
   }
 
   const alphabet = new Set<string>()
+  const outputAlphabet = new Set<string>()
   const stackAlphabet = new Set<string>()
   const tapeAlphabet = new Set<string>()
 
   for (const t of transitions) {
-    if (type === 'NFA') {
+    if (type === 'NFA' || isTransducerType(type)) {
       t.symbols.forEach((s) => {
         if (!isEpsilon(s)) alphabet.add(s)
       })
+      if (type === 'MEALY' && t.output) outputAlphabet.add(t.output)
     } else if (type === 'NPDA') {
       if (t.read && !isEpsilon(t.read)) alphabet.add(t.read)
       if (t.pop && !isEpsilon(t.pop)) stackAlphabet.add(t.pop)
@@ -168,6 +196,11 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
       })
     }
   }
+  if (type === 'MOORE') {
+    states.forEach((state) => {
+      if (state.output) outputAlphabet.add(state.output)
+    })
+  }
 
   const def: MachineDefinition = {
     id: generateId('machine'),
@@ -184,6 +217,9 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
   }
   if (type === 'TM' && tapeAlphabet.size > 0) {
     def.tapeAlphabet = Array.from(tapeAlphabet).sort()
+  }
+  if (isTransducerType(type) && outputAlphabet.size > 0) {
+    def.outputAlphabet = Array.from(outputAlphabet).sort()
   }
 
   if (tapeCount > 1) {
@@ -216,6 +252,9 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
 }
 
 export function exportJFLAP(machine: MachineDefinition): string {
+  if (isTransducerType(machine.type)) {
+    throw new Error('JFLAP does not define a portable Mealy/Moore output format.')
+  }
   const doc = document.implementation.createDocument(null, 'structure')
   const structure = doc.documentElement
 

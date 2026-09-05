@@ -63,6 +63,7 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
   const lalr1Table = useLALR1Table();
 
   const [filterQuery, setFilterQuery] = useState('');
+  const [showAlgorithmInfo, setShowAlgorithmInfo] = useState(false);
 
   const getActiveTable = (): LR0Table | null => {
     if (algorithm === 'LR0') return lr0Table;
@@ -493,38 +494,22 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
           )}
         </div>
 
-        {/* Metadata chips */}
-        {metadata && (
-          <div style={{
-            display: 'flex', gap: '16px', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)',
-            alignItems: 'center', flexShrink: 1, minWidth: 0, overflow: 'hidden', whiteSpace: 'nowrap'
-          }}>
-            <span title={metadata.educationalDescription}>
-              Complexity: <b style={{color: 'var(--text-primary)'}}>{metadata.complexity}</b>
-            </span>
-            <span title="Deterministic">Det: <b style={{color: 'var(--text-primary)'}}>{metadata.deterministic ? 'Yes' : 'No'}</b></span>
-            <span title="Requires CNF">CNF: <b style={{color: 'var(--text-primary)'}}>{metadata.requiresCNF ? 'Yes' : 'No'}</b></span>
-            <span title="Supports Ambiguity">Ambiguity: <b style={{color: 'var(--text-primary)'}}>{metadata.supportsAmbiguity ? 'Yes' : 'No'}</b></span>
-          </div>
-        )}
-
-        {['LR0', 'SLR1', 'CLR1', 'LALR1'].includes(algorithm) && getActiveTable() && (
-          <div style={{
-            background: 'rgba(59, 130, 246, 0.1)',
-            border: '1px solid var(--blue-500)',
-            color: 'var(--blue-400)',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontSize: '0.65rem',
-            fontFamily: 'var(--font-mono)',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-            flexShrink: 1,
-            minWidth: 0,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}>
-            Augmented Root: <span style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</span>
+        {(metadata || (['LR0', 'SLR1', 'CLR1', 'LALR1'].includes(algorithm) && getActiveTable())) && (
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              aria-label="Show parser algorithm details"
+              aria-expanded={showAlgorithmInfo}
+              onClick={() => setShowAlgorithmInfo((shown) => !shown)}
+              onMouseEnter={() => setShowAlgorithmInfo(true)}
+              onMouseLeave={() => setShowAlgorithmInfo(false)}
+              style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--border-default)', background: 'var(--bg-secondary)', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 700 }}
+            >i</button>
+            {showAlgorithmInfo && (
+              <div onMouseEnter={() => setShowAlgorithmInfo(true)} onMouseLeave={() => setShowAlgorithmInfo(false)} style={{ position: 'absolute', zIndex: 20, top: 25, right: 0, width: 300, padding: '9px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, background: 'var(--bg-card)', boxShadow: 'var(--shadow-lg)', fontSize: '0.68rem', lineHeight: 1.6, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                {metadata && <><div>Complexity: <b style={{ color: 'var(--text-primary)' }}>{metadata.complexity}</b></div><div>Deterministic: <b style={{ color: 'var(--text-primary)' }}>{metadata.deterministic ? 'Yes' : 'No'}</b></div><div>Requires CNF: <b style={{ color: 'var(--text-primary)' }}>{metadata.requiresCNF ? 'Yes' : 'No'}</b></div><div>Supports Ambiguity: <b style={{ color: 'var(--text-primary)' }}>{metadata.supportsAmbiguity ? 'Yes' : 'No'}</b></div></>}
+                {['LR0', 'SLR1', 'CLR1', 'LALR1'].includes(algorithm) && getActiveTable() && <div style={{ marginTop: metadata ? 6 : 0 }}>Augmented Root: <b style={{ color: 'var(--text-primary)' }}>[ 0: START → {useGrammarStore.getState().cfg?.startSymbol} ]</b></div>}
+              </div>
+            )}
           </div>
         )}
 

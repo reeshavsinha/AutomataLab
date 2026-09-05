@@ -33,6 +33,35 @@ export function useTransitionDrawing(canvasTool: string, setCanvasTool: (t: any)
     [isModalEdited, openTransitionEditor, setEditingTransition]
   )
 
+  const startDrawing = useCallback((fromStateId: string) => {
+    if (status === 'running') return false
+    const state = machine.states.find((candidate) => candidate.id === fromStateId)
+    if (!state || state.isText) return false
+    setTransitionMode({ fromStateId })
+    setCanvasTool('transition')
+    return true
+  }, [machine.states, setCanvasTool, status])
+
+  const completeDrawing = useCallback((targetStateId: string) => {
+    if (!transitionMode || status === 'running') return false
+    const { fromStateId } = transitionMode
+    const state = machine.states.find((candidate) => candidate.id === targetStateId)
+    if (!state || state.isText) return false
+
+    const existing = !isModalEdited
+      ? machine.transitions.find((t) => t.from === fromStateId && t.to === targetStateId)
+      : undefined
+    if (existing) {
+      setEditingTransition(existing.id)
+    } else {
+      const newTrans = addTransition(fromStateId, targetStateId, [])
+      beginEditingNewTransition(newTrans.id, fromStateId)
+    }
+    setTransitionMode(null)
+    setMousePos(null)
+    return true
+  }, [addTransition, beginEditingNewTransition, isModalEdited, machine.states, machine.transitions, setEditingTransition, status, transitionMode])
+
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (transitionMode) {
       setMousePos({ x: e.clientX, y: e.clientY })
@@ -44,32 +73,14 @@ export function useTransitionDrawing(canvasTool: string, setCanvasTool: (t: any)
       if (node.id === 'cursor-node') return
 
       if (canvasTool === 'transition' && !transitionMode && status !== 'running') {
-        const s = machine.states.find((st) => st.id === node.id)
-        if (s && !s.isText) {
-          setTransitionMode({ fromStateId: node.id })
-          return
-        }
+        if (startDrawing(node.id)) return
       }
 
       if (transitionMode) {
-        const { fromStateId } = transitionMode
-        const s = machine.states.find((st) => st.id === node.id)
-        if (s?.isText) return
-
-        const existing = !isModalEdited
-          ? machine.transitions.find((t) => t.from === fromStateId && t.to === node.id)
-          : undefined
-        if (existing) {
-          setEditingTransition(existing.id)
-        } else {
-          const newTrans = addTransition(fromStateId, node.id, [])
-          beginEditingNewTransition(newTrans.id, fromStateId)
-        }
-        setTransitionMode(null)
-        setMousePos(null)
+        completeDrawing(node.id)
       }
     },
-    [transitionMode, addTransition, machine.states, machine.transitions, beginEditingNewTransition, isModalEdited, setEditingTransition, canvasTool, status]
+    [canvasTool, completeDrawing, startDrawing, transitionMode]
   )
 
   const onConnect = useCallback(
@@ -105,6 +116,8 @@ export function useTransitionDrawing(canvasTool: string, setCanvasTool: (t: any)
     onPointerMove,
     onNodeClick,
     onConnect,
+    startDrawing,
+    completeDrawing,
     cancelDrawing,
   }
 }

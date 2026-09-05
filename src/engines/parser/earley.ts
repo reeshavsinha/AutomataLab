@@ -1,6 +1,8 @@
 import { CFG, Production } from '../grammar/types';
 import { ParserEngine, ParserStatus, SyntaxTreeNode, ParserMetadata, ParserPresentation, TreeMode, AmbiguityMode, TimelineStyle, ParserHistoryEntry, cloneSyntaxTree } from './model';
 
+const MAX_EARLEY_INPUT_TOKENS = 200;
+
 export interface EarleyItem {
   lhs: string;
   rhs: string[];
@@ -56,6 +58,9 @@ export class EarleySimulation implements ParserEngine {
   }
 
   public initialize(inputTokens: string[]) {
+    if (inputTokens.length > MAX_EARLEY_INPUT_TOKENS) {
+      throw new Error(`Earley input is too long (maximum ${MAX_EARLEY_INPUT_TOKENS} tokens).`);
+    }
     this.input = inputTokens;
     this.status = 'running';
     this.errorMsg = null;
@@ -92,8 +97,12 @@ export class EarleySimulation implements ParserEngine {
     const clone = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
     clone.stack = [...this.stack];
     clone.tree = cloneSyntaxTree(this.tree);
-    clone.derivationSteps = this.derivationSteps.map(s => [...s]);
-    clone.stateSets = this.stateSets.map(set => set.map(item => ({ ...item })));
+    clone.derivationSteps = this.derivationSteps.length > 0
+      ? [[...this.derivationSteps[this.derivationSteps.length - 1]]]
+      : [];
+    // Earley items are immutable after insertion. Copy each set array so later
+    // insertions cannot alter a snapshot, while sharing the immutable items.
+    clone.stateSets = this.stateSets.map(set => [...set]);
     return clone;
   }
   
@@ -285,8 +294,9 @@ export class EarleySimulation implements ParserEngine {
       this.validTrees.push(...trees);
     }
     
-    if (this.validTrees.length > 0) {
-      this.tree = this.validTrees[0].children[0]; // Strip START root
+    const firstTree = this.validTrees[0]?.children[0];
+    if (firstTree) {
+      this.tree = firstTree; // Strip START root
       this.totalParses = this.validTrees.length;
       this.isAmbiguous = this.totalParses > 1;
     } else {
@@ -393,9 +403,10 @@ export class EarleySimulation implements ParserEngine {
   }
   
   public recomputeTree(index: number) {
-    if (index >= 0 && index < this.validTrees.length) {
+    const tree = this.validTrees[index]?.children[0];
+    if (index >= 0 && tree) {
       this.currentParseIndex = index;
-      this.tree = this.validTrees[index].children[0];
+      this.tree = tree;
     }
   }
 }

@@ -111,7 +111,8 @@ function bundleLabel(machine: MachineDefinition, group: Transition[]): string[] 
   const syms: string[] = []
   for (const t of group) {
     for (const s of t.symbols) {
-      const disp = isEpsilon(s) ? EPSILON : s
+      const input = isEpsilon(s) ? EPSILON : s
+      const disp = machine.type === 'MEALY' ? `${input} / ${t.output ?? ''}` : input
       if (!syms.includes(disp)) syms.push(disp)
     }
   }
@@ -288,6 +289,11 @@ export function machineToSVG(
       `<text x="${s.x.toFixed(1)}" y="${s.y.toFixed(1)}" text-anchor="middle" dominant-baseline="central" font-family="${FONT}" font-size="13" font-weight="600" fill="${colors.nodeText}">${escapeXml(shown)}</text>`
     )
     const tip = s.description ? `${s.label} = ${s.description}` : s.label
+    if (machine.type === 'MOORE' && s.output) {
+      parts.push(
+        `<text x="${s.x.toFixed(1)}" y="${(s.y + NODE_R + 14).toFixed(1)}" text-anchor="middle" font-family="${FONT}" font-size="10" fill="${colors.edgeText}">out: ${escapeXml(s.output)}</text>`
+      )
+    }
     nodeParts.push(`<g><title>${escapeXml(tip)}</title>${parts.join('')}</g>`)
   }
 
@@ -306,6 +312,7 @@ export function machineToSVG(
     maxX = Math.max(maxX, s.x + NODE_R)
     minY = Math.min(minY, s.y - NODE_R)
     maxY = Math.max(maxY, s.y + NODE_R)
+    if (machine.type === 'MOORE' && s.output) maxY = Math.max(maxY, s.y + NODE_R + 22)
     if (s.isStart) minX = Math.min(minX, s.x - NODE_R - 30)
     // self-loops + labels extend above
     minY = Math.min(minY, s.y - NODE_R * 3.6)

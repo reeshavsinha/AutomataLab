@@ -263,11 +263,17 @@ export class NFAEngine implements Automaton, TreeProvider {
    */
   protected _epsilonExpandLineage(level: Map<string, string>, inputIndex: number): void {
     const queue = [...level.keys()]
+    // Keep traversal membership separate from recorded tree lineage. Once the
+    // tree buffer is full, _recordBranch deliberately stops adding to `level`;
+    // without this set an ε-cycle would therefore enqueue the same unrecorded
+    // state forever.
+    const seen = new Set(queue)
     while (queue.length > 0) {
       const stateId = queue.shift()!
       const parentNodeId = level.get(stateId) ?? null
       for (const t of this.definition.transitions) {
-        if (t.from === stateId && t.symbols.some(isEpsilon) && !level.has(t.to)) {
+        if (t.from === stateId && t.symbols.some(isEpsilon) && !seen.has(t.to)) {
+          seen.add(t.to)
           this._recordBranch(level, t.to, parentNodeId, inputIndex)
           queue.push(t.to)
         }

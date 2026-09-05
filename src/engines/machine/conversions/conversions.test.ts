@@ -247,6 +247,11 @@ describe('regexToNfa (Thompson construction)', () => {
     expect(() => regexToNfa('*a')).toThrow()
   })
 
+  it('rejects pathological nesting before the JavaScript call stack overflows', () => {
+    expect(() => regexToNfa('('.repeat(300) + 'a' + ')'.repeat(300))).toThrow(/nesting is too deep/)
+    expect(() => regexToNfa('a' + '*'.repeat(300))).toThrow(/nesting is too deep/)
+  })
+
   it('steps reveal every result element', () => {
     expectStepsCoverResult(regexToNfa('(a|b)*abb'))
   })

@@ -14,6 +14,20 @@ import { useUIStore } from '@/store/uiStore'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
 import { toast } from '@/store/toastStore'
 
+function enrichHistoryEntry(result: StepResult): HistoryEntry {
+  const primary = result.configurations[0]
+  return {
+    ...result.historyEntry,
+    ...(primary ? { inputIndex: primary.inputIndex } : {}),
+    consumedInput: result.consumedInput,
+    remainingInput: result.remainingInput,
+    ...(result.stack.length > 0 ? { stack: [...result.stack] } : {}),
+    ...(result.tapes ? { tapes: result.tapes.map((tape) => ({ ...tape, cells: [...tape.cells] })) } : {}),
+    ...(result.output !== undefined ? { output: result.output } : {}),
+    ...(result.outputTrace ? { outputTrace: [...result.outputTrace] } : {}),
+  }
+}
+
 export function useSimulation() {
   const machine = useMachineStore((s) => s.machine)
   const { inputString, speed, applyStepResult, resetSimulation, setStatus, status } =
@@ -51,8 +65,9 @@ export function useSimulation() {
         consumedInput: result.consumedInput,
         remainingInput: result.remainingInput,
         currentSymbol: result.symbol,
+        outputTrace: result.outputTrace,
         status: result.status,
-        historyEntry: result.historyEntry,
+        historyEntry: enrichHistoryEntry(result),
         configurations: result.configurations,
         activeStack: result.stack,
         activeTapes: result.tapes ?? [],
@@ -183,7 +198,7 @@ export function useSimulation() {
     let last: StepResult | null = null
     for (let i = 0; i < target; i++) {
       const result = engine.step()
-      entries.push(result.historyEntry)
+      entries.push(enrichHistoryEntry(result))
       last = result
       if (result.status !== 'running') break // safety (shouldn't trip before target)
     }
@@ -200,6 +215,7 @@ export function useSimulation() {
       consumedInput: last.consumedInput,
       remainingInput: last.remainingInput,
       currentSymbol: last.symbol,
+      outputTrace: last.outputTrace ?? [],
       status: last.status,
       history: entries,
       stepCount: entries.length,
@@ -248,8 +264,9 @@ export function useSimulation() {
   }, [machine.id, reset])
 
   // ── Reset a stale run when the machine is *structurally* edited ─────────
-  // A finished run leaves `status` at a terminal value (accepted/rejected/
-  // stuck/error), which the canvas, toolbar, and input bar all use to lock
+  // A finished run leaves `status` at a terminal value (completed for
+  // transducers, accepted/rejected/stuck/error for recognizers), which the
+  // canvas, toolbar, and input bar all use to lock
   // editing. Without an automatic way back to `idle`, the user gets "stuck":
   // after a run, the Delete key / Add-state button / input field appear dead
   // and the displayed result is stale w.r.t. any edit. So whenever the
@@ -261,14 +278,14 @@ export function useSimulation() {
   const structuralSig = useMemo(() => {
     const states = machine.states
       .filter((s) => !s.isText)
-      .map((s) => `${s.id},${s.label},${s.isStart ? 1 : 0}${s.isAccept ? 1 : 0}${s.isReject ? 1 : 0}`)
+      .map((s) => `${s.id},${s.label},${s.isStart ? 1 : 0}${s.isAccept ? 1 : 0}${s.isReject ? 1 : 0},${s.output ?? ''}`)
       .join(';')
     const trans = machine.transitions
       .map(
         (t) =>
           `${t.id},${t.from}>${t.to},${(t.symbols ?? []).join('|')},` +
           `${t.read ?? ''}/${t.pop ?? ''}/${t.push ?? ''},${t.write ?? ''}/${t.direction ?? ''},` +
-          `${(t.reads ?? []).join('|')}/${(t.writes ?? []).join('|')}/${(t.directions ?? []).join('|')}`
+          `${(t.reads ?? []).join('|')}/${(t.writes ?? []).join('|')}/${(t.directions ?? []).join('|')},${t.output ?? ''}`
       )
       .join(';')
     return `${machine.type}|${machine.blankSymbol ?? ''}|${machine.tapeCount ?? 1}|${states}|${trans}`

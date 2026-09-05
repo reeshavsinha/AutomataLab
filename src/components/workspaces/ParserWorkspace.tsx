@@ -183,11 +183,13 @@ export function ParserWorkspace({ definition }: { definition?: MachineDefinition
           </div>
         ) : (
           <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{
+            <div className="parser-right-tabs" style={{
               display: 'flex',
               background: 'var(--bg-secondary)',
               borderBottom: '1px solid var(--border-subtle)',
-              flexShrink: 0
+              flexShrink: 0,
+              overflowX: 'auto',
+              scrollbarWidth: 'thin',
             }}>
               <button onClick={() => setRightCollapsed(true)} title="Collapse Panel" style={{ padding: '0 8px', background: 'transparent', border: 'none', borderRight: '1px solid var(--border-subtle)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}>›</button>
               {tabs.map(tab => (
@@ -195,8 +197,12 @@ export function ParserWorkspace({ definition }: { definition?: MachineDefinition
                   key={tab}
                   onClick={() => setRightTab(tab)}
                   style={{
-                    flex: 1,
-                    padding: '6px 0',
+                    // Let each tab size itself from its label. Equal flex
+                    // widths made short labels look padded while longer ones
+                    // collapsed into their neighbours at narrow widths.
+                    flex: '0 0 auto',
+                    minWidth: 0,
+                    padding: '6px 12px',
                     fontSize: '0.72rem',
                     fontWeight: 600,
                     cursor: 'pointer',

@@ -2,6 +2,8 @@ import { CFG, Production } from '../grammar/types';
 import { convertToCNF } from '../grammar/cnf';
 import { ParserEngine, ParserStatus, SyntaxTreeNode, ParserMetadata, ParserPresentation, TreeMode, AmbiguityMode, TimelineStyle, ParserHistoryEntry, cloneSyntaxTree } from './model';
 
+const MAX_CYK_INPUT_TOKENS = 80;
+
 export interface CYKBackpointer {
   production: Production;
   left?: { i: number; j: number; sym: string };
@@ -56,6 +58,9 @@ export class CYKSimulation implements ParserEngine {
   }
 
   public initialize(inputTokens: string[]) {
+    if (inputTokens.length > MAX_CYK_INPUT_TOKENS) {
+      throw new Error(`CYK input is too long (maximum ${MAX_CYK_INPUT_TOKENS} tokens).`);
+    }
     this.input = inputTokens;
     this.status = 'running';
     this.errorMsg = null;
@@ -91,8 +96,13 @@ export class CYKSimulation implements ParserEngine {
     const clone = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
     clone.stack = [...this.stack];
     clone.tree = cloneSyntaxTree(this.tree);
-    clone.derivationSteps = this.derivationSteps.map(step => [...step]);
-    clone.table = this.table.map(row => row.map(cell => new Map(cell)));
+    clone.derivationSteps = this.derivationSteps.length > 0
+      ? [[...this.derivationSteps[this.derivationSteps.length - 1]]]
+      : [];
+    // A CYK cell is finalized in one step and never mutated again. Snapshot the
+    // row structure while sharing finalized Maps/backpointers; deep-cloning the
+    // whole n×n table per cell made simulation history grow quartically.
+    clone.table = this.table.map(row => [...row]);
     return clone;
   }
 

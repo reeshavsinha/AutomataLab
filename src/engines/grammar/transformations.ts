@@ -4,6 +4,30 @@ import { CFG, Production, EPSILON } from './types';
 export { convertToCNF } from './cnf';
 export { convertToGNF } from './gnf';
 import { generateUniqueNonterminal } from './utils';
+import { tokenizeGrammarString } from './parser';
+
+// Render a single grammar symbol so it survives a format → parse round-trip as
+// exactly one symbol. Symbols containing whitespace/punctuation (or that would
+// otherwise be re-tokenized into several symbols, e.g. a literal quote) are
+// wrapped in double quotes with backslash-escaping.
+function formatSymbol(sym: string): string {
+  if (sym === EPSILON) return '\\epsilon';
+  // "Clean" symbols tokenize back to exactly themselves and need no quoting.
+  // Tokenizing can throw for symbols like a lone '"' (an unterminated quote),
+  // so treat any throw as "not clean" and fall through to the quoted form.
+  let clean = false;
+  try {
+    const toks = tokenizeGrammarString(sym);
+    clean = toks.length === 1 && toks[0] === sym;
+  } catch {
+    clean = false;
+  }
+  if (clean) return sym;
+  // Escape backslashes first, then double-quotes, so the quoted form re-parses
+  // to the identical symbol (e.g. '"' → "\"", '\' → "\\").
+  const escaped = sym.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `"${escaped}"`;
+}
 
 // Convert CFG back to string format
 export function formatCFGToString(cfg: CFG): string {
@@ -25,7 +49,7 @@ export function formatCFGToString(cfg: CFG): string {
     
     const rhsStrings = prods.map(p => {
       if (p.rhs.length === 1 && p.rhs[0] === EPSILON) return '\\epsilon';
-      return p.rhs.map(sym => sym === EPSILON ? '\\epsilon' : sym).join(' ');
+      return p.rhs.map(formatSymbol).join(' ');
     });
     
     lines.push(`${nt} -> ${rhsStrings.join(' | ')}`);
@@ -45,11 +69,14 @@ export function eliminateDirectLeftRecursion(cfg: CFG, nt: string): CFG {
   const alphas: string[][] = [];
   const betas: string[][] = [];
   const otherProds: Production[] = [];
+  let removedTrivialSelfLoop = false;
 
   for (const p of cfg.productions) {
     if (p.lhs === nt) {
       if (p.rhs[0] === nt) {
-        alphas.push(p.rhs.slice(1));
+        const alpha = p.rhs.slice(1);
+        if (alpha.length === 0) removedTrivialSelfLoop = true;
+        else alphas.push(alpha);
       } else {
         betas.push(p.rhs);
       }
@@ -58,15 +85,20 @@ export function eliminateDirectLeftRecursion(cfg: CFG, nt: string): CFG {
     }
   }
 
-  if (alphas.length === 0) return cfg; // No direct left recursion
+  if (alphas.length === 0) {
+    if (!removedTrivialSelfLoop || betas.length === 0) return cfg;
+    return {
+      ...newCfg,
+      productions: [...otherProds, ...betas.map((rhs) => ({ lhs: nt, rhs: [...rhs] }))],
+    };
+  }
+
+  // With no non-left-recursive base, A cannot derive a finite terminal string.
+  // Introducing ε here would change the language, so leave the grammar unchanged.
+  if (betas.length === 0) return cfg;
 
   const newNt = generateUniqueNonterminal(newCfg, nt, "'");
   newCfg.nonterminals.add(newNt);
-
-  // If no betas, we implicitly have an empty beta (epsilon)
-  if (betas.length === 0) {
-    betas.push([EPSILON]);
-  }
 
   // A -> beta A'
   for (const beta of betas) {

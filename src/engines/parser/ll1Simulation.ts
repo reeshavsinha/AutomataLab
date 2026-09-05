@@ -72,7 +72,9 @@ export class LL1Simulation implements ParserEngine {
     const clone = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
     clone.stack = this.stack.map(n => cloneSyntaxTree(n)!);
     clone.tree = cloneSyntaxTree(this.tree);
-    clone.derivationSteps = this.derivationSteps.map(step => [...step]);
+    clone.derivationSteps = this.derivationSteps.length > 0
+      ? [[...this.derivationSteps[this.derivationSteps.length - 1]]]
+      : [];
     return clone;
   }
 

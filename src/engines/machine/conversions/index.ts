@@ -13,11 +13,28 @@ import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { cfgToPda } from './cfgToPda'
+import { mealyToMoore, mooreToMealy } from './transducers'
 
 export type { ConversionKind, ConversionMeta, ConversionResult, ConversionStep, ConversionMode } from './types'
-export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda }
+export { enfaToNfa, nfaToDfa, minimizeDfa, regexToNfa, cfgToPda, mealyToMoore, mooreToMealy }
 
 export const CONVERSIONS: ConversionMeta[] = [
+  {
+    kind: 'moore-to-mealy',
+    label: 'Moore → Mealy',
+    description: 'Move destination-state outputs onto transitions.',
+    mode: 'transform',
+    appliesTo: ['MOORE'],
+    resultType: 'MEALY',
+  },
+  {
+    kind: 'mealy-to-moore',
+    label: 'Mealy → Moore',
+    description: 'Split states when incoming transitions emit different outputs.',
+    mode: 'transform',
+    appliesTo: ['MEALY'],
+    resultType: 'MOORE',
+  },
   {
     kind: 'enfa-to-nfa',
     label: 'ε-NFA → NFA',
@@ -85,6 +102,10 @@ export function runTransform(kind: ConversionKind, machine: MachineDefinition): 
       return nfaToDfa(machine)
     case 'minimize-dfa':
       return minimizeDfa(machine)
+    case 'moore-to-mealy':
+      return mooreToMealy(machine)
+    case 'mealy-to-moore':
+      return mealyToMoore(machine)
     default:
       throw new Error(`${kind} is not a transform conversion.`)
   }

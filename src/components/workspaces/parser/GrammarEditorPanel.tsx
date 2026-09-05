@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 import { useTraceabilityStore } from '@/store/traceabilityStore';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, HelpCircle, BookOpen, Sparkles } from 'lucide-react';
 
 interface EditorContentProps {
   mode: 'grouped' | 'flat';
@@ -175,6 +175,10 @@ const EditorContent = ({
             let val = e.target.value;
             const start = e.target.selectionStart;
             let newStart = start;
+
+            // Normalize the Unicode DIVIDES separator '∣' (U+2223) to the
+            // canonical ASCII pipe. Length-preserving, so the caret is unaffected.
+            val = val.replace(/∣/g, '|');
             
             if (mode === 'flat' && val.includes('|')) {
               setFlatError("Illegal symbol '|' in Numbered Productions. Use a new line instead.");
@@ -244,7 +248,7 @@ const EditorContent = ({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           readOnly={lastEdited !== mode}
-          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : (mode === 'flat' ? "Enter your CFG here...\nE.g.\nS -> a S b\nS -> ε" : "Enter your CFG here...\nE.g.\nS -> a S b | ε")}
+          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : (mode === 'flat' ? "Enter CFG (e.g. S -> num + num | S -> ε)\nNote: 'num' is 1 token; 'n u m' is 3 separate tokens" : "Enter CFG (e.g. S -> num + num | ε)\nNote: 'num' is 1 token; 'n u m' is 3 separate tokens")}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             padding: '8px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',
@@ -287,6 +291,7 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
   
   const [openGrouped, setOpenGrouped] = useState(true);
   const [openFlat, setOpenFlat] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   
   const [lastEdited, setLastEdited] = useState<'grouped' | 'flat'>('grouped');
   const [flatError, setFlatError] = useState<string | null>(null);
@@ -342,6 +347,27 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
         </span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
           <button
+            onClick={() => setShowHelp(!showHelp)}
+            title="Toggle Grammar Syntax & Token Format Guide"
+            style={{
+              padding: '1px 6px',
+              background: showHelp ? 'var(--chrome-active-bg, rgba(59,130,246,0.2))' : 'transparent',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              color: showHelp ? 'var(--chrome-active-border, #3b82f6)' : 'var(--text-secondary)',
+              fontSize: '0.68rem',
+              fontFamily: 'var(--font-mono)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              fontWeight: showHelp ? 600 : 400
+            }}
+          >
+            <HelpCircle size={11} />
+            Syntax
+          </button>
+          <button
             onClick={() => setRawText(rawText + 'ε')}
             style={{
               padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
@@ -366,6 +392,69 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
           )}
         </div>
       </div>
+
+      {showHelp && (
+        <div style={{
+          background: 'var(--bg-secondary)',
+          borderBottom: '2px solid var(--border-default)',
+          padding: '10px 12px',
+          fontSize: '0.72rem',
+          lineHeight: '1.5',
+          color: 'var(--text-secondary)',
+          overflowY: 'auto',
+          maxHeight: '230px',
+          fontFamily: 'var(--font-sans)',
+          flexShrink: 0
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.76rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <BookOpen size={12} style={{ color: 'var(--chrome-active-border, #3b82f6)' }} />
+              Grammar Syntax &amp; Tokenization Guide
+            </span>
+            <button
+              onClick={() => setShowHelp(false)}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0 2px', fontSize: '12px' }}
+              title="Close guide"
+            >
+              ✕
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Nonterminals:</strong> Must start with an <strong style={{ color: 'var(--chrome-active-border, #3b82f6)' }}>uppercase letter</strong> (<code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>S</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>Expr</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>Term_1</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>T'</code>).
+            </div>
+            
+            <div style={{ background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '6px 8px' }}>
+              <strong style={{ color: 'var(--text-primary)', display: 'block', marginBottom: '3px' }}>
+                <Sparkles size={11} style={{ display: 'inline', marginRight: '4px', color: '#eab308' }} />
+                Distinguishing Tokens &amp; Terminals (Crucial):
+              </strong>
+              <div style={{ paddingLeft: '4px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div>
+                  • <strong style={{ color: 'var(--text-primary)' }}>Single Multi-Char Terminal:</strong> Write contiguous letters without spaces like <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>num</code> or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>id</code>. It stays as <strong>ONE single terminal token</strong> (<code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>num</code>), NOT separate 'n', 'u', 'm'.
+                </div>
+                <div>
+                  • <strong style={{ color: 'var(--text-primary)' }}>Separate Single-Char Terminals:</strong> Separate individual characters with <strong>whitespace</strong> like <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>n u m</code>. This creates <strong>THREE separate terminal symbols</strong> (<code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>n</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>u</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>m</code>).
+                </div>
+                <div>
+                  • <strong style={{ color: 'var(--text-primary)' }}>Quoted Terminals:</strong> Enclose in quotes <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>"num"</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>'if'</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>"=="</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>";"</code> to explicitly force treating the contents as 1 terminal.
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• Arrows &amp; Epsilon:</strong> Written as <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>-&gt;</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>::=</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>→</code>, or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>:</code>. For empty string use <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>ε</code>, <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>eps</code>, or <code style={{ background: 'var(--bg-primary)', padding: '1px 4px', borderRadius: '3px', fontFamily: 'var(--font-mono)' }}>\epsilon</code>.
+            </div>
+
+            <div style={{ background: 'var(--bg-primary)', padding: '6px 8px', borderRadius: '4px', border: '1px solid var(--border-subtle)', fontFamily: 'var(--font-mono)', fontSize: '0.69rem' }}>
+              <span style={{ color: 'var(--text-muted)' }}># Expression Grammar Example:</span><br />
+              E -&gt; E + T | T<br />
+              T -&gt; num | ( E )
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <AccordionHeader isOpen={openGrouped} onToggle={() => setOpenGrouped(!openGrouped)} label="Grouped Productions" />

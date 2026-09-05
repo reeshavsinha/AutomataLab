@@ -68,7 +68,12 @@ export class BacktrackingSimulation implements ParserEngine {
     const clone = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
     clone.stack = [...this.stack];
     clone.tree = cloneSyntaxTree(this.tree);
-    clone.derivationSteps = this.derivationSteps.map(s => [...s]);
+    // Timeline entries already carry the action/explanation. Copying the entire
+    // growing derivation log into every snapshot made history O(n²) and could
+    // exhaust several gigabytes before the operation guard fired.
+    clone.derivationSteps = this.derivationSteps.length > 0
+      ? [[...this.derivationSteps[this.derivationSteps.length - 1]]]
+      : [];
     return clone;
   }
 

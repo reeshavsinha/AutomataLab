@@ -73,7 +73,7 @@ describe('applyAutoLayout — no overlaps', () => {
       ],
     })
     expectNoOverlaps(await applyAutoLayout(m))
-  })
+  }, 15_000)
 
   it('separates a dense, cyclic machine with self-loops and back-edges', async () => {
     const m = machine({

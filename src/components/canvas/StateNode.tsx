@@ -15,6 +15,8 @@ export interface StateNodeData {
   isStart: boolean
   isAccept: boolean
   isReject?: boolean
+  /** Moore-only state output, shown and edited beneath the state label. */
+  output?: string
   /** Provenance shown on hover (e.g. the subset a converted DFA state stands for). */
   description?: string
   isTransitionTarget?: boolean   // highlight when in "start transition" mode
@@ -24,6 +26,7 @@ export interface StateNodeData {
 const StateNode = memo(({ id, data, selected }: NodeProps) => {
   const nodeData = data as StateNodeData
   const { updateState } = useMachineStore()
+  const machineType = useMachineStore((s) => s.machine.type)
   const { activeStateIds, status, pathStateIds } = useSimulationStore()
   const renamingStateId = useUIStore((s) => s.renamingStateId)
   const stopRenaming = useUIStore((s) => s.stopRenaming)
@@ -93,6 +96,8 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     [commitEdit, nodeData.label, renamingStateId, id, stopRenaming]
   )
 
+  const isTransducer = machineType === 'MEALY' || machineType === 'MOORE'
+
   // Build class names — no animation classes.
   // Only states that are *actually accepting* glow green at accept-time — other
   // live states (e.g. the start state in an NFA run) stay neutral-active so they
@@ -101,8 +106,8 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     'state-node',
     selected ? 'selected' : '',
     nodeData.isStart ? 'start' : '',
-    nodeData.isAccept ? 'accept' : '',
-    nodeData.isReject ? 'reject' : '',
+    !isTransducer && nodeData.isAccept ? 'accept' : '',
+    !isTransducer && nodeData.isReject ? 'reject' : '',
     isActive ? 'active' : '',
     halted && isActive && status === 'accepted' && nodeData.isAccept ? 'accepted-final' : '',
     halted && isActive && status === 'rejected' ? 'rejected-final' : '',
@@ -115,7 +120,8 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
     .filter(Boolean)
     .join(' ')
 
-  const hasRole = nodeData.isStart || nodeData.isAccept || nodeData.isReject || analysisState === 'sink'
+  const hasRole = nodeData.isStart || (!isTransducer && (nodeData.isAccept || nodeData.isReject)) || analysisState === 'sink'
+  const isMoore = machineType === 'MOORE'
 
   return (
     <div className="state-node-wrap" style={{ position: 'relative', width: 52, height: 52 }}>
@@ -127,8 +133,8 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
 
       <div
         className={classes}
-        onDoubleClick={toggleAccept}
-        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${nodeData.isAccept ? ' (accept)' : ''}${nodeData.isReject ? ' (reject)' : ''}${nodeData.description ? `\n${nodeData.description}` : ''}`}
+        onDoubleClick={isTransducer ? undefined : toggleAccept}
+        title={`${nodeData.label}${nodeData.isStart ? ' (start)' : ''}${!isTransducer && nodeData.isAccept ? ' (accept)' : ''}${!isTransducer && nodeData.isReject ? ' (reject)' : ''}${nodeData.description ? `\n${nodeData.description}` : ''}`}
       >
         {isEditing ? (
           <input
@@ -157,6 +163,32 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
           <span style={{ pointerEvents: 'none' }}>{nodeData.label}</span>
         )}
       </div>
+      {isMoore && (
+        <input
+          aria-label={`Output for ${nodeData.label}`}
+          value={nodeData.output ?? ''}
+          placeholder="output"
+          onChange={(e) => updateState(id, { output: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: 'absolute',
+            top: '56px',
+            left: '-18px',
+            width: '88px',
+            height: '18px',
+            padding: '1px 4px',
+            textAlign: 'center',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            color: 'var(--text-secondary)',
+            fontSize: '10px',
+            fontFamily: 'var(--font-mono)',
+            outline: 'none',
+          }}
+        />
+      )}
 
       {/* Persistent role badges — a redundant, projector-readable cue beyond the
           (subtle) border/ring differences (UX audit #9). */}
@@ -174,8 +206,8 @@ const StateNode = memo(({ id, data, selected }: NodeProps) => {
           }}
         >
           {nodeData.isStart && <RoleBadge glyph="▶" title="Start state" />}
-          {nodeData.isAccept && <RoleBadge glyph="◎" title="Accept (final) state" />}
-          {nodeData.isReject && <RoleBadge glyph="⊘" title="Reject (halt) state" reject />}
+          {!isTransducer && nodeData.isAccept && <RoleBadge glyph="◎" title="Accept (final) state" />}
+          {!isTransducer && nodeData.isReject && <RoleBadge glyph="⊘" title="Reject (halt) state" reject />}
           {analysisState === 'sink' && <RoleBadge glyph="⭲" title="Sink state (analysis)" />}
         </div>
       )}

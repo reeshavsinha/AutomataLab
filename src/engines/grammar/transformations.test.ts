@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest';
 import { parseGrammarText } from './parser';
 import { runDiagnostics } from './diagnostics';
 import { eliminateDirectLeftRecursion, leftFactor, removeUnreachable, formatCFGToString } from './transformations';
+import { convertToGNF } from './gnf';
 
 describe('Grammar Diagnostics & Transformations', () => {
   it('detects and eliminates direct left recursion', () => {
@@ -27,6 +28,22 @@ describe('Grammar Diagnostics & Transformations', () => {
     // Check that diagnostics are clear now
     const newDiags = runDiagnostics(newCfg);
     expect(newDiags.length).toBe(0);
+  });
+
+  it('removes a trivial A -> A alternative without introducing new strings', () => {
+    const cfg = parseGrammarText('A -> A | a');
+    const transformed = eliminateDirectLeftRecursion(cfg, 'A');
+    expect(transformed.productions).toEqual([{ lhs: 'A', rhs: ['a'] }]);
+  });
+
+  it('does not invent epsilon for left recursion with no base production', () => {
+    const cfg = parseGrammarText('A -> A a');
+    expect(eliminateDirectLeftRecursion(cfg, 'A')).toBe(cfg);
+  });
+
+  it('reports an empty-language GNF conversion instead of returning an empty CFG', () => {
+    const cfg = parseGrammarText('S -> A\nA -> A a');
+    expect(() => convertToGNF(cfg)).toThrow(/generates no terminal strings/i);
   });
 
   it('detects and applies left factoring', () => {

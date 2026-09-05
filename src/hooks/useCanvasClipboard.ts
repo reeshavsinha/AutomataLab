@@ -35,6 +35,7 @@ export function useCanvasClipboard(
         isStart: s.isStart,
         isText: s.isText,
         isReject: s.isReject,
+        output: s.output,
         oldId: s.id,
       })),
       transitions: transitionsToCopy.map((t) => ({
@@ -49,6 +50,7 @@ export function useCanvasClipboard(
         reads: t.reads,
         writes: t.writes,
         directions: t.directions,
+        output: t.output,
       })),
     })
   }, [machine, selectedStateIds, setClipboard])
@@ -94,6 +96,7 @@ export function useCanvasClipboard(
           label: uniqueLabel(s.label),
           isAccept: s.isAccept,
           isReject: s.isReject,
+          output: s.output,
           isStart: false,
         })
       }
@@ -111,11 +114,13 @@ export function useCanvasClipboard(
           t.read !== undefined || t.pop !== undefined || t.push !== undefined ||
           t.write !== undefined || t.direction !== undefined ||
           t.reads !== undefined || t.writes !== undefined || t.directions !== undefined
+          || t.output !== undefined
         if (hasOps) {
           updateTransition(newTrans.id, {
             read: t.read, pop: t.pop, push: t.push,
             write: t.write, direction: t.direction,
             reads: t.reads, writes: t.writes, directions: t.directions,
+            output: t.output,
           })
         }
         newSelectedTransitionIds.push(newTrans.id)

@@ -34,6 +34,12 @@ describe('parseMachineJson — rejects malformed input cleanly', () => {
     ).toThrowError(/Unknown machine type/)
   })
 
+  it('rejects a project file from a newer major format', () => {
+    expect(() =>
+      parseMachineJson('{"version":2,"type":"DFA","states":[],"transitions":[]}')
+    ).toThrowError(/newer than this application supports/)
+  })
+
   it('does not pollute Object.prototype via a crafted __proto__ key', () => {
     parseMachineJson(
       '{"type":"DFA","states":[],"transitions":[],"__proto__":{"polluted":true}}'
@@ -87,6 +93,20 @@ describe('parseMachineJson — sanitises accepted fields', () => {
     expect(back.stepLimit).toBeUndefined()
     expect(back.tapeCount).toBeUndefined()
   })
+
+  it('caps step limits and rejects tape counts that could exhaust memory', () => {
+    const base = {
+      type: 'TM',
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [],
+      alphabet: [],
+    }
+
+    expect(parseMachineJson(JSON.stringify({ ...base, stepLimit: 1_000_000 })).stepLimit).toBe(100_000)
+    expect(() => parseMachineJson(JSON.stringify({ ...base, tapeCount: 1_000_000 }))).toThrow(
+      /Tape count cannot exceed 9/
+    )
+  })
 })
 
 describe('exportMachineJSON ↔ parseMachineJson round-trip', () => {
@@ -116,5 +136,59 @@ describe('exportMachineJSON ↔ parseMachineJson round-trip', () => {
     expect(back.alphabet).toEqual(m.alphabet)
     expect(back.stackAlphabet).toEqual(m.stackAlphabet)
     expect(back.id).not.toBe(m.id) // a fresh id is always assigned on load
+  })
+
+  it('preserves grammar/parser fields and writes the stable file contract', () => {
+    const parser: MachineDefinition = {
+      id: 'parser-id',
+      name: 'Expression Parser',
+      type: 'CFG_PARSER',
+      language: '',
+      states: [],
+      transitions: [],
+      alphabet: [],
+      grammarText: 'E -> id',
+      parserAlgorithm: 'LL1',
+      parserInput: 'id',
+      activeViewMode: 'table',
+      grammarDerivationInput: 'id',
+      grammarSamplerMaxLength: '8',
+      grammarSamplerMaxSteps: '100',
+    }
+
+    const serialized = exportMachineJSON(parser)
+    expect(JSON.parse(serialized)).toMatchObject({
+      version: 1,
+      workspaceType: 'parser',
+    })
+
+    const back = parseMachineJson(serialized)
+    expect(back.type).toBe('CFG_PARSER')
+    expect(back.grammarText).toBe(parser.grammarText)
+    expect(back.parserAlgorithm).toBe(parser.parserAlgorithm)
+    expect(back.parserInput).toBe(parser.parserInput)
+    expect(back.activeViewMode).toBe('table')
+    expect(back.grammarDerivationInput).toBe(parser.grammarDerivationInput)
+    expect(back.grammarSamplerMaxLength).toBe(parser.grammarSamplerMaxLength)
+    expect(back.grammarSamplerMaxSteps).toBe(parser.grammarSamplerMaxSteps)
+  })
+
+  it('preserves Mealy/Moore output metadata', () => {
+    const transducer: MachineDefinition = {
+      id: 'mealy-id',
+      name: 'Parity Mealy',
+      type: 'MEALY',
+      language: '',
+      alphabet: ['a'],
+      outputAlphabet: ['0', '1'],
+      initialOutput: '0',
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'], output: '1' }],
+    }
+    const back = parseMachineJson(exportMachineJSON(transducer))
+    expect(back.outputAlphabet).toEqual(['0', '1'])
+    expect(back.initialOutput).toBe('0')
+    expect(back.states[0].output).toBeUndefined()
+    expect(back.transitions[0].output).toBe('1')
   })
 })

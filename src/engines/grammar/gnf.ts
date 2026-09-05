@@ -135,9 +135,16 @@ export function convertToGNF(cfg: CFG): CFG {
       }
     }
   }
+  if (changed) {
+    throw new Error('Grammar is too complex for GNF conversion (substitution did not converge).');
+  }
 
   if (startEpsilon) {
     productions.unshift(startEpsilon);
+  }
+
+  if (!productions.some((production) => production.lhs === gnf.startSymbol)) {
+    throw new Error('The grammar generates no terminal strings, so a non-empty GNF result cannot be produced.');
   }
 
   gnf.productions = productions;

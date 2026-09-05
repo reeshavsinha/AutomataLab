@@ -15,7 +15,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import EpsilonInserter from './EpsilonInserter'
-import { EPSILON, isEpsilon } from '@/engines/machine/core/utils'
+import { EPSILON, isEpsilon, parseMealyLabel } from '@/engines/machine/core/utils'
 
 export interface TransitionEdgeData {
   symbols: string[]
@@ -30,6 +30,8 @@ export interface TransitionEdgeData {
   tmLabels?: string[]
   /** TM/LBA flag — switches label rendering and routes editing to the modal. */
   isTM?: boolean
+  /** Mealy flag — inline labels use `input / output` pairs. */
+  isMealy?: boolean
   /** All transition ids represented by this visual edge (for active highlighting). */
   memberTransitionIds?: string[]
   [key: string]: unknown
@@ -74,12 +76,13 @@ const TransitionEdge = memo(
     markerEnd,
   }: EdgeProps) => {
     const edgeData = data as TransitionEdgeData
-    const { machine, updateTransition, deleteTransition } = useMachineStore()
+    const { machine, addTransition, updateTransition, deleteTransition } = useMachineStore()
     const { activeTransitionIds, pathTransitionIds, status: simStatus } = useSimulationStore()
     const { isEditingTransition, setEditingTransition, openTransitionEditor } = useUIStore()
     const isENFA = machine.type === 'ENFA'
     const isPDA = !!edgeData?.isPDA
     const isTM = !!edgeData?.isTM
+    const isMealy = !!edgeData?.isMealy
     // PDA and TM/LBA labels are multi-line and edited through the modal.
     const isModalEdited = isPDA || isTM
     const { screenToFlowPosition } = useReactFlow()
@@ -265,6 +268,23 @@ const TransitionEdge = memo(
         }
       }
       if (trimmed) {
+        if (isMealy) {
+          const pairs = parseMealyLabel(trimmed)
+          if (!pairs) {
+            setLabelDraft(edgeData?.symbols?.join(', ') ?? '')
+            return
+          }
+          const uniquePairs = pairs.filter((pair, index) => pairs.findIndex((candidate) => candidate.input === pair.input && candidate.output === pair.output) === index)
+          updateTransition(id, { symbols: [uniquePairs[0].input], output: uniquePairs[0].output })
+          collapseSiblings()
+          for (const pair of uniquePairs.slice(1)) {
+            const sibling = addTransition(source, target, [pair.input])
+            updateTransition(sibling.id, { output: pair.output })
+          }
+          setIsEditing(false)
+          if (isEditingTransition === id) setEditingTransition(null)
+          return
+        }
         const symbols = Array.from(
           new Set(
             trimmed
@@ -291,7 +311,7 @@ const TransitionEdge = memo(
       if (isEditingTransition === id) {
         setEditingTransition(null)
       }
-    }, [id, memberIds, labelDraft, isENFA, updateTransition, deleteTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
+    }, [id, memberIds, labelDraft, isENFA, isMealy, source, target, addTransition, updateTransition, deleteTransition, edgeData?.symbols, isEditingTransition, setEditingTransition])
 
     const cancelEdit = useCallback(() => {
       setLabelDraft(edgeData?.symbols?.join(', ') ?? '')

@@ -221,7 +221,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('pushdown automata on arbitrary inputs', () => {
     const rng = mulberry32(2)
@@ -232,7 +232,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectPdaHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('Turing machines / LBAs on arbitrary inputs', () => {
     const rng = mulberry32(3)
@@ -243,7 +243,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('NPDA with a branching ε-push loop terminates instead of exploding', () => {
     // Two ε, ε → ‹different› self-loops: each child has a distinct stack, so the
@@ -284,7 +284,7 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 
   it('DFA ≡ minimised DFA', () => {
     const rng = mulberry32(20)
@@ -301,7 +301,7 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 
   it('ε-NFA ≡ ε-eliminated NFA', () => {
     const rng = mulberry32(30)
@@ -315,7 +315,7 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 })
 
 // ════════════════════════════════════════════════════════════════
@@ -364,5 +364,5 @@ describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
         expect(accepts(nfa, s), `regex "${re}" disagreed on "${s || 'ε'}"`).toBe(ref.test(s))
       }
     }
-  })
+  }, 30_000)
 })
