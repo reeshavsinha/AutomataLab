@@ -28,6 +28,7 @@ import { useGrammarStore } from '@/store/grammarStore'
 import { useParserStore } from '@/store/parserStore'
 import { isAutomatonType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
 import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
+import { hasDemoModeQuery } from '@/utils/demoMode'
 
 const isSimulatorDeployment = import.meta.env.VITE_SIMULATOR_MODE === 'true';
 
@@ -62,21 +63,22 @@ function TabSyncListener() {
 
     // When the active tab changes (or undo/redo alters the active tab),
     // sync the tab's grammar and parser state into the global stores.
-    if (machine.type === 'CFG' || machine.type === 'CSG' || machine.type === 'CFG_PARSER') {
+    if (machine.type === 'CFG' || machine.type === 'CSG' || machine.type === 'UG' || machine.type === 'CFG_PARSER') {
+      useGrammarStore.getState().setGrammarFormatWithoutSync(machine.grammarFormat ?? (machine.type === 'CSG' ? 'TYPE_1' : machine.type === 'UG' ? 'TYPE_0' : 'TYPE_2'));
       useGrammarStore.getState().setRawTextWithoutSync(machine.grammarText || '');
     }
     if (machine.type === 'CFG_PARSER') {
       useParserStore.getState().setAlgorithmWithoutSync(machine.parserAlgorithm || 'LL1');
       useParserStore.getState().setRawInputWithoutSync(machine.parserInput || '');
     }
-  }, [machine?.id, machine?.grammarText, machine?.parserAlgorithm, machine?.parserInput, machine?.type]);
+  }, [machine?.id, machine?.grammarText, machine?.grammarFormat, machine?.parserAlgorithm, machine?.parserInput, machine?.type]);
 
   return null;
 }
 
 export default function App() {
   const isTauri = '__TAURI_INTERNALS__' in window;
-  const isDemoMode = isSimulatorDeployment || window.location.href.includes('demo=true');
+  const isDemoMode = isSimulatorDeployment || hasDemoModeQuery(window.location.search);
 
   const [route, setRoute] = useState(() => {
     if (!isDemoMode) {
@@ -256,7 +258,7 @@ export default function App() {
 
       <ToastContainer />
       <UpdateBanner />
-      <UnsavedChangesGuard />
+      {!isDemoMode && <UnsavedChangesGuard />}
 
       {/* Modals */}
       {activeModal === 'help' && <HelpModal onClose={closeModal} />}

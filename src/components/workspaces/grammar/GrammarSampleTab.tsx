@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 import { useMachineStore } from '@/store/machineStore';
 import { Production } from '@/engines/grammar/types';
+import { regexToNfa } from '@/engines/machine/conversions/regexToNfa';
+import { runToCompletion } from '@/engines/machine/core/engineFactory';
 
 export function GrammarSampleTab() {
-  const { cfg, getSession, updateSession } = useGrammarStore();
+  const { cfg, rawText, grammarFormat, getSession, updateSession } = useGrammarStore();
   const machine = useMachineStore((s) => s.machine);
   
   const session = machine ? getSession(machine.id) : {};
@@ -15,10 +17,10 @@ export function GrammarSampleTab() {
   
   const [isGenerating, setIsGenerating] = useState(false);
 
-  if (!cfg || !machine) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+  if (!machine) return <div style={{ padding: 16 }}>No grammar loaded.</div>;
 
   const handleGenerate = () => {
-    if (!cfg || !cfg.startSymbol) return;
+    if (grammarFormat !== 'REGEX' && (!cfg || !cfg.startSymbol)) return;
     setIsGenerating(true);
     updateSession(machine.id, { samples: [] });
 
@@ -28,6 +30,41 @@ export function GrammarSampleTab() {
     // Simple Breadth-First generation
     setTimeout(() => {
       const generated = new Set<string>();
+
+      if (grammarFormat === 'REGEX') {
+        let result;
+        try {
+          result = regexToNfa(rawText).result;
+        } catch {
+          setIsGenerating(false);
+          return;
+        }
+        if (typeof result === 'string') {
+          setIsGenerating(false);
+          return;
+        }
+        const alphabet = result.alphabet ?? [];
+        const queue = [''];
+        let index = 0;
+        while (index < queue.length && index < maxSteps && generated.size < 500) {
+          const candidate = queue[index++];
+          if (runToCompletion(result, candidate).accepted && candidate.length <= maxLength) {
+            generated.add(candidate === '' ? 'ε' : candidate);
+          }
+          if (candidate.length < maxLength) {
+            for (const symbol of alphabet) queue.push(candidate + symbol);
+          }
+        }
+        const finalSamples = Array.from(generated).sort((a, b) => a.length - b.length || a.localeCompare(b));
+        updateSession(machine.id, { samples: finalSamples });
+        setIsGenerating(false);
+        return;
+      }
+
+      if (!cfg) {
+        setIsGenerating(false);
+        return;
+      }
       
       interface QueueItem {
         form: string[];
@@ -86,7 +123,9 @@ export function GrammarSampleTab() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16 }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Language Sampler</h3>
       <p style={{ margin: '0 0 16px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-        Generates short strings belonging to the language using a bounded breadth-first derivation search.
+        {grammarFormat === 'REGEX'
+          ? 'Generates short strings accepted by the regular expression using bounded breadth-first enumeration.'
+          : 'Generates short strings belonging to the language using a bounded breadth-first derivation search.'}
       </p>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 16, alignItems: 'flex-end' }}>
@@ -132,7 +171,7 @@ export function GrammarSampleTab() {
           </div>
         ) : (
           <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-            No samples generated yet, or grammar language is empty.
+            No samples generated yet, or the language is empty within the selected bound.
           </div>
         )}
       </div>

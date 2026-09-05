@@ -22,7 +22,7 @@ import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
 import { useCommandStore } from '@/store/commandStore'
-import { BLANK, formatPdaLabel, formatTmTransition, isPDAType, isTMType, isTransducerType } from '@/engines/machine/core/utils'
+import { BLANK, formatMultiTrackTransition, formatPdaLabel, formatTmTransition, isPDAType, isTMType, isTransducerType } from '@/engines/machine/core/utils'
 import StateNode from './StateNode'
 import TransitionEdge from './TransitionEdge'
 import TextNode from './TextNode'
@@ -101,8 +101,11 @@ function buildEdges(
 ): Edge[] {
   const isPDA = isPDAType(machine.type)
   const isTM = isTMType(machine.type)
+  const isMultiTrack = machine.type === 'MTM'
   const tapeCount = isTM ? Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1) : 1
+  const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
   const blank = machine.blankSymbol || BLANK
+  const trackBlanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || blank)
 
   const edgeMap = new Map<string, string[]>()
   const pdaLabelMap = new Map<string, string[]>()
@@ -126,7 +129,9 @@ function buildEdges(
     }
     memberMap.get(key)!.push(t.id)
     if (isTM) {
-      tmLabelMap.get(key)!.push(formatTmTransition(t, tapeCount, blank))
+      tmLabelMap.get(key)!.push(isMultiTrack
+        ? formatMultiTrackTransition(t, trackCount, trackBlanks)
+        : formatTmTransition(t, tapeCount, blank))
     } else if (isPDA) {
       pdaLabelMap.get(key)!.push(formatPdaLabel(t.read, t.pop, t.push))
     } else {

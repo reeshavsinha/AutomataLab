@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useGrammarStore } from '@/store/grammarStore';
 import { GrammarDerivationTab } from './GrammarDerivationTab';
 import { GrammarTransformationsTab } from './GrammarTransformationsTab';
 import { GrammarAmbiguityTab } from './GrammarAmbiguityTab';
@@ -11,6 +12,8 @@ type Tab = 'derivations' | 'transformations' | 'ambiguity' | 'sampler' | 'proper
 
 export function GrammarToolsPanel() {
   const [activeTab, setActiveTab] = useState<Tab>('derivations');
+  const grammarFormat = useGrammarStore((state) => state.grammarFormat);
+  const regexUnsupported = grammarFormat === 'REGEX' && activeTab !== 'sampler' && activeTab !== 'properties';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg-secondary)' }}>
@@ -33,13 +36,35 @@ export function GrammarToolsPanel() {
 
       {/* Tab Content */}
       <div style={{ flex: 1, overflow: 'hidden' }}>
-        {activeTab === 'derivations' && <GrammarDerivationTab />}
-        {activeTab === 'transformations' && <GrammarTransformationsTab />}
-        {activeTab === 'ambiguity' && <GrammarAmbiguityTab />}
-        {activeTab === 'sampler' && <GrammarSampleTab />}
-        {activeTab === 'properties' && <GrammarPropertiesTab />}
-        {activeTab === 'firstfollow' && <GrammarFirstFollowTab />}
-        {activeTab === 'diagnostics' && <GrammarDiagnosticsTab />}
+        {regexUnsupported ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', lineHeight: 1.6 }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '12px', opacity: 0.25 }}>ⓘ</div>
+            <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+              Not available for regular expressions
+            </div>
+            <div style={{ fontSize: '0.8rem', marginTop: '8px' }}>
+              {activeTab === 'derivations'
+                ? 'Derivations require an explicit grammar and its production rules.'
+                : activeTab === 'transformations'
+                  ? 'Grammar transformations require an explicit grammar.'
+                  : activeTab === 'ambiguity'
+                    ? 'Ambiguity analysis applies to grammar parse trees, not regex syntax.'
+                    : activeTab === 'firstfollow'
+                      ? 'FIRST/FOLLOW sets are computed from grammar productions.'
+                      : 'Problem diagnostics are available for grammar productions.'}
+            </div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'sampler' && <GrammarSampleTab />}
+            {activeTab === 'properties' && <GrammarPropertiesTab />}
+            {activeTab === 'derivations' && <GrammarDerivationTab />}
+            {activeTab === 'transformations' && <GrammarTransformationsTab />}
+            {activeTab === 'ambiguity' && <GrammarAmbiguityTab />}
+            {activeTab === 'firstfollow' && <GrammarFirstFollowTab />}
+            {activeTab === 'diagnostics' && <GrammarDiagnosticsTab />}
+          </>
+        )}
       </div>
     </div>
   );

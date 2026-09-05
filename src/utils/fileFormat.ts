@@ -6,7 +6,7 @@
 // to the current major version.
 // ============================================================
 
-export const AUTOMATALAB_FILE_FORMAT_VERSION = 1
+export const AUTOMATALAB_FILE_FORMAT_VERSION = 2
 
 export function readFileFormatVersion(raw: unknown): number {
   if (typeof raw === 'number' && Number.isFinite(raw) && raw >= 1) {

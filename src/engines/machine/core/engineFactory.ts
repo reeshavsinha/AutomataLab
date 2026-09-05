@@ -12,19 +12,28 @@ import { ENFAEngine } from '../enfa/ENFAEngine'
 import { DPDAEngine } from '../dpda/DPDAEngine'
 import { NPDAEngine } from '../npda/NPDAEngine'
 import { TMEngine } from '../tm/TMEngine'
+import { MultiTrackTMEngine } from '../multitrack/MultiTrackTMEngine'
+import { HierarchicalTMEngine } from '../hierarchical/HierarchicalTMEngine'
 import { LBAEngine } from '../lba/LBAEngine'
+import { NLBAEngine } from '../nlba/NLBAEngine'
+import { GrammarRecognizerEngine } from '../grammarRecognizer/GrammarRecognizerEngine'
 import { TransducerEngine } from '../transducer/TransducerEngine'
 import type { Automaton, MachineDefinition, SimulationStatus } from './types'
 
 /** Construct the engine for a machine definition's type (defaults to DFA). */
 export function createEngine(definition: MachineDefinition): Automaton {
+  if (definition.compiledGrammarRecognizer) return new GrammarRecognizerEngine(definition)
   switch (definition.type) {
     case 'NFA':  return new NFAEngine(definition)
     case 'ENFA': return new ENFAEngine(definition)
     case 'DPDA': return new DPDAEngine(definition)
     case 'NPDA': return new NPDAEngine(definition)
-    case 'TM':   return new TMEngine(definition)
+    case 'TM':   return definition.transitions.some((transition) => transition.submachineId)
+      ? new HierarchicalTMEngine(definition)
+      : new TMEngine(definition)
+    case 'MTM':  return new MultiTrackTMEngine(definition)
     case 'LBA':  return new LBAEngine(definition)
+    case 'NLBA': return new NLBAEngine(definition)
     case 'MEALY':
     case 'MOORE': return new TransducerEngine(definition)
     default:     return new DFAEngine(definition)

@@ -2,19 +2,19 @@ import React from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 
 export function GrammarStatusBar() {
-  const { cfg, diagnostics } = useGrammarStore();
+  const { grammar, grammarFormat, classification, diagnostics } = useGrammarStore();
 
-  const numNonterminals = cfg?.nonterminals.size ?? 0;
-  const numTerminals = cfg?.terminals.size ?? 0;
-  const numProductions = cfg?.productions.length ?? 0;
-  const hasErrors = !cfg;
+  const numNonterminals = grammar?.nonterminals.size ?? 0;
+  const numTerminals = grammar?.terminals.size ?? 0;
+  const numProductions = grammar?.productions.length ?? 0;
+  const hasErrors = !grammar && (grammarFormat !== 'REGEX' || diagnostics.some((diagnostic) => diagnostic.type === 'error'));
   const numWarnings = diagnostics?.length ?? 0;
 
   return (
     <div style={{ display: 'flex', gap: '24px', alignItems: 'center', height: '100%', padding: '0 8px' }}>
       <div style={{ display: 'flex', gap: '8px' }}>
         <span style={{ color: 'var(--text-muted)' }}>Engine:</span>
-        <span style={{ color: 'var(--text-primary)' }}>CFG Analyzer</span>
+        <span style={{ color: 'var(--text-primary)' }}>{grammarFormat === 'REGEX' ? 'Regex editor' : `${classification?.inferredType.replace('_', ' ') ?? grammarFormat.replace('_', ' ')} analyzer`}</span>
       </div>
 
       <div style={{ width: '1px', height: '12px', background: 'var(--border-strong)', opacity: 0.5 }} />

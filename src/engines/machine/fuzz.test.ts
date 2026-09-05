@@ -320,8 +320,9 @@ describe('fuzz: conversion language-equivalence', () => {
 
 // ════════════════════════════════════════════════════════════════
 describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
-  // Generate only syntax that JS RegExp and our parser interpret identically:
-  // literals a/b, grouping, |, and a single trailing quantifier per atom.
+  // Generate only syntax that JS RegExp and our parser interpret identically.
+  // Binary `+` means alternation in Grammar Lab, so wrap postfix `+` before
+  // concatenating it with another term to keep that use unambiguous.
   function genRegex(rng: () => number, depth: number): string {
     const expr = (d: number): string => {
       const concats = [concat(d)]
@@ -337,7 +338,7 @@ describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
     const term = (d: number): string => {
       const a = atom(d)
       const q = rng()
-      return q < 0.2 ? a + '*' : q < 0.35 ? a + '+' : q < 0.5 ? a + '?' : a
+      return q < 0.2 ? a + '*' : q < 0.35 ? `(${a}+)` : q < 0.5 ? a + '?' : a
     }
     const atom = (d: number): string => {
       if (d > 0 && rng() < 0.35) return '(' + expr(d - 1) + ')'

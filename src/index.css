@@ -580,11 +580,20 @@ body {
   display: flex;
   align-items: center;
   gap: 1px;
+  width: 100%;
+  min-width: 0;
   height: 33px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   background: linear-gradient(var(--chrome-bg), var(--chrome-bg-2));
   border-bottom: 1px solid var(--chrome-border);
   padding: 0 6px;
   flex-shrink: 0;
+}
+.toolbar-classic::-webkit-scrollbar {
+  display: none;
 }
 .tb-btn {
   display: inline-flex;

@@ -59,7 +59,7 @@ export class DPDAEngine implements Automaton {
 
   step(): StepResult {
     if (this.status !== 'running' || this.currentStateId === null) {
-      return this._makeResult('stuck')
+      return this._makeResult(this.status === 'idle' ? 'stuck' : this.status)
     }
 
     // Guard against infinite ε-loops (e.g. a self-loop that only pushes).

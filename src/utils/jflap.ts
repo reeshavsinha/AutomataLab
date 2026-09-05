@@ -252,6 +252,12 @@ export function parseJFLAP(xmlString: string): MachineDefinition {
 }
 
 export function exportJFLAP(machine: MachineDefinition): string {
+  if (machine.transitions.some((transition) => transition.submachineId)) {
+    throw new Error('JFLAP export is unavailable for hierarchical TMs because it cannot represent embedded submachine calls.')
+  }
+  if (machine.type === 'MTM') {
+    throw new Error('JFLAP export is unavailable for multi-track TMs because its portable format represents independent tapes, not vector-valued cells.')
+  }
   if (isTransducerType(machine.type)) {
     throw new Error('JFLAP does not define a portable Mealy/Moore output format.')
   }

@@ -10,10 +10,11 @@ import {
 
 interface ExamplePickerProps {
   types: MachineType[]
+  exampleKeys?: readonly string[]
   onSelect: (key: string, ex: ExampleDef) => void
 }
 
-export default function ExamplePicker({ types, onSelect }: ExamplePickerProps) {
+export default function ExamplePicker({ types, exampleKeys, onSelect }: ExamplePickerProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -21,7 +22,17 @@ export default function ExamplePicker({ types, onSelect }: ExamplePickerProps) {
   const searchRef = useRef<HTMLInputElement>(null)
   const [pos, setPos] = useState({ top: 0, right: 0, maxHeight: 420 })
 
-  const groups = useMemo(() => groupedExamples(types), [types])
+  const groups = useMemo(() => {
+    const allGroups = groupedExamples(types)
+    if (!exampleKeys) return allGroups
+    const allowed = new Set(exampleKeys)
+    return allGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter(([key]) => allowed.has(key)),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [types, exampleKeys])
   const total = groups.reduce((n, g) => n + g.items.length, 0)
 
   const filtered = useMemo(() => {

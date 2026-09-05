@@ -48,7 +48,14 @@ export class DFAEngine implements Automaton {
 
   step(): StepResult {
     if (this.status !== 'running' || this.currentStateId === null) {
-      return this._makeResult('stuck', [], '', '')
+      const status = this.status === 'idle' ? 'stuck' : this.status
+      const states = this.currentStateId ? [this.currentStateId] : []
+      return this._makeResult(
+        status,
+        states,
+        consumedWindow(this.inputChars, this.inputIndex),
+        remainingWindow(this.inputChars, this.inputIndex),
+      )
     }
 
     // If input exhausted, determine accept/reject

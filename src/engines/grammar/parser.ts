@@ -1,4 +1,5 @@
-import { CFG, Production, EPSILON, GrammarSymbol } from './types';
+import { CFG, GeneralGrammar, GeneralProduction, Production, EPSILON, GrammarSymbol } from './types';
+import type { GrammarFormat } from '@/engines/machine/core/types';
 
 export function isNonterminal(sym: GrammarSymbol): boolean {
   return /^[A-Z][A-Za-z0-9_']*$/.test(sym);
@@ -343,4 +344,83 @@ export function parseGrammarText(text: string): CFG {
     productions,
     startSymbol: startSymbol || '',
   };
+}
+
+/**
+ * Parse a Grammar Lab Type 0–3 production system without applying CFG-only
+ * assumptions. Every LHS must be nonempty and include a nonterminal, as
+ * required for a formal generative grammar. Selected-format validation belongs
+ * in `classification.ts` so callers can show all violations at once.
+ */
+export function parseGeneralGrammarText(
+  text: string,
+  format: Exclude<GrammarFormat, 'REGEX'>,
+): GeneralGrammar {
+  const productions: GeneralProduction[] = [];
+  const nonterminals = new Set<string>();
+  const terminals = new Set<string>();
+  const seen = new Set<string>();
+  let startSymbol: string | null = null;
+  let lastLhs: string[] | null = null;
+
+  for (const sourceLine of text.split('\n')) {
+    let line = sourceLine.trim();
+    if (!line || line.startsWith('//') || line.startsWith('#')) continue;
+    line = line.replace(/^\d+:\s*/, '');
+    const rule = splitProductionRule(line);
+    let lhs: string[];
+    let rhsPart: string;
+
+    if (rule) {
+      lhs = tokenizeGrammarString(rule[0]);
+      if (lhs.length === 0) {
+        throw new Error(`Invalid grammar file: LHS cannot be empty in ${sourceLine}`);
+      }
+      if (!lhs.some(isNonterminal)) {
+        throw new Error(`Invalid grammar file: LHS must contain a nonterminal in ${sourceLine}`);
+      }
+      rhsPart = rule[1].trim();
+      lastLhs = lhs;
+    } else if (lastLhs) {
+      lhs = lastLhs;
+      rhsPart = line.replace(/^[|∣]/, '').trim();
+    } else {
+      throw new Error(`Invalid grammar file: malformed production ${sourceLine}`);
+    }
+
+    for (const symbol of lhs) {
+      if (symbol === EPSILON) {
+        throw new Error(`Invalid grammar file: ε cannot appear on a LHS in ${sourceLine}`);
+      }
+      if (isNonterminal(symbol)) nonterminals.add(symbol);
+      else terminals.add(symbol);
+    }
+    if (!startSymbol) {
+      const firstNonterminal = lhs.find(isNonterminal);
+      if (!firstNonterminal) throw new Error(`Invalid grammar file: LHS must contain a nonterminal in ${sourceLine}`);
+      startSymbol = firstNonterminal;
+    }
+
+    for (const alternative of splitAlternatives(rhsPart)) {
+      const tokens = tokenizeGrammarString(alternative);
+      if (tokens.filter((symbol) => symbol === EPSILON).length > 1 || (tokens.includes(EPSILON) && tokens.length > 1)) {
+        throw new Error(`Invalid grammar file: ε must be the entire right side in ${sourceLine}`);
+      }
+      const rhs = tokens.length === 0 || tokens[0] === EPSILON ? [] : tokens;
+      for (const symbol of rhs) {
+        if (isNonterminal(symbol)) nonterminals.add(symbol);
+        else terminals.add(symbol);
+      }
+      const key = `${lhs.join('\u0001')}→${rhs.join('\u0001')}`;
+      if (seen.has(key)) throw new Error(`Invalid grammar file: duplicate production ${key}`);
+      seen.add(key);
+      productions.push({ lhs: [...lhs], rhs });
+    }
+  }
+
+  if (productions.length === 0 || !startSymbol) {
+    throw new Error('Invalid grammar file: grammar is empty');
+  }
+
+  return { format, nonterminals, terminals, productions, startSymbol };
 }

@@ -203,6 +203,129 @@ describe('TMEngine — reject & halting', () => {
 })
 
 describe('TMEngine — lifecycle', () => {
+  it('recognizes an unwritten blank, applies stay moves, and rewrites the same cell', () => {
+    const blankAndStay: MachineDefinition = {
+      id: 'tm-blank-stay',
+      name: 'blank and stay',
+      type: 'TM',
+      language: '{ε}',
+      alphabet: [],
+      states: [
+        st({ id: 'q0', isStart: true }),
+        st({ id: 'q1' }),
+        st({ id: 'acc', isAccept: true }),
+      ],
+      transitions: [
+        tr('write', 'q0', 'q1', '', 'X', 'S'),
+        tr('verify', 'q1', 'acc', 'X', '', 'S'),
+      ],
+    }
+    const e = new TMEngine(blankAndStay)
+    e.initialize('')
+
+    const first = e.step()
+    expect(first.status).toBe('running')
+    expect(first.tapes?.[0].lastMove).toBe('S')
+    expect(first.tapes?.[0].cells[first.tapes[0].head]).toBe('X')
+    expect(e.getCurrentConfigurations()[0].inputIndex).toBe(0)
+
+    const second = e.step()
+    expect(second.status).toBe('accepted')
+    expect(second.tapes?.[0].cells[second.tapes[0].head]).toBe('_')
+    expect(e.getCurrentConfigurations()[0].inputIndex).toBe(0)
+  })
+
+  it('honors a custom blank symbol for explicit and omitted read/write fields', () => {
+    const customBlank: MachineDefinition = {
+      id: 'tm-custom-blank',
+      name: 'custom blank',
+      type: 'TM',
+      language: '{ε}',
+      alphabet: [],
+      blankSymbol: '□',
+      tapeAlphabet: ['□', 'X'],
+      states: [
+        st({ id: 'q0', isStart: true }),
+        st({ id: 'q1' }),
+        st({ id: 'acc', isAccept: true }),
+      ],
+      transitions: [
+        tr('write', 'q0', 'q1', '□', 'X', 'S'),
+        tr('erase', 'q1', 'acc', 'X', '', 'S'),
+      ],
+    }
+    const e = runTM(customBlank, '')
+    const tape = e.getCurrentConfigurations()[0].tapes![0]
+
+    expect(e.getStatus()).toBe('accepted')
+    expect(tape.cells[tape.head]).toBe('□')
+  })
+
+  it('treats a non-BMP Unicode code point as one tape symbol', () => {
+    const unicode: MachineDefinition = {
+      id: 'tm-unicode-symbol',
+      name: 'unicode symbol',
+      type: 'TM',
+      language: '{😀}',
+      alphabet: ['😀'],
+      states: [st({ id: 'q0', isStart: true }), st({ id: 'acc', isAccept: true })],
+      transitions: [tr('emoji', 'q0', 'acc', '😀', '🧱', 'S')],
+    }
+    const e = runTM(unicode, '😀')
+    const tape = e.getCurrentConfigurations()[0].tapes![0]
+
+    expect(e.getStatus()).toBe('accepted')
+    expect(tape.cells[tape.head]).toBe('🧱')
+  })
+
+  it('supports writing and reading left of the input origin', () => {
+    const leftWriter: MachineDefinition = {
+      id: 'tm-negative-tape',
+      name: 'negative tape positions',
+      type: 'TM',
+      language: '{ε}',
+      alphabet: [],
+      states: [
+        st({ id: 'q0', isStart: true }),
+        st({ id: 'q1' }),
+        st({ id: 'acc', isAccept: true }),
+      ],
+      transitions: [
+        tr('left', 'q0', 'q1', '_', 'R', 'L'),
+        tr('negative', 'q1', 'acc', '_', 'L', 'S'),
+      ],
+    }
+    const e = runTM(leftWriter, '')
+    const config = e.getCurrentConfigurations()[0]
+    const tape = config.tapes![0]
+
+    expect(e.getStatus()).toBe('accepted')
+    expect(config.inputIndex).toBe(-1)
+    expect(tape.cells[tape.head]).toBe('L')
+    expect(tape.cells[-tape.left]).toBe('R')
+  })
+
+  it('detects an exact stay-put configuration loop', () => {
+    const stayLoop: MachineDefinition = {
+      id: 'tm-stay-loop',
+      name: 'stay loop',
+      type: 'TM',
+      language: '∅',
+      alphabet: [],
+      states: [st({ id: 'q0', isStart: true })],
+      transitions: [tr('loop', 'q0', 'q0', '_', '_', 'S')],
+    }
+    const e = new TMEngine(stayLoop)
+    e.initialize('')
+    expect(e.step().status).toBe('running')
+    const stopped = e.step()
+
+    expect(e.getStatus()).toBe('stuck')
+    expect(e.getExecutionHistory()).toHaveLength(2)
+    const history = e.getExecutionHistory()
+    expect(stopped.historyEntry.step).toBe(history[history.length - 1]?.step)
+  })
+
   it('exposes a tape snapshot in configurations', () => {
     const e = new TMEngine(zeroN_oneN)
     e.initialize('01')
