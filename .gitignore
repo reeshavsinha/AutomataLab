@@ -59,4 +59,9 @@ release-*.bundle
 
 # Editor rules and local git hooks (not part of the app or CI)
 .cursor/
+.cursorignore
 .githooks/
+
+# Local agent notes and theory drafts (not part of the app)
+AGENTS.md
+theory/
