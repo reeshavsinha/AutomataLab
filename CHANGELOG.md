@@ -4,20 +4,20 @@ All notable changes to AutomataLab are documented in this file.
 
 ## v5.1.0
 
-Documentation and landing release on top of the v5.0.0 feature line. No engine or file-format breaking changes.
+Documentation and landing release on the v5.0.0 feature line. No engine or file-format breaking changes. Installers are attached below.
 
 ### Changed
 
-- **GitHub Wiki:** Full refresh and second QA pass for Machine Studio, Grammar Lab, and Parser Studio (demo boundary, LR graph tiers, PDA stack convention, Analyze/Export/Batch UI paths).
-- **Landing page (`page/`):** Hero layout, quickstart copy, workspace rail/stats, doc-card hover behavior, and accuracy vs `demoMode` / desktop capabilities.
-- **In-app help (F1/F2):** User manual and keyboard cheat sheet aligned with **File / Edit / View / Help** chrome (toolbar **Export**, input-bar **Batch**; MTM/NLBA in machine docs).
-- **Branding:** Refreshed desktop app icon (`src-tauri/icons/*`) and menu-bar logo (`logo-transparent.svg`, replacing `logo.png`). Users updating from **v5.0.0** installers see the new mark after install/restart; Windows pinned shortcuts may need unpin/repin if the taskbar icon cache is stale.
-- **README**, **release_notes.md**, and version manifests bumped to **5.1.0**.
+- **GitHub Wiki:** Full refresh for Machine Studio, Grammar Lab, and Parser Studio, including the hosted-demo boundary, LR graph tiers, PDA stack convention, and Analyze / Export / Batch paths.
+- **Landing page:** Hero layout, quickstart copy, workspace rail, and doc cards updated so the public site matches the shipping app and the desktop vs hosted-demo split.
+- **In-app help:** F1 user manual and F2 keyboard cheat sheet follow the current **File / Edit / View / Help** menus. Export is on the toolbar; Batch is on the input bar. Machine docs cover MTM and NLBA.
+- **Branding:** New desktop icon and menu-bar logo (`logo-transparent.svg`). Updating from a v5.0.0 installer shows the new mark after install and restart. On Windows, a pinned taskbar shortcut may keep the old icon until you unpin and pin it again.
+- **Version:** README and version manifests are **5.1.0**.
 
 ### Notes
 
-- Vitest baseline unchanged: **65 files / 724 tests** (`npm test`).
-- Maintainers: tag + wiki + Vercel steps and optional SHA block for the landing page are in [`.github/RELEASING.md`](.github/RELEASING.md).
+- Test baseline is unchanged: **65 files / 724 tests** (`npm test`).
+- Machine Studio, Grammar Lab, and Parser Studio keep the v5.0.0 feature set. See the v5.0.0 section below for that feature list.
 
 ## v5.0.0
 
