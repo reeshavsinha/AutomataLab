@@ -29,9 +29,14 @@ src-tauri/target/
 *.key
 *.key.pub
 
-# Internal AI/dev context docs — never commit (cross-conversation handoff)
-internal-ref-files/
+# Local-only — never commit or push (use local/private-backup for snapshots)
 .ctx/
+internal-ref-files/
+theory/
+AGENTS.md
+.cursor/
+.cursorignore
+.githooks/
 
 # Local sample machines (not part of the shipped app)
 examples/
@@ -56,12 +61,3 @@ media/
 
 # Offline push bundles (local only)
 release-*.bundle
-
-# Editor rules and local git hooks (not part of the app or CI)
-.cursor/
-.cursorignore
-.githooks/
-
-# Local agent notes and theory drafts (not part of the app)
-AGENTS.md
-theory/
