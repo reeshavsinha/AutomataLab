@@ -1,7 +1,7 @@
-import { parseGrammarText } from './src/engines/grammar/parser';
-import { convertToCNF } from './src/engines/grammar/cnf';
-import { convertToGNF } from './src/engines/grammar/gnf';
-import { formatCFGToString } from './src/engines/grammar/transformations';
+import { parseGrammarText } from '../../src/engines/grammar/parser';
+import { convertToCNF } from '../../src/engines/grammar/cnf';
+import { convertToGNF } from '../../src/engines/grammar/gnf';
+import { formatCFGToString } from '../../src/engines/grammar/transformations';
 
 try {
   const cfg = parseGrammarText('S -> a S a | b S b | a | b');

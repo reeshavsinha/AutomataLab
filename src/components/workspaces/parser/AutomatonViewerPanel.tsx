@@ -8,7 +8,13 @@ import { formatItem, LR0Table } from '@/engines/parser/lr0';
 import { LRStateNode } from './LRStateNode';
 import { LRStateEdge } from './LRStateEdge';
 import { GlobalRoutingEngine } from '@/engines/parser/layout/GlobalRoutingEngine';
-import { DEFAULT_LAYOUT_CONFIG } from '@/engines/parser/layout/types';
+import {
+  DEFAULT_LAYOUT_CONFIG,
+  LR_AUTOMATON_LAYOUT_COMPACT,
+  LR_AUTOMATON_LAYOUT_FULL,
+  LR_AUTOMATON_LAYOUT_LOD,
+  LR_AUTOMATON_LAYOUT_MAX,
+} from '@/engines/parser/layout/types';
 import { Undo2, Redo2, RotateCcw, Eye, EyeOff, Lock, Unlock } from 'lucide-react';
 
 const nodeTypes = {
@@ -82,6 +88,13 @@ export function AutomatonViewerPanel() {
     return null;
   }, [algorithm, lr0Table, slr1Table, clr1Table, lalr1Table]);
 
+  const stateCount = table?.states.length ?? 0
+  const layoutLod = stateCount > LR_AUTOMATON_LAYOUT_COMPACT && stateCount <= LR_AUTOMATON_LAYOUT_MAX
+  const layoutCompact = stateCount > LR_AUTOMATON_LAYOUT_FULL && stateCount <= LR_AUTOMATON_LAYOUT_MAX
+  const routeShowExtended = layoutCompact ? false : showExtended
+  const itemLimit =
+    stateCount <= LR_AUTOMATON_LAYOUT_FULL ? undefined : stateCount <= LR_AUTOMATON_LAYOUT_COMPACT ? 8 : 3
+
   useEffect(() => {
     if (!table || table.states.length === 0) {
       setNodes([]);
@@ -89,13 +102,18 @@ export function AutomatonViewerPanel() {
       return;
     }
 
-    if (automatonState && automatonState.algorithm === algorithm && automatonState.nodes.length > 0) {
+    if (
+      automatonState &&
+      automatonState.algorithm === algorithm &&
+      automatonState.nodes.length > 0 &&
+      automatonState.nodes.length === table.states.length
+    ) {
       return; // Already have cached layout for this active model and algorithm
     }
 
     // Safety guard for massive grammars
-    if (table.states.length > 200) {
-      console.warn("Automaton is too large to render safely (>200 states).");
+    if (table.states.length > LR_AUTOMATON_LAYOUT_MAX) {
+      console.warn(`Automaton is too large to render safely (>${LR_AUTOMATON_LAYOUT_MAX} states).`);
       setNodes([]);
       setEdges([]);
       return;
@@ -115,7 +133,7 @@ export function AutomatonViewerPanel() {
         id: state.id.toString(),
         type: 'lrState',
         position: { x: 0, y: 0 },
-        data: { stateId: state.id, items: uniqueItems },
+        data: { stateId: state.id, items: uniqueItems, maxItems: itemLimit },
         style: { opacity: 0 } // hide until layout is done
       };
     });
@@ -247,10 +265,20 @@ export function AutomatonViewerPanel() {
       worker.terminate();
     };
 
-    worker.postMessage({ table, configOverrides: { showExtended }, widthMap });
+    const compact = table.states.length > LR_AUTOMATON_LAYOUT_FULL
+    const lod = table.states.length > LR_AUTOMATON_LAYOUT_COMPACT
+    worker.postMessage({
+      table,
+      configOverrides: {
+        showExtended: compact ? false : showExtended,
+        horizontalSpacing: lod ? 96 : compact ? 140 : undefined,
+        verticalSpacing: lod ? 52 : compact ? 72 : undefined,
+      },
+      widthMap,
+    });
 
     return () => worker.terminate();
-  }, [table, algorithm, showExtended, layoutSeed, automatonState, setNodes, setEdges, setIsLayingOut]);
+  }, [table, algorithm, showExtended, layoutSeed, automatonState, itemLimit, setNodes, setEdges, setIsLayingOut]);
 
   // Sync state to store on unmount
   const nodesRef = useRef(nodes);
@@ -296,7 +324,7 @@ export function AutomatonViewerPanel() {
       const result = globalRouter.route(
         { nodes: layoutNodes as any }, 
         edgesToRoute as any, 
-        { ...DEFAULT_LAYOUT_CONFIG, showExtended }
+        { ...DEFAULT_LAYOUT_CONFIG, showExtended: routeShowExtended }
       );
 
       let changed = false;
@@ -308,7 +336,7 @@ export function AutomatonViewerPanel() {
             const originalLabel = (e.data?.originalLabel || e.label) as string;
             const cls = e.data?.classification;
             const isExtended = cls === 'Cross' || cls === 'Back';
-            const isStub = !showExtended && isExtended;
+            const isStub = !routeShowExtended && isExtended;
             
             let labelOffset = e.data?.labelOffset;
             if (isStub && !labelOffset) {
@@ -347,7 +375,7 @@ export function AutomatonViewerPanel() {
       });
       return changed ? newEds : eds;
     });
-  }, [nodes, showExtended, table, globalRouter, setEdges]);
+  }, [nodes, routeShowExtended, table, globalRouter, setEdges]);
 
   if (simulation?.presentation?.automatonVisible === false) {
     return (
@@ -360,7 +388,7 @@ export function AutomatonViewerPanel() {
     );
   }
 
-  if (table && table.states.length > 200) {
+  if (table && table.states.length > LR_AUTOMATON_LAYOUT_MAX) {
     return (
       <div className="automaton-viewer-pane" style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-primary)' }}>
         <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -377,7 +405,14 @@ export function AutomatonViewerPanel() {
           Computing Layout...
         </div>
       )}
-      
+      {table && layoutCompact && (
+        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', zIndex: 10, background: 'var(--bg-secondary)', padding: '4px 12px', borderRadius: '16px', fontSize: '0.75rem', color: 'var(--text-muted)', maxWidth: 'min(420px, 92%)', textAlign: 'center' }}>
+          {layoutLod
+            ? `LOD layout (${stateCount} states): shortened item lists and tighter spacing — use the parse table for full items.`
+            : `Compact layout (${stateCount} states). Extended back-edges are shortened; use the parse table for full detail.`}
+        </div>
+      )}
+
       <div style={{ position: 'absolute', top: 16, left: 16, zIndex: 10, display: 'flex', gap: '8px' }}>
         <button 
           onClick={handleUndo}

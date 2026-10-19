@@ -13,6 +13,8 @@ import {
   traceToCSV,
   traceToJSON,
   treeToJSON,
+  treeToMarkdown,
+  treeToSVG,
 } from './exporters'
 import type { Configuration, HistoryEntry, MachineDefinition } from '@/engines/machine/core/types'
 
@@ -138,5 +140,57 @@ describe('treeToJSON', () => {
     expect(obj.nodes).toHaveLength(2)
     expect(obj.nodes[0]).toMatchObject({ id: 'n0', state: 'q0', parentId: null })
     expect(obj.nodes[1]).toMatchObject({ id: 'n1', state: 'q1', mergedParents: 1 })
+  })
+})
+
+describe('treeToMarkdown', () => {
+  it('includes tape snapshots for NLBA branches', () => {
+    const nlba: MachineDefinition = {
+      id: 'n',
+      name: 'NLBA',
+      type: 'NLBA',
+      language: '',
+      alphabet: ['a'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+      transitions: [],
+    }
+    const nodes: Configuration[] = [
+      {
+        id: 'n0',
+        parentId: null,
+        stateId: 'q0',
+        stack: [],
+        inputIndex: 0,
+        status: 'running',
+        consumedInput: '',
+        remainingInput: '',
+        tapes: [{ left: 0, head: 0, cells: ['a', 'b'] }],
+      },
+    ]
+    const md = treeToMarkdown(nlba, nodes)
+    expect(md).toContain('Computation tree')
+    expect(md).toContain('⟦a⟧')
+    expect(md).toContain('Tp:')
+  })
+})
+
+describe('treeToSVG', () => {
+  it('emits a minimal SVG document', () => {
+    const dfa: MachineDefinition = {
+      id: 'd',
+      name: 'Test',
+      type: 'NFA',
+      language: '',
+      alphabet: ['a'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [],
+    }
+    const nodes: Configuration[] = [
+      { id: 'n0', parentId: null, stateId: 'q0', stack: [], inputIndex: 0, status: 'accepted', consumedInput: '', remainingInput: '' },
+    ]
+    const svg = treeToSVG(dfa, nodes)
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('computation tree')
+    expect(svg).toContain('q0')
   })
 })

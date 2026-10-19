@@ -3,6 +3,7 @@
 // Pure functions with no side effects. Used by all engines.
 // ============================================================
 
+import { getMachineCapabilities, isMachineType } from './capabilities'
 import type {
   AutomataState,
   Configuration,
@@ -79,14 +80,12 @@ export function isPDAType(type: string): boolean {
 }
 
 /**
- * Machine types that explore multiple branches and therefore have a
- * computation tree to visualise. Single source of truth gating the tree tab /
- * panel, mirroring `PDA_TYPES`/`isPDAType`.
+ * Whether the machine type exposes a computation tree in the UI. Delegates to
+ * `capabilities.ts` so tree gating stays aligned with the capability registry.
  */
-export const NONDETERMINISTIC_TYPES = ['NFA', 'ENFA', 'NPDA'] as const
-
 export function supportsComputationTree(type: string): boolean {
-  return (NONDETERMINISTIC_TYPES as readonly string[]).includes(type)
+  if (!isMachineType(type)) return false
+  return getMachineCapabilities(type).supportsComputationTree
 }
 
 /**

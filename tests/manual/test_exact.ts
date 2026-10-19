@@ -1,4 +1,4 @@
-import { parseGrammarText } from './src/engines/grammar/parser.ts';
+import { parseGrammarText } from '../../src/engines/grammar/parser.ts';
 
 const text = "N -> I+F\nI -> IB | \nB\nF -> BF | B\nB -> 0 | 1 | ";
 

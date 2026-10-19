@@ -2,7 +2,7 @@
 // App.tsx — Root component. Renders the application shell.
 // ============================================================
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import WorkspaceHub from './components/layout/WorkspaceHub';
 import { MachineWorkspace } from './components/workspaces/MachineWorkspace';
 import { GrammarWorkspace } from './components/workspaces/GrammarWorkspace';
@@ -28,9 +28,15 @@ import { useGrammarStore } from '@/store/grammarStore'
 import { useParserStore } from '@/store/parserStore'
 import { isAutomatonType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
 import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
-import { hasDemoModeQuery } from '@/utils/demoMode'
-
-const isSimulatorDeployment = import.meta.env.VITE_SIMULATOR_MODE === 'true';
+import {
+  clearStaleWebDemoSessionInTauri,
+  isHostedDemoActive,
+  isRestrictedSimulatorShell,
+  isTauriRuntime,
+  navigateAppHash,
+  rememberDemoSession,
+} from '@/utils/demoMode'
+import TabsOnboardingModal, { hasSeenTabsOnboarding } from '@/components/layout/TabsOnboardingModal'
 
 function TabSyncListener() {
   const machine = useMachineStore((s) => s.machine);
@@ -77,20 +83,45 @@ function TabSyncListener() {
 }
 
 export default function App() {
-  const isTauri = '__TAURI_INTERNALS__' in window;
-  const isDemoMode = isSimulatorDeployment || hasDemoModeQuery(window.location.search);
+  const isTauri = isTauriRuntime();
+  const search = typeof window !== 'undefined' ? window.location.search : '';
+  const isDemoMode = isRestrictedSimulatorShell(search);
+  const isFullDesktopApp = !isDemoMode;
+
+  const [pendingWorkspaceIntro, setPendingWorkspaceIntro] = useState(false)
 
   const [route, setRoute] = useState(() => {
-    if (!isDemoMode) {
-      window.location.hash = '#/';
+    clearStaleWebDemoSessionInTauri()
+    rememberDemoSession(window.location.search)
+    if (!isRestrictedSimulatorShell(window.location.search)) {
+      navigateAppHash('#/')
       return '#/';
     }
-    return window.location.hash;
+    return window.location.hash || '#/machine';
   });
+
+  // Before paint: clear stale web-demo session + arm first-run intro (Tauri shares localhost with Vite).
+  useLayoutEffect(() => {
+    clearStaleWebDemoSessionInTauri()
+    rememberDemoSession(window.location.search)
+    if (!isRestrictedSimulatorShell(window.location.search) && !hasSeenTabsOnboarding()) {
+      setPendingWorkspaceIntro(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isFullDesktopApp) return
+    if (!hasSeenTabsOnboarding()) {
+      setPendingWorkspaceIntro(true)
+    }
+  }, [isFullDesktopApp])
   
   const theme = useUIStore((s) => s.theme)
   const activeModal = useUIStore((s) => s.activeModal)
   const closeModal = useUIStore((s) => s.closeModal)
+  const introFromHelp = activeModal === 'workspace-intro'
+  const showTabsOnboarding =
+    isFullDesktopApp && (introFromHelp || pendingWorkspaceIntro)
   
   const activeMachineType = useMachineStore((s) => s.machine?.type)
   const machineId = useMachineStore((s) => s.machine?.id)
@@ -188,14 +219,14 @@ export default function App() {
     const isMachine = isAutomatonType(activeMachineType);
 
     if (isParser && route !== '#/parser') {
-      window.location.hash = '#/parser';
+      navigateAppHash('#/parser');
     } else if (isGrammar && route !== '#/grammar') {
-      window.location.hash = preferredRoute === '#/grammar' ? '#/grammar' : '#/grammar';
+      navigateAppHash(preferredRoute === '#/grammar' ? '#/grammar' : '#/grammar');
     } else if (isMachine && route !== '#/machine') {
-      window.location.hash = '#/machine';
+      navigateAppHash('#/machine');
     } else if (!activeMachineType && route !== '' && route !== '#/') {
       // If there are no tabs left, redirect to the WorkspaceHub
-      window.location.hash = '#/';
+      navigateAppHash('#/');
     }
   }, [activeMachineType, route]);
 
@@ -228,9 +259,9 @@ export default function App() {
   } else if (route === '#/machine' && activeIsAutomaton) {
     content = <ErrorBoundary key={machineId} fallbackName="Machine Workspace" onRevert={() => useMachineStore.getState().undo()}><MachineWorkspace /></ErrorBoundary>;
   } else if (route === '#/grammar' && activeIsGrammar) {
-    content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace" onRevert={() => { window.location.hash = ''; }}><GrammarWorkspace /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId} fallbackName="Grammar Workspace" onRevert={() => { navigateAppHash('#/'); }}><GrammarWorkspace /></ErrorBoundary>;
   } else if (route === '#/parser' && activeIsParser) {
-    content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace" onRevert={() => { window.location.hash = ''; }}><ParserWorkspace /></ErrorBoundary>;
+    content = <ErrorBoundary key={machineId} fallbackName="Parser Workspace" onRevert={() => { navigateAppHash('#/'); }}><ParserWorkspace /></ErrorBoundary>;
   } else if (machineId) {
     // The Anti-Trap effect will redirect on the next tick. Render nothing during
     // the mismatch so a workspace never observes an incompatible machine type.
@@ -269,6 +300,15 @@ export default function App() {
       {machineId && activeModal === 'batch' && <BatchRunnerModal onClose={closeModal} />}
       {machineId && activeModal === 'analysis' && <AnalysisModal onClose={closeModal} />}
 
+      {showTabsOnboarding && (
+        <TabsOnboardingModal
+          persistSeen={!introFromHelp}
+          onClose={() => {
+            if (introFromHelp) closeModal()
+            else setPendingWorkspaceIntro(false)
+          }}
+        />
+      )}
 
     </div>
   );

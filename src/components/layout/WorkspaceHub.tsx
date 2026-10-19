@@ -3,6 +3,7 @@ import React from "react";
 import { useMachineStore, isPristineTab } from "@/store/machineStore";
 import { useFileActions } from "@/hooks/useFileActions";
 import { isAutomatonType, isGrammarType, isParserType } from "@/engines/machine/core/capabilities";
+import { navigateAppHash } from "@/utils/demoMode";
 import "./WorkspaceHub.css";
 
 const cards = [
@@ -16,7 +17,7 @@ const cards = [
   },
   {
     title: "Grammar Laboratory",
-    description: "Write context-free grammars, compute FIRST/FOLLOW sets, and convert to CNF.",
+    description: "Edit regex and Types 0–3 grammars, run format-aware analysis, and send recognizers to Machine Studio.",
     hash: "#/grammar",
     type: "CFG",
     enabled: true,
@@ -75,7 +76,7 @@ export default function WorkspaceHub() {
       }
     }
 
-    window.location.hash = card.hash;
+    navigateAppHash(card.hash);
   };
 
   return (

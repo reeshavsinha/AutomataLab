@@ -288,7 +288,13 @@ export async function saveMachine(machine: MachineDefinition, options?: { gramma
       })
       if (path) {
         await writeTextFile(path, contentToWrite)
-        addRecentFile(path, machine.name)
+        addRecentFile(
+          path,
+          machine.name,
+          grammarOnly
+            ? (typeof window !== 'undefined' && window.location.hash.includes('parser') ? 'parser' : 'grammar')
+            : 'machine',
+        )
         return path
       }
       return null
@@ -325,11 +331,35 @@ export async function saveMachineToPath(machine: MachineDefinition, path: string
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs')
     await writeTextFile(path, contentToWrite)
-    addRecentFile(path, machine.name)
+    addRecentFile(
+      path,
+      machine.name,
+      grammarOnly
+        ? (typeof window !== 'undefined' && window.location.hash.includes('parser') ? 'parser' : 'grammar')
+        : 'machine',
+    )
     return path
   } catch (err) {
     console.error('Failed to save file:', err)
     throw new Error('Failed to save file')
+  }
+}
+
+function grammarMachineFromText(
+  content: string,
+  path: string,
+  kind: 'grammar' | 'parser',
+): MachineDefinition {
+  const baseName = path.split(/[\\/]/).pop()?.replace(/\.txt$/i, '') || 'Untitled Grammar'
+  return {
+    id: generateId(),
+    name: baseName,
+    type: kind === 'parser' ? 'CFG_PARSER' : 'CFG',
+    states: [],
+    transitions: [],
+    grammarText: content,
+    alphabet: [],
+    language: '',
   }
 }
 
@@ -376,7 +406,7 @@ export async function loadMachine(options?: { grammarOnly?: boolean }): Promise<
       if (isJff) checkImportWarnings(def)
     }
     
-    addRecentFile(filePath, def.name)
+    addRecentFile(filePath, def.name, grammarOnly ? (window.location.hash.includes('parser') ? 'parser' : 'grammar') : 'machine')
     return { def, path: filePath }
   } else {
     // Web fallback
@@ -424,16 +454,36 @@ export async function loadMachine(options?: { grammarOnly?: boolean }): Promise<
 }
 
 /** Load a machine directly from a known absolute path (Tauri — recent files). */
-export async function loadMachineFromPath(path: string): Promise<MachineDefinition> {
+export async function loadMachineFromPath(
+  path: string,
+  options?: { kind?: import('./recentFiles').RecentFileKind },
+): Promise<MachineDefinition> {
   if (!isTauri()) {
     throw new Error('Opening files by path is only supported in the desktop app')
   }
   const { readTextFile } = await import('@tauri-apps/plugin-fs')
   const content = await readTextFile(path)
-  const isJff = path.toLowerCase().endsWith('.jff')
-  const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
-  if (isJff) checkImportWarnings(def)
-  addRecentFile(path, def.name)
+  const lower = path.toLowerCase()
+  let def: MachineDefinition
+  let recentKind: import('./recentFiles').RecentFileKind = 'machine'
+
+  if (lower.endsWith('.txt')) {
+    const kind =
+      options?.kind === 'parser' || options?.kind === 'grammar'
+        ? options.kind
+        : typeof window !== 'undefined' && window.location.hash.includes('parser')
+          ? 'parser'
+          : 'grammar'
+    def = grammarMachineFromText(content, path, kind)
+    recentKind = kind
+  } else if (lower.endsWith('.jff')) {
+    def = parseJFLAP(content)
+    checkImportWarnings(def)
+  } else {
+    def = parseMachineJson(content)
+  }
+
+  addRecentFile(path, def.name, recentKind)
   return def
 }
 

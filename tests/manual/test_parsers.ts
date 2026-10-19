@@ -1,10 +1,10 @@
-import { parseGrammarText } from './src/engines/grammar/parser';
-import { generateLR0Table } from './src/engines/parser/lr0';
-import { generateSLR1Table } from './src/engines/parser/slr1';
-import { buildCLR1States } from './src/engines/parser/clr1';
-import { generateLALR1Table } from './src/engines/parser/lalr1';
-import { analyzeGrammar } from './src/engines/grammar/analysis';
-import { EarleySimulation } from './src/engines/parser/earley';
+import { parseGrammarText } from '../../src/engines/grammar/parser';
+import { generateLR0Table } from '../../src/engines/parser/lr0';
+import { generateSLR1Table } from '../../src/engines/parser/slr1';
+import { buildCLR1States } from '../../src/engines/parser/clr1';
+import { generateLALR1Table } from '../../src/engines/parser/lalr1';
+import { analyzeGrammar } from '../../src/engines/grammar/analysis';
+import { EarleySimulation } from '../../src/engines/parser/earley';
 
 const text = 'E -> E + T | T\nT -> T * F | F\nF -> ( E ) | id';
 const cfg = parseGrammarText(text);

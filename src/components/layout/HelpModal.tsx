@@ -1,6 +1,6 @@
 // ============================================================
 // HelpModal — Workspace-specific guides + keyboard shortcuts.
-// Opens from Help ▸ Help & Keyboard Shortcuts (or F1). The active
+// Opens from Help ▸ Help & Keyboard Shortcuts. F1 opens the user manual (ManualModal).
 // tab follows the current workspace; the user can switch freely.
 // ============================================================
 
@@ -8,6 +8,7 @@ import { useState, type CSSProperties, type ReactNode, type KeyboardEvent } from
 import Dialog from '@/components/common/Dialog'
 import { useUIStore } from '@/store/uiStore'
 import { BookOpen } from 'lucide-react'
+import { GrammarSyntaxHelpSection } from '@/content/grammarSyntaxGuide'
 
 interface HelpModalProps {
   onClose: () => void
@@ -63,6 +64,25 @@ function P({ children }: { children: ReactNode }) {
   )
 }
 
+function Tip({ children }: { children: ReactNode }) {
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(59, 130, 246, 0.35)',
+        background: 'rgba(59, 130, 246, 0.06)',
+        borderRadius: '6px',
+        padding: '10px 12px',
+        marginBottom: '12px',
+        fontSize: '12px',
+        lineHeight: 1.6,
+        color: 'var(--text-secondary)',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
 function Shortcuts({ rows }: { rows: { keys: string; action: string }[] }) {
   return (
     <div>
@@ -98,7 +118,8 @@ const MACHINE_SHORTCUTS = [
   { keys: 'Ctrl+O', action: 'Open a .json or JFLAP .jff file' },
   { keys: 'Ctrl+S / Ctrl+Shift+S', action: 'Save / Save As…' },
   { keys: 'Ctrl+T / Ctrl+W', action: 'New tab / Close tab' },
-  { keys: 'F1', action: 'Open the User Manual' },
+  { keys: 'F1', action: 'Open the user manual (full reference)' },
+  { keys: 'F2', action: 'Open the theory handbook' },
   { keys: 'N  or  ◯ tool', action: 'Add a state (N uses the last canvas cursor, or viewport centre)' },
   { keys: '↗ tool', action: 'Add a transition — click source, then target' },
   { keys: 'Hover rim dot + drag', action: 'Draw a transition from a state' },
@@ -120,7 +141,7 @@ const MACHINE_SHORTCUTS = [
 ]
 
 const GRAMMAR_SHORTCUTS = [
-  { keys: 'F1', action: 'Open this help' },
+  { keys: 'F1 / F2', action: 'User manual (F1) or theory handbook (F2)' },
   { keys: 'Tab', action: 'Accept ghost completion (insert -> or | )' },
   { keys: 'Enter (grouped)', action: 'Continue an alternative on the next indented line' },
   { keys: 'Ctrl+T / Ctrl+W', action: 'New tab / Close tab' },
@@ -128,7 +149,7 @@ const GRAMMAR_SHORTCUTS = [
 ]
 
 const PARSER_SHORTCUTS = [
-  { keys: 'F1', action: 'Open this help' },
+  { keys: 'F1 / F2', action: 'User manual (F1) or theory handbook (F2)' },
   { keys: 'Enter (input buffer)', action: 'Load the input string and (re)build the parse' },
   { keys: 'Space', action: 'Play / Pause the parse simulation' },
   { keys: 'Enter (canvas idle)', action: 'Restart the parse from the beginning and play' },
@@ -142,12 +163,16 @@ const PARSER_SHORTCUTS = [
 function MachineGuide() {
   return (
     <>
-      <H2>Automata workspace</H2>
+      <H2>Machine Studio</H2>
+      <Tip>
+        <Strong>Quick start:</Strong> choose a machine type → <Strong>Load Example</Strong> → type a string in the input bar →{' '}
+        <Strong>Play</Strong> or <Strong>Step</Strong>. For step-by-step constructions, use <Strong>Convert</Strong> on an existing machine.
+      </Tip>
       <P>
-        Design and simulate machines on an infinite canvas: <Strong>DFA</Strong>, <Strong>NFA</Strong>,{' '}
-        <Strong>ε-NFA</Strong>, <Strong>DPDA</Strong>, <Strong>NPDA</Strong>, <Strong>TM</Strong>, and{' '}
-        <Strong>LBA</Strong>. Pick the type from the toolbar. Load a textbook or real-world specimen from{' '}
-        <Strong>Load Example</Strong> (toolbar) or <Strong>File ▸ Load Example</Strong>.
+        Draw and simulate automata on the canvas: <Strong>DFA</Strong>, <Strong>NFA</Strong>, <Strong>ε-NFA</Strong>,{' '}
+        <Strong>Mealy/Moore</Strong>, <Strong>DPDA/NPDA</Strong>, <Strong>TM</Strong> / <Strong>MTM</Strong> (multi-tape or multi-track),{' '}
+        <Strong>LBA</Strong> / <Strong>NLBA</Strong>, and grammar-derived recognizers. Change type from the toolbar; open specimens via{' '}
+        <Strong>Load Example</Strong> or <Strong>File ▸ Load Example</Strong>.
       </P>
 
       <H3>Build a machine</H3>
@@ -167,15 +192,15 @@ function MachineGuide() {
         Type a string in the input bar and press <Strong>▶ Play</Strong> or <Strong>Step</Strong>. Active states
         highlight as symbols are consumed. Nondeterministic machines (NFA, ε-NFA, NPDA) explore every branch;
         the computation tree lives in the side panel.<br />
-        <Strong>Batch test</Strong> — Simulate ▸ Batch test… (or the bottom panel) runs many strings at once and
-        reports accept / reject with a reason (missing transition, stack mismatch, and so on).
+        <Strong>Batch test</Strong> — <Strong>Batch…</Strong> on the input bar runs many strings at once and reports accept /
+        reject with a reason (missing transition, stack mismatch, and so on).
       </P>
 
       <H3>Finite automata &amp; PDAs</H3>
       <P>
         • On an <Strong>ε-NFA</Strong>, leave a label empty or type <C>eps</C> / <C>ε</C> for an ε-move.<br />
         • <Strong>PDA</Strong> transitions are <C>read, pop → push</C>. Use <C>eps</C> for “don’t read / don’t pop / don’t push”.
-        Declare Γ in the toolbar’s stack-alphabet field if you want validation warnings.
+        The leftmost symbol in <C>push</C> becomes the new stack top (JFLAP-style). Declare Γ in the toolbar if you want validation warnings.
       </P>
 
       <H3>Turing machines &amp; LBAs</H3>
@@ -192,7 +217,7 @@ function MachineGuide() {
 
       <H3>Conversions &amp; analysis</H3>
       <P>
-        • <Strong>Convert</Strong> (toolbar or Convert ▸ Conversions…) plays a construction step by step:
+        • <Strong>Convert</Strong> (toolbar) plays a construction step by step:
         <C>ε-NFA → NFA</C>, <C>NFA → DFA</C> (subset construction), <C>Minimize DFA</C>,{' '}
         <C>Regex → NFA</C> (Thompson: <C>| * + ?</C>, grouping, ε), and <C>CFG → PDA</C>. Hover a converted
         state to see the subset it came from.<br />
@@ -209,60 +234,47 @@ function MachineGuide() {
 function GrammarGuide() {
   return (
     <>
-      <H2>Grammar Laboratory</H2>
+      <H2>Grammar Lab</H2>
+      <Tip>
+        <Strong>Quick start:</Strong> pick a format (Type 2 is a good default) → <Strong>Load Example</Strong> → open{' '}
+        <Strong>Properties</Strong> → try <Strong>Sampler</Strong> or <Strong>Derivations</Strong>. Use the editor toolbar{' '}
+        <Strong>?</Strong> button for production syntax.
+      </Tip>
       <P>
-        Write a context-free (or context-sensitive) grammar on the left; the right-hand tabs analyse it live.
-        Open a specimen from <Strong>Load Example</Strong> or <Strong>File ▸ Load Example</Strong>. Use the
-        toolbar transfer buttons to send the grammar to Parser Studio, or to build the standard NPDA in the
-        Automata workspace.
+        Author a <Strong>regex</Strong> or <Strong>Chomsky grammar</Strong> (Types 0–3); analysis tabs update as you type.
+        Each format enables a different tool set. Transfer to Parser Studio or build a recognizer in Machine Studio from the toolbar.
       </P>
 
-      <H3>How to write a production</H3>
+      <H3>Grammar formats (quick guide)</H3>
       <P>
-        One rule per line, in any of <C>S -&gt; …</C>, <C>S → …</C>, <C>S ::= …</C>, or <C>S : …</C>.
-        Alternatives are separated by <C>|</C> or the Unicode divides sign <C>∣</C> (the editor normalises it
-        to <C>|</C>). The left-hand side of the first production is the start symbol.
+        • <Strong>Regex</Strong> — regular languages; Sampler and conversion to machines; no raw derivation tab.<br />
+        • <Strong>Type 3</Strong> — regular grammars (left- or right-linear); same languages as regex.<br />
+        • <Strong>Type 2</Strong> — context-free; full CFG tools (FIRST/FOLLOW, CNF, ambiguity, CFG → PDA).<br />
+        • <Strong>Type 1</Strong> — context-sensitive; bounded derivations; NLBA/TM recognizers in Machine Studio.<br />
+        • <Strong>Type 0</Strong> — unrestricted; semi-decision only in Derivations (resource limits ≠ reject).<br />
+        Press <Strong>F2</Strong> for the Theory Handbook section &quot;Grammar formats (Regex &amp; Types 0–3)&quot;.
       </P>
 
-      <H3>Token Boundaries &amp; Terminal Distinction (Crucial)</H3>
-      <P>
-        Symbol boundaries are determined deterministically from the production text:
-      </P>
-      <P>
-        • <Strong>Single Multi-Character Terminal (<C>num</C>, <C>id</C>)</Strong> — An unquoted sequence of alphanumeric characters (<C>[A-Za-z0-9_']</C>) is parsed as <Strong>ONE terminal token</Strong>. For example, <C>E -&gt; num</C> creates a single terminal symbol <C>num</C>, <Strong>not</Strong> separate <C>n</C>, <C>u</C>, and <C>m</C>.<br />
-        • <Strong>Separate Single-Character Terminals (<C>n u m</C>)</Strong> — To specify individual characters as separate terminals, separate them with <Strong>whitespace</Strong>: <C>S -&gt; n u m</C> creates three distinct terminal symbols (<C>n</C>, <C>u</C>, <C>m</C>).<br />
-        • <Strong>Quoted Terminals (<C>"num"</C>, <C>'if'</C>, <C>"=="</C>)</Strong> — Enclose in quotes to explicitly force the enclosed text to be treated as a single terminal symbol, including tokens containing punctuation (<C>"=="</C>, <C>"if"</C>, <C>";"</C>).<br />
-        • <Strong>Nonterminals (<C>S</C>, <C>Expr</C>, <C>T'</C>)</Strong> — Must start with an <Strong>uppercase letter</Strong> (<C>A–Z</C>). Any unquoted word starting with a lowercase letter is treated as a terminal.<br />
-        • <Strong>Operators &amp; Punctuation</Strong> — Single characters (<C>+</C>, <C>*</C>, <C>(</C>, <C>)</C>) are single terminals. Multi-character operators (<C>&lt;=</C>, <C>&gt;=</C>, <C>==</C>, <C>!=</C>, <C>&amp;&amp;</C>, <C>||</C>) stay as single tokens automatically.<br />
-        • <Strong>Epsilon</Strong> — Written as <C>ε</C>, <C>eps</C>, <C>epsilon</C>, <C>\epsilon</C>, or <C>λ</C>.
-      </P>
-      <P>
-        The editor has <Strong>grouped</Strong> and <Strong>flat</Strong> views of the same grammar. In grouped
-        mode, Tab accepts the ghost <C>-&gt;</C> / <C>|</C>, and Enter after a trailing <C>|</C> continues the
-        alternative on the next indented line.
-      </P>
+      <H3>Production syntax and tokens</H3>
+      <GrammarSyntaxHelpSection />
 
       <H3>Laboratory tabs</H3>
       <P>
-        • <Strong>Derivations</Strong> — type a sentence and build a leftmost derivation / parse tree (Earley).
-        Input tokens are matched against the terminal alphabet (longest match), so <C>id</C> stays one token.<br />
-        • <Strong>Transformations</Strong> — Chomsky Normal Form (<C>A → BC | a</C>), Greibach Normal Form
-        (<C>A → aα</C>), eliminate direct left recursion, and left-factor. The result is re-parseable text you
-        can copy back into the editor.<br />
-        • <Strong>Ambiguity</Strong> — bounded search for a string with two distinct parse trees.<br />
-        • <Strong>Sampler</Strong> — breadth-first generation of short strings in the language.<br />
-        • <Strong>Properties</Strong> — terminal / nonterminal / production counts and the start symbol.<br />
-        • <Strong>FIRST / FOLLOW</Strong> — live FIRST, FOLLOW, and nullable sets. Needed for LL(1) and for
-        reading SLR/LALR conflicts in Parser Studio.<br />
-        • <Strong>Problems</Strong> — left recursion, missing left-factoring, unreachable symbols, undefined
-        nonterminals. One-click fixes apply the matching transformation.
+        • <Strong>Properties</Strong> — counts, validity, and what your Chomsky type means in plain language.<br />
+        • <Strong>Derivations</Strong> — test whether a string can be generated (Type 2: parse trees / Earley; Types 0–1:
+        bounded search — click Find derivation).<br />
+        • <Strong>Sampler</Strong> — short example strings in the language.<br />
+        • <Strong>Transformations</Strong> — CNF, GNF, remove left recursion, left-factor (Type 2/3).<br />
+        • <Strong>Ambiguity</Strong> — find a string with two parse trees (Type 2).<br />
+        • <Strong>FIRST / FOLLOW</Strong> — sets for LL(1) and reading LR conflicts (Type 2/3).<br />
+        • <Strong>Problems</Strong> — unreachable symbols, left recursion, and format violations.
       </P>
 
-      <H3>CSG notes</H3>
+      <H3>Type 1 and Type 0</H3>
       <P>
-        Context-sensitive examples (e.g. <C>aⁿbⁿcⁿ</C>, copy language <C>ww</C>) are loaded as type{' '}
-        <Strong>CSG</Strong>. The editor still tokenises the same way; unrestricted left-hand sides are allowed.
-        CFG-only tools (FIRST/FOLLOW, CNF, LL(1) checks) apply to CFG tabs.
+        Context-sensitive and unrestricted examples use multi-symbol left-hand sides. CFG-only tools are disabled;
+        use <Strong>Properties</Strong> and <Strong>Derivations</Strong> instead. A <Strong>resource limit</Strong> in
+        Derivations means the search stopped early — not a definitive rejection.
       </P>
 
       <H3>Keyboard</H3>
@@ -275,25 +287,29 @@ function ParserGuide() {
   return (
     <>
       <H2>Parser Studio</H2>
+      <Tip>
+        <Strong>Quick start:</Strong> load a Type 2 example → choose <Strong>LL(1)</Strong> or <Strong>LALR(1)</Strong> → enter a string in the input buffer and press{' '}
+        <Strong>Enter</Strong> → step with the timeline. Red table cells mean conflicts — try a stronger LR variant or Earley.
+      </Tip>
       <P>
-        A debugger-style workspace: grammar on the left, parse table / automaton in the centre, stack, tree,
-        and derivation around it. Load a grammar from <Strong>Load Example</Strong> or{' '}
-        <Strong>File ▸ Load Example</Strong>, or transfer one from Grammar Lab.
+        Debugger-style parsing: grammar editor, parse table or LR graph, stack, syntax tree, and timeline. Same grammar syntax as Grammar Lab (see that tab for token rules).
       </P>
 
-      <H3>Grammar &amp; Token Format</H3>
+      <H3>Grammar and input tokens</H3>
       <P>
-        The editor uses the exact same deterministic tokenization rules as Grammar Lab:
-      </P>
-      <P>
-        • <Strong>Distinguishing Tokens (<C>num</C> vs <C>n u m</C>)</Strong> — Writing <C>num</C> creates <Strong>ONE terminal token</Strong> (<C>num</C>). To define three separate single-character terminals, use whitespace: <C>n u m</C>.<br />
-        • <Strong>Quoted Terminals</Strong> — Wrap in quotes (<C>"num"</C>, <C>'if'</C>, <C>"=="</C>) to explicitly treat the contents as one terminal symbol.<br />
-        • <Strong>Nonterminals</Strong> — Must begin with an uppercase letter (<C>S</C>, <C>Expr</C>, <C>Term</C>, <C>T2</C>).<br />
-        • <Strong>Input Buffer Tokenization</Strong> — The input buffer scans input against the grammar’s declared terminal alphabet using <Strong>longest match</Strong>. For example, if <C>id</C> is in your grammar's terminals, typing <C>id+id</C> automatically matches <C>id</C>, <C>+</C>, <C>id</C>. If <C>num</C> is a terminal, typing <C>num</C> matches the single token <C>num</C>.
+        Parser Studio uses the <Strong>same production syntax</Strong> as Grammar Lab. Open <Strong>Help → Grammar Lab</Strong>{' '}
+        (or press <Strong>F1</Strong> on the hub and switch tabs) for the token table, ε, and arrow rules.
       </P>
       <P>
         <Strong>Batch test</Strong> in the input panel runs many lines (skip blanks and <C>#</C> comments) and
         reports accept / reject for the current algorithm.
+      </P>
+
+      <H3>Theory connection</H3>
+      <P>
+        Parser Studio is the hands-on front end of the compiler pipeline in the <Strong>Theory Handbook</Strong> (F2): start
+        with <Strong>Parser Studio &amp; the compiler front end</Strong> and <Strong>CFG tools</Strong> under Automata Lab:
+        Start here, then read Lexical analysis and the LR family when your table shows conflicts.
       </P>
 
       <H3>Pick an algorithm</H3>
@@ -318,7 +334,9 @@ function ParserGuide() {
       <P>
         • <Strong>Parse Table / Automaton Graph</Strong> — for LR algorithms, toggle the centre view. The graph
         shows LR item-set states, GOTO edges, and a badge on self-loops. Shortened stubs are the default;
-        turn on extended transitions to see full paths. Drag a state; routing avoids overlaps on drop.<br />
+        turn on extended transitions to see full paths. Drag a state; routing avoids overlaps on drop.
+        Very large grammars use compact or LOD layout (truncated item lists, tighter spacing) up to about{' '}
+        <Strong>1500</Strong> states; above that, use the parse table only (the graph is not drawn).<br />
         • <Strong>Stack &amp; buffer</Strong> — LL shows the remaining input and the symbol stack; LR shows
         state numbers plus shifted symbols.<br />
         • <Strong>Closure / GOTO</Strong> — the item set of the current LR state.<br />
@@ -385,7 +403,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div id="help-title" style={{ fontSize: 16, fontWeight: 700 }}>Quick Help &amp; Shortcuts</div>
+          <div id="help-title" style={{ fontSize: 16, fontWeight: 700 }}>Quick help and shortcuts</div>
           <button
             onClick={() => useUIStore.getState().openModal('manual')}
             title="Open Full User Manual"
@@ -404,7 +422,7 @@ export default function HelpModal({ onClose }: HelpModalProps) {
             }}
           >
             <BookOpen size={12} />
-            User Manual (F1)
+            User manual (F1)
           </button>
           <button
             onClick={() => useUIStore.getState().openModal('theory')}

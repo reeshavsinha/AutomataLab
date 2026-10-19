@@ -49,7 +49,7 @@ export class DPDAEngine implements Automaton {
       return
     }
     this.currentStateId = startState.id
-    this.stack = []
+    this.stack = this.definition.initialStack?.length ? [...this.definition.initialStack] : []
     this.inputChars = input === '' ? [] : Array.from(input)
     this.inputIndex = 0
     this.status = 'running'

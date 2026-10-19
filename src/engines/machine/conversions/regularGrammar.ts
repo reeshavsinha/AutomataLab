@@ -4,6 +4,7 @@ import { classifyGrammar, validateGrammarFormat } from '../../grammar/classifica
 import { parseGeneralGrammarText } from '../../grammar/parser'
 import type { GeneralGrammar } from '../../grammar/types'
 import { MachineBuilder } from './helpers'
+import { enfaToNfa } from './epsilonElimination'
 import { minimizeDfa } from './minimizeDfa'
 import { nfaToDfa } from './subsetConstruction'
 import { regexToNfa } from './regexToNfa'
@@ -264,7 +265,11 @@ export function regularGrammarToMachine(text: string, target: MachineType): Conv
   const base = regularGrammarToNfa(text)
   let result = base.result as MachineDefinition
   if (target === 'DFA') result = toDfa(text)
-  else if (target === 'ENFA') result = { ...result, type: 'ENFA', name: `${result.name} (ε-NFA)` }
+  else if (target === 'NFA') {
+    result = result.type === 'ENFA'
+      ? enfaToNfa(result).result as MachineDefinition
+      : { ...result, type: 'NFA' }
+  } else if (target === 'ENFA') result = { ...result, type: 'ENFA', name: `${result.name} (ε-NFA)` }
   else if (target === 'DPDA' || target === 'NPDA') result = finiteToPda(toDfa(text), target)
   else if (target === 'LBA' || target === 'NLBA' || target === 'TM') result = finiteToTapeMachine(toDfa(text), target)
   else result = { ...result, type: 'NFA' }

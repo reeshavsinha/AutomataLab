@@ -1,4 +1,4 @@
-import { parseGrammarText } from './src/engines/grammar/parser.ts';
+import { parseGrammarText } from '../../src/engines/grammar/parser.ts';
 
 const runTests = () => {
   let passed = 0;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { MachineDefinition } from '@/engines/machine/core/types'
 import { runToCompletion } from '@/engines/machine/core/engineFactory'
 import { validateMachine, hasBlockingErrors } from '@/utils/validator'
@@ -7,6 +7,11 @@ import {
   DEMO_EXAMPLE_KEYS,
   DEMO_MACHINE_TYPES,
   hasDemoModeQuery,
+  hasDemoSessionFlag,
+  isHostedDemoActive,
+  isTauriRuntime,
+  navigateAppHash,
+  rememberDemoSession,
 } from '@/utils/demoMode'
 
 describe('hosted demo feature boundary', () => {
@@ -16,6 +21,36 @@ describe('hosted demo feature boundary', () => {
     expect(hasDemoModeQuery('?demo=false')).toBe(false)
     expect(hasDemoModeQuery('?notdemo=true')).toBe(false)
     expect(hasDemoModeQuery('?next=demo%3Dtrue')).toBe(false)
+  })
+
+  it('ignores web demo session flag in the Tauri desktop shell', () => {
+    sessionStorage.setItem('automatalab.demo', 'true')
+    const w = window as unknown as { __TAURI_INTERNALS__?: object }
+    const prev = w.__TAURI_INTERNALS__
+    w.__TAURI_INTERNALS__ = {}
+    expect(isTauriRuntime()).toBe(true)
+    expect(isHostedDemoActive('')).toBe(false)
+    if (prev === undefined) delete w.__TAURI_INTERNALS__
+    else w.__TAURI_INTERNALS__ = prev
+    sessionStorage.clear()
+  })
+
+  it('detects Tauri via TAURI_ENV_PLATFORM when globals are absent', () => {
+    vi.stubEnv('TAURI_ENV_PLATFORM', 'windows')
+    expect(isTauriRuntime()).toBe(true)
+    vi.unstubAllEnvs()
+  })
+
+  it('remembers demo in sessionStorage and preserves query on hash navigation', () => {
+    sessionStorage.clear()
+    window.history.replaceState({}, '', '/simulator')
+    rememberDemoSession('?demo=true')
+    expect(hasDemoSessionFlag()).toBe(true)
+    expect(isHostedDemoActive('')).toBe(true)
+
+    navigateAppHash('#/machine')
+    expect(window.location.search).toBe('?demo=true')
+    expect(window.location.hash).toBe('#/machine')
   })
 
   it('keeps the original machine and example set', () => {

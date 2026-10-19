@@ -7,6 +7,7 @@
 // ============================================================
 
 import type { Configuration, HistoryEntry, MachineDefinition, Transition } from '@/engines/machine/core/types'
+import { buildComputationTree, type ComputationTreeNode, type TreeNodeStatus } from '@/engines/machine/core/computationTree'
 import type { LR0Table, ActionEntry } from '@/engines/parser/lr0'
 import type { LL1Table } from '@/engines/parser/ll1'
 import {
@@ -293,7 +294,8 @@ export interface ExportHistoryMeta {
   totalSteps?: number
 }
 
-function formatTape(tape: NonNullable<HistoryEntry['tapes']>[number]): string {
+/** Tape snapshot for trace export and computation-tree UI (head marked with ⟦⟧). */
+export function formatTapeSnapshot(tape: NonNullable<HistoryEntry['tapes']>[number]): string {
   const right = tape.left + tape.cells.length - 1
   if (tape.tracks) {
     const tracks = tape.tracks
@@ -369,7 +371,7 @@ export function configurationMatrix(machine: MachineDefinition, history: History
       } else {
         for (let index = 0; index < tapeCount; index++) {
           const tape = entry.tapes?.[index]
-          row.push(tape ? String(tape.left + tape.head) : '', tape ? formatTape(tape) : '')
+          row.push(tape ? String(tape.left + tape.head) : '', tape ? formatTapeSnapshot(tape) : '')
         }
       }
     }
@@ -508,10 +510,123 @@ export function treeToJSON(machine: MachineDefinition, treeNodes: Configuration[
       stack: c.stack,
       remainingInput: c.remainingInput,
       status: c.status,
+      ...(c.tapes?.length
+        ? {
+            tapes: c.tapes.map((tape) => ({
+              headIndex: tape.left + tape.head,
+              ...(tape.leftBound !== undefined || tape.rightBound !== undefined
+                ? { leftBound: tape.leftBound, rightBound: tape.rightBound }
+                : {}),
+              cells: tape.cells,
+              ...(tape.tracks ? { tracks: tape.tracks } : {}),
+            })),
+          }
+        : {}),
       ...(c.mergedParents ? { mergedParents: c.mergedParents } : {}),
     })),
   }
   return JSON.stringify(payload, null, 2)
+}
+
+/** Indented outline for NFA / NPDA / NLBA computation-tree export. */
+export function treeToMarkdown(machine: MachineDefinition, treeNodes: Configuration[]): string {
+  const labels = labelMap(machine)
+  const byParent = new Map<string | null, Configuration[]>()
+  for (const n of treeNodes) {
+    const key = n.parentId
+    if (!byParent.has(key)) byParent.set(key, [])
+    byParent.get(key)!.push(n)
+  }
+  const lines: string[] = [
+    `# Computation tree — ${machine.name} (${machine.type})`,
+    '',
+    `${treeNodes.length} configuration node(s).`,
+    '',
+  ]
+  const walk = (parentId: string | null, depth: number) => {
+    const kids = byParent.get(parentId) ?? []
+    for (const c of kids) {
+      const state = labels.get(c.stateId) ?? c.stateId
+      const stack = c.stack.length ? ` stack=[${c.stack.join('')}]` : ''
+      const input = c.remainingInput ? ` input="${c.remainingInput}"` : ''
+      const tape =
+        c.tapes?.length
+          ? ` ${c.tapes.map((t, i) => `Tp${c.tapes!.length > 1 ? i + 1 : ''}:${formatTapeSnapshot(t)}`).join(' ')}`
+          : ''
+      lines.push(`${'  '.repeat(depth)}- ${state}${stack}${tape}${input} (${c.status})`)
+      walk(c.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  return lines.join('\n')
+}
+
+const TREE_SVG_STATUS: Record<TreeNodeStatus, string> = {
+  accepted: '#16a34a',
+  rejected: '#dc2626',
+  running: '#ca8a04',
+  internal: '#64748b',
+}
+
+const TREE_SVG_MAX_ROWS = 800
+
+/** Scalable vector outline of the computation tree (NFA / NPDA / NLBA). */
+export function treeToSVG(
+  machine: MachineDefinition,
+  treeNodes: Configuration[],
+  liveBranchIds: string[] = [],
+): string {
+  const labels = labelMap(machine)
+  const built = buildComputationTree(treeNodes, new Set(liveBranchIds))
+  const rows: { depth: number; label: string; status: TreeNodeStatus }[] = []
+
+  const flatten = (nodes: ComputationTreeNode[], depth: number) => {
+    for (const n of nodes) {
+      if (rows.length >= TREE_SVG_MAX_ROWS) return
+      const state = labels.get(n.config.stateId) ?? n.config.stateId
+      const stack = n.config.stack.length ? ` stack=[${[...n.config.stack].reverse().join('')}]` : ''
+      const tape =
+        n.config.tapes?.length
+          ? ` ${n.config.tapes.map((t, i) => `Tp${n.config.tapes!.length > 1 ? i + 1 : ''}:${formatTapeSnapshot(t)}`).join(' ')}`
+          : ''
+      const input = n.config.remainingInput ? ` in="${n.config.remainingInput}"` : ''
+      rows.push({ depth, label: `${state}${stack}${tape}${input}`, status: n.status })
+      flatten(n.children, depth + 1)
+    }
+  }
+  flatten(built.roots, 0)
+
+  const rowH = 20
+  const indent = 16
+  const pad = 14
+  const title = `${machine.name} (${machine.type}) — computation tree`
+  const maxChars = Math.max(24, ...rows.map((r) => r.label.length))
+  const width = Math.min(1200, pad * 2 + 12 * maxChars)
+  const height = pad * 2 + 28 + rows.length * rowH + (rows.length >= TREE_SVG_MAX_ROWS ? 18 : 0)
+
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+  const body = rows
+    .map((r, i) => {
+      const y = pad + 28 + i * rowH
+      const x = pad + r.depth * indent
+      return `<text x="${x}" y="${y}" font-family="ui-monospace, monospace" font-size="11" fill="${TREE_SVG_STATUS[r.status]}">${esc(r.label)}</text>`
+    })
+    .join('\n')
+
+  const trunc =
+    rows.length >= TREE_SVG_MAX_ROWS
+      ? `<text x="${pad}" y="${height - 6}" font-size="10" fill="#64748b">… truncated at ${TREE_SVG_MAX_ROWS} rows</text>`
+      : ''
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="#ffffff"/>
+  <text x="${pad}" y="${pad + 14}" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#0f172a">${esc(title)}</text>
+  ${body}
+  ${trunc}
+</svg>`
 }
 
 // ─── delivery ───────────────────────────────────────────────────

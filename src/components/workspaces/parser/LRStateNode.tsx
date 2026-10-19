@@ -5,6 +5,7 @@ import { LR0Item } from '@/engines/parser/lr0';
 export interface LRStateNodeData {
   stateId: number;
   items: string[];
+  maxItems?: number;
   isFocused?: boolean;
   selfLoops?: string[];
 }
@@ -63,7 +64,7 @@ export function LRStateNode({ data }: { data: LRStateNodeData }) {
       </div>
       
       <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '0px' }}>
-        {data.items.map((item, idx) => {
+        {(data.maxItems != null && data.maxItems > 0 ? data.items.slice(0, data.maxItems) : data.items).map((item, idx) => {
           // Replace '.' with bullet '•' and highlight it
           const parts = item.split('.');
           return (
@@ -77,6 +78,11 @@ export function LRStateNode({ data }: { data: LRStateNodeData }) {
             </div>
           );
         })}
+        {data.maxItems != null && data.items.length > data.maxItems && (
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem', marginTop: '2px' }}>
+            +{data.items.length - data.maxItems} more item(s)
+          </div>
+        )}
       </div>
       </div>
       

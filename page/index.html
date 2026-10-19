@@ -23,289 +23,555 @@
   <link rel="apple-touch-icon" href="./logo-transparent.svg?v=3">
 
   <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Outfit:wght@500;600;700;800&display=swap"
     rel="stylesheet" />
-  <link rel="stylesheet" href="./styles.css?v=4">
+  <link rel="stylesheet" href="./styles.css?v=26">
   <script src="https://unpkg.com/lenis@1.1.20/dist/lenis.min.js"></script>
 </head>
 
 <body>
   <div class="landing-root">
-    <!-- Ambient Background Lighting -->
-    <div class="lp-ambient-glow"></div>
-    <div class="lp-grid-overlay"></div>
+    <div class="lp-ambient-glow" aria-hidden="true"></div>
+    <div class="lp-grid-overlay" aria-hidden="true"></div>
 
     <!-- Navigation Header -->
     <header class="lp-header">
       <div class="lp-header-container">
-        <a href="#" class="lp-header-logo" style="display: flex; align-items: center; gap: 10px; text-decoration: none;">
-          <img src="./logo-transparent.svg" alt="AutomataLab Logo" style="height: 22px; width: 22px; object-fit: contain;">
-          AutomataLab
+        <a href="#" class="lp-header-logo">
+          <img src="./logo-transparent.svg" alt="" class="lp-logo-img lp-logo-img--sm" width="22" height="22">
+          <span>AutomataLab</span>
         </a>
-        <nav class="lp-nav">
-          <a href="#" class="lp-nav-link">Home</a>
+        <nav class="lp-nav lp-nav--desktop" aria-label="Primary">
+          <a href="#home" class="lp-nav-link">Home</a>
           <a href="#workspaces" class="lp-nav-link">Workspaces</a>
+          <a href="#gallery" class="lp-nav-link">Screens</a>
+          <a href="#pipeline" class="lp-nav-link">Pipeline</a>
+          <a href="#demo" class="lp-nav-link">Demo</a>
           <a href="#algorithms" class="lp-nav-link">Algorithms</a>
-          <a href="#docs" class="lp-nav-link">Documentation</a>
+          <a href="#learn" class="lp-nav-link">Learn</a>
+          <a href="#docs" class="lp-nav-link">Docs</a>
           <a href="#downloads" class="lp-nav-download">Download</a>
-          <a href="https://github.com/reeshavsinha/AutomataLab" target="_blank" rel="noreferrer"
-            class="lp-nav-link">GitHub</a>
         </nav>
+        <button type="button" class="lp-nav-toggle" aria-expanded="false" aria-controls="lp-mobile-nav"
+          aria-label="Open navigation menu">
+          <span class="lp-nav-toggle-bar" aria-hidden="true"></span>
+          <span class="lp-nav-toggle-bar" aria-hidden="true"></span>
+          <span class="lp-nav-toggle-bar" aria-hidden="true"></span>
+        </button>
       </div>
+      <nav id="lp-mobile-nav" class="lp-mobile-nav" aria-label="Mobile" hidden>
+        <a href="#home" class="lp-nav-link">Home</a>
+        <a href="#workspaces" class="lp-nav-link">Workspaces</a>
+        <a href="#gallery" class="lp-nav-link">Screens</a>
+        <a href="#pipeline" class="lp-nav-link">Pipeline</a>
+        <a href="#demo" class="lp-nav-link">Demo</a>
+        <a href="#algorithms" class="lp-nav-link">Algorithms</a>
+        <a href="#learn" class="lp-nav-link">Learn</a>
+        <a href="#docs" class="lp-nav-link">Docs</a>
+        <a href="#downloads" class="lp-nav-link">Download</a>
+      </nav>
     </header>
 
-    <!-- Main Content -->
     <main>
-      <!-- Hero Section -->
-      <section class="lp-hero" style="position: relative; overflow: hidden;">
-        <!-- Subtle Automata Visual Motifs (State Nodes & Transitions) -->
-        <div class="lp-motif-state"
-          style="position: absolute; top: -80px; right: 5%; width: 400px; height: 400px; border: 1px dashed rgba(255,255,255,0.04); border-radius: 50%; z-index: 0; pointer-events: none;">
-        </div>
-        <div class="lp-motif-state-inner"
-          style="position: absolute; top: 70px; right: 12%; width: 100px; height: 100px; border: 2px solid rgba(166, 226, 46, 0.08); border-radius: 50%; z-index: 0; pointer-events: none;">
-        </div>
-        <div class="lp-motif-transition"
-          style="position: absolute; top: 120px; right: 8%; width: 2px; height: 200px; background: repeating-linear-gradient(to bottom, transparent, transparent 6px, rgba(255,255,255,0.06) 6px, rgba(255,255,255,0.06) 12px); transform: rotate(45deg); z-index: 0; pointer-events: none;">
-        </div>
-        <div class="lp-motif-state-left"
-          style="position: absolute; bottom: 10%; left: -100px; width: 300px; height: 300px; border: 1px dashed rgba(255,255,255,0.03); border-radius: 50%; z-index: 0; pointer-events: none;">
-        </div>
-
-        <div class="lp-hero-container" style="position: relative; z-index: 1;">
-          <div style="display: flex; flex-direction: column; align-items: center; gap: 12px; margin-bottom: 24px;">
-            <div style="display: flex; align-items: center; justify-content: center; gap: 20px;">
-              <img src="./logo-transparent.svg" alt="AutomataLab Logo" style="height: 4.2rem; width: 4.2rem; object-fit: contain; transform: translateY(3px);">
-              <h1 class="lp-hero-title" style="margin-bottom: 0;">AutomataLab</h1>
+      <section class="lp-hero" id="home">
+        <div class="lp-hero-container">
+          <div class="lp-hero-split">
+            <div class="lp-hero-lead">
+              <p class="lp-hero-eyebrow">Formal systems laboratory</p>
+              <div class="lp-hero-brand">
+                <img src="./logo-transparent.svg" alt="" class="lp-logo-img lp-logo-img--hero" width="52" height="52">
+                <h1 class="lp-hero-title">AutomataLab</h1>
+              </div>
+              <p class="lp-hero-domain">Understand automata, grammars, and parsers—in one integrated lab</p>
+              <p class="lp-hero-subtitle">
+                AutomataLab connects Machine Studio, Grammar Lab, and Parser Studio so you can simulate machines,
+                analyze grammars, and step through parses with the same notation you use in class—not just static
+                diagrams on a slide.
+              </p>
+              <p class="lp-hero-audience">For students, educators, and anyone learning formal languages, automata theory, or parser construction.</p>
+              <p class="lp-hero-trust">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+                <span>Desktop builds run entirely offline. No accounts, cloud services, or telemetry.</span>
+              </p>
             </div>
-            <div class="lp-hero-domain"
-              style="font-size: 1.4rem; font-weight: 500; color: var(--lp-text); letter-spacing: -0.01em;">
-              Integrated Environment for Automata, Formal Languages and Parser Construction
-            </div>
-          </div>
 
-          <p class="lp-hero-subtitle" style="margin-bottom: 12px;">
-            Build automata, analyze grammars, generate parsers, and move seamlessly between formal language
-            representations inside a single visual environment.
-          </p>
-          <p
-            style="font-size: 0.95rem; color: var(--lp-text-secondary); margin-bottom: 32px; font-weight: 500; display: flex; justify-content: center; align-items: center; gap: 8px;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-            </svg>
-            Runs entirely offline. No accounts, cloud services, or telemetry.
-          </p>
-
-          <div class="lp-hero-cta-group">
-            <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer"
-              class="lp-cta-button lp-cta-primary">
-              Try Live Demo
-            </a>
-            <a href="#downloads" class="lp-cta-button lp-cta-secondary">
-              Download Desktop Application
-            </a>
-            <a href="https://github.com/reeshavsinha/AutomataLab" target="_blank" rel="noreferrer"
-              class="lp-cta-button lp-cta-secondary">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path fill-rule="evenodd" clip-rule="evenodd"
-                  d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0112 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.025 2.747-1.025.546 1.379.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z" />
+            <div class="lp-hero-visual" id="hero-graph">
+              <svg class="lp-hero-graph" viewBox="0 0 400 300" role="img" aria-label="Abstract state-transition diagram">
+                <defs>
+                  <marker id="lp-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#a1a1aa" />
+                  </marker>
+                  <marker id="lp-arrow-active" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                    <path d="M0,0 L6,3 L0,6 Z" fill="#2563eb" />
+                  </marker>
+                </defs>
+                <path class="lp-hero-graph-edge" d="M 88 72 L 168 48" marker-end="url(#lp-arrow)" />
+                <path class="lp-hero-graph-edge lp-hero-graph-edge--active" d="M 168 48 L 248 88" marker-end="url(#lp-arrow-active)" />
+                <path class="lp-hero-graph-edge" d="M 248 88 L 312 168" marker-end="url(#lp-arrow)" />
+                <path class="lp-hero-graph-edge" d="M 312 168 L 248 232" marker-end="url(#lp-arrow)" />
+                <path class="lp-hero-graph-edge" d="M 88 72 L 120 200" marker-end="url(#lp-arrow)" />
+                <path class="lp-hero-graph-edge" d="M 120 200 L 248 232" marker-end="url(#lp-arrow)" />
+                <circle class="lp-hero-graph-node lp-hero-graph-node--start" cx="72" cy="72" r="18" />
+                <circle class="lp-hero-graph-node" cx="168" cy="48" r="16" />
+                <circle class="lp-hero-graph-node" cx="256" cy="88" r="16" />
+                <circle class="lp-hero-graph-node" cx="320" cy="168" r="16" />
+                <circle class="lp-hero-graph-node lp-hero-graph-node--accept" cx="248" cy="240" r="20" />
+                <circle class="lp-hero-graph-node--accept" cx="248" cy="240" r="26" fill="none" stroke="#1a7f37" stroke-width="1.5" opacity="0.5" />
+                <circle class="lp-hero-graph-node" cx="112" cy="208" r="14" />
+                <text x="200" y="286" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11" fill="#6b6b6b">q₀ ⊢ a · b*</text>
               </svg>
-              View on GitHub
-            </a>
-          </div>
+            </div>
 
-          <div class="lp-hero-trust-row"
-            style="display: flex; gap: 12px; justify-content: center; align-items: center; margin-bottom: 40px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--lp-text-muted);">
-            <span>Open Source</span>
-            <span>&bull;</span>
-            <span>Zero Telemetry</span>
-            <span>&bull;</span>
-            <span>Cross Platform</span>
-            <span>&bull;</span>
-            <span>Offline First</span>
-            <span>&bull;</span>
-            <span>20+ Algorithms</span>
-          </div>
+            <div class="lp-hero-action">
+              <div class="lp-chomsky-strip" aria-label="Chomsky hierarchy">
+                <span>Type 3 · Regular</span>
+                <span aria-hidden="true">&rarr;</span>
+                <span>Type 2 · CFG</span>
+                <span aria-hidden="true">&rarr;</span>
+                <span>Type 1 · CS</span>
+                <span aria-hidden="true">&rarr;</span>
+                <span>Type 0</span>
+              </div>
 
-          <!-- Hero Metrics Stat Grid -->
-          <div class="lp-stats-grid">
-            <div class="lp-stat-item">
-              <div class="lp-stat-value">7</div>
-              <div class="lp-stat-label">Computational Models</div>
+              <div class="lp-hero-cta-group lp-hero-cta-group--main">
+                <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer"
+                  class="lp-cta-button lp-cta-primary">
+                  Try Live Demo
+                </a>
+                <a href="#workspaces" class="lp-cta-button lp-cta-secondary">
+                  Explore Workspaces
+                </a>
+              </div>
+              <p class="lp-hero-cta-aux">
+                <a href="#downloads" class="lp-hero-aux-link">Download desktop app</a>
+                <span aria-hidden="true">&middot;</span>
+                <a href="https://github.com/reeshavsinha/AutomataLab" target="_blank" rel="noreferrer" class="lp-hero-aux-link">View on GitHub</a>
+              </p>
+
+              <div class="lp-hero-trust-row">
+                <span>Open Source</span>
+                <span aria-hidden="true">&bull;</span>
+                <span>Zero Telemetry</span>
+                <span aria-hidden="true">&bull;</span>
+                <span>Cross Platform</span>
+                <span aria-hidden="true">&bull;</span>
+                <span>Offline First</span>
+                <span aria-hidden="true">&bull;</span>
+                <span>20+ Algorithms</span>
+              </div>
             </div>
-            <div class="lp-stat-item">
-              <div class="lp-stat-value">3</div>
-              <div class="lp-stat-label">Workspaces</div>
-            </div>
-            <div class="lp-stat-item">
-              <div class="lp-stat-value">20+</div>
-              <div class="lp-stat-label">Algorithms</div>
-            </div>
-            <div class="lp-stat-item">
-              <div class="lp-stat-value">100%</div>
-              <div class="lp-stat-label">Offline</div>
+
+            <nav class="lp-hero-rail" aria-label="Workspaces at a glance">
+              <a href="#machine" class="lp-hero-rail-link">
+                <span class="lp-hero-rail-num">01</span>
+                <span class="lp-hero-rail-body">
+                  <span class="lp-hero-rail-title">Machine Studio</span>
+                  <span class="lp-hero-rail-desc">Canvas simulation, conversions, batch tests</span>
+                </span>
+              </a>
+              <a href="#grammar" class="lp-hero-rail-link">
+                <span class="lp-hero-rail-num">02</span>
+                <span class="lp-hero-rail-body">
+                  <span class="lp-hero-rail-title">Grammar Lab</span>
+                  <span class="lp-hero-rail-desc">Types 0–3, FIRST/FOLLOW, CNF, derivations</span>
+                </span>
+              </a>
+              <a href="#parser" class="lp-hero-rail-link">
+                <span class="lp-hero-rail-num">03</span>
+                <span class="lp-hero-rail-body">
+                  <span class="lp-hero-rail-title">Parser Studio</span>
+                  <span class="lp-hero-rail-desc">LL/LR tables, CYK, Earley, parse timelines</span>
+                </span>
+              </a>
+            </nav>
+
+            <div class="lp-stats-grid lp-hero-stats">
+              <div class="lp-stat-item">
+                <div class="lp-stat-value">11</div>
+                <div class="lp-stat-label">Automaton types (desktop)</div>
+              </div>
+              <div class="lp-stat-item">
+                <div class="lp-stat-value">3</div>
+                <div class="lp-stat-label">Workspaces</div>
+              </div>
+              <div class="lp-stat-item">
+                <div class="lp-stat-value">20+</div>
+                <div class="lp-stat-label">Algorithms</div>
+              </div>
+              <div class="lp-stat-item">
+                <div class="lp-stat-value">100%</div>
+                <div class="lp-stat-label">Offline</div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Workspaces Section -->
-      <section class="lp-features-section" id="workspaces">
+      <section class="lp-platform-section lp-section-alt" id="platform">
         <div class="lp-features-container">
           <div class="lp-section-header">
-            <h2 class="lp-section-title">Integrated Workspaces</h2>
-            <p class="lp-section-subtitle">Dedicated environments for every stage of formal language development.</p>
+            <h2 class="lp-section-title">Desktop app or browser demo</h2>
+            <p class="lp-section-subtitle">Use the full Tauri application for all three workspaces, or try Machine Studio in the hosted simulator with a deliberately limited feature set.</p>
+          </div>
+          <div class="lp-platform-compare" role="region" aria-label="Desktop versus browser comparison">
+            <div class="lp-platform-card">
+              <h3 class="lp-platform-card-title">Desktop application</h3>
+              <p class="lp-platform-card-lead">Machine Studio, Grammar Lab, and Parser Studio with local project files and imports.</p>
+              <ul class="lp-platform-list">
+                <li>Automaton types: DFA, NFA, ε-NFA, Mealy, Moore, DPDA, NPDA, TM, MTM, LBA, NLBA</li>
+                <li>Grammar formats: regex and Chomsky Types 0–3 with format-gated analysis tabs</li>
+                <li>Parser algorithms: LL(1), LR(0), SLR(1), LALR(1), CLR(1), CYK, Earley, backtracking</li>
+                <li>Open/Save <code class="lp-inline-code">.autolab.json</code>, JFLAP <code class="lp-inline-code">.jff</code>, grammar/parser text files</li>
+                <li>Runs offline; no account or telemetry</li>
+              </ul>
+              <a href="#downloads" class="lp-cta-button lp-cta-primary lp-platform-cta">Download for your platform</a>
+            </div>
+            <div class="lp-platform-card lp-platform-card--demo">
+              <h3 class="lp-platform-card-title">Hosted web demo</h3>
+              <p class="lp-platform-card-lead">Machine Studio preview only—Grammar Lab and Parser Studio are not available in the browser build.</p>
+              <ul class="lp-platform-list">
+                <li>Machine types: DFA, NFA, ε-NFA, DPDA, NPDA, TM, LBA</li>
+                <li>Four bundled examples (e.g. even zeros, balanced parentheses, aⁿbⁿcⁿ TM)</li>
+                <li>No local file open/save, conversions, analysis tools, or export—simulation and canvas editing only</li>
+                <li>Same simulation engines as the full app for supported types</li>
+              </ul>
+              <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer" class="lp-cta-button lp-cta-secondary lp-platform-cta">Launch browser demo</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-features-section lp-features-section--intro" id="workspaces">
+        <div class="lp-features-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Three workspaces, one formal-language toolkit</h2>
+            <p class="lp-section-subtitle">Each workspace targets a different representation—machines, grammars, parsers—with transfers between them in the desktop app.</p>
+          </div>
+          <nav class="lp-workspace-jump" aria-label="Workspace sections">
+            <a href="#machine">Machine Studio</a>
+            <a href="#grammar">Grammar Lab</a>
+            <a href="#parser">Parser Studio</a>
+          </nav>
+        </div>
+      </section>
+
+      <section class="lp-showcase-section" id="machine" aria-labelledby="machine-heading">
+        <div class="lp-features-container">
+        <div class="lp-showcase lp-showcase--text-left">
+          <div class="lp-showcase-copy">
+            <span class="lp-workspace-badge">Machine Studio</span>
+            <h2 class="lp-showcase-title" id="machine-heading">Draw, run, and convert automata</h2>
+            <p class="lp-feature-text">Interactive canvas for finite automata, pushdown machines, transducers, and Turing models—with step, play, and batch testing.</p>
+            <p class="lp-showcase-concepts"><strong>Concepts:</strong> recognition, nondeterminism, stacks, tapes, computation trees (NFA, NPDA, NLBA).</p>
+            <ul class="lp-feature-list">
+              <li>Conversions such as ε-removal, subset construction, DFA minimization, regex→NFA, FA→regex, CFG→PDA, PDA→CFG, Mealy↔Moore.</li>
+              <li>Analyze reachability, dead states, and emptiness on finite automata (DFA/NFA/ε-NFA); export traces and computation trees from the desktop app.</li>
+            </ul>
+            <p class="lp-showcase-scenario"><strong>Try:</strong> Build a DFA for even zeros, minimize it, then extract an equivalent regular expression.</p>
+            <div class="lp-showcase-links">
+              <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer" class="lp-doc-link">Browser demo →</a>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+            </div>
+          </div>
+          <div class="lp-shot-frame lp-showcase-media">
+            <img src="./docs/lp_mc_wkspc.png" alt="Machine Studio workspace screenshot" width="800" height="450" loading="lazy" />
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section class="lp-showcase-section lp-section-alt" id="grammar" aria-labelledby="grammar-heading">
+        <div class="lp-features-container">
+        <div class="lp-showcase lp-showcase--text-right">
+          <div class="lp-showcase-copy">
+            <span class="lp-workspace-badge">Grammar Lab</span>
+            <h2 class="lp-showcase-title" id="grammar-heading">Grammars with analysis that respects the Chomsky type</h2>
+            <p class="lp-feature-text">Edit regex or Types 0–3 grammars; tabs unlock only when the format supports them (CFG tools do not run on unrestricted grammars).</p>
+            <p class="lp-showcase-concepts"><strong>Concepts:</strong> FIRST/FOLLOW, nullable symbols, CNF/GNF, ambiguity (Type 2), bounded derivations for Types 0–1.</p>
+            <ul class="lp-feature-list">
+              <li>Properties, sampler, derivations, transformations, ambiguity, FIRST/FOLLOW, and problem diagnostics—gated per format.</li>
+              <li>Send grammar text to Parser Studio or build standard machine recognizers without retyping rules.</li>
+            </ul>
+            <p class="lp-showcase-scenario"><strong>Try:</strong> Enter a small CFG, compute FIRST/FOLLOW, then convert to CNF for CYK in Parser Studio.</p>
+            <div class="lp-showcase-links">
+              <a href="#downloads" class="lp-doc-link">Desktop app required →</a>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+            </div>
+          </div>
+          <div class="lp-shot-frame lp-showcase-media">
+            <img src="./docs/lp_gl_wkspc.png" alt="Grammar Lab workspace screenshot" width="800" height="450" loading="lazy" />
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section class="lp-showcase-section" id="parser" aria-labelledby="parser-heading">
+        <div class="lp-features-container">
+        <div class="lp-showcase lp-showcase--text-left">
+          <div class="lp-showcase-copy">
+            <span class="lp-workspace-badge">Parser Studio</span>
+            <h2 class="lp-showcase-title" id="parser-heading">Parse tables, item-set graphs, and stepped parses</h2>
+            <p class="lp-feature-text">Build LL and LR families, CYK, Earley, or recursive-descent backtracking on the same grammar syntax as Grammar Lab.</p>
+            <p class="lp-showcase-concepts"><strong>Concepts:</strong> predictive parsing, canonical LR, conflicts, syntax trees, parse timelines.</p>
+            <ul class="lp-feature-list">
+              <li>LL(1), LR(0), SLR(1), LALR(1), CLR(1), CYK, Earley, and backtracking—with conflict reporting for table-driven methods.</li>
+              <li>Stack/buffer views, syntax trees, batch input runs; LR automaton graph (hidden above ~1500 states—tables and simulation still work).</li>
+            </ul>
+            <p class="lp-showcase-scenario"><strong>Try:</strong> Import an expression grammar, inspect the LALR(1) table, and step through a parse with the timeline.</p>
+            <div class="lp-showcase-links">
+              <a href="#downloads" class="lp-doc-link">Desktop app required →</a>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+            </div>
+          </div>
+          <div class="lp-shot-frame lp-showcase-media">
+            <img src="./docs/lp_ps_wkspc.png" alt="Parser Studio workspace screenshot" width="800" height="450" loading="lazy" />
+          </div>
+        </div>
+        </div>
+      </section>
+
+      <section class="lp-gallery-section lp-section-alt" id="gallery">
+        <div class="lp-features-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">See the workspaces in the application</h2>
+            <p class="lp-section-subtitle">Screenshots from the desktop app and hosted Machine Studio demo—each caption describes what you are looking at, not a marketing mock-up.</p>
           </div>
 
-          <div class="lp-features-layout">
-            <div class="lp-feature-group" style="margin-bottom: 48px;">
-              <h3 class="lp-feature-group-title"
-                style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                Machine Workspace</h3>
-              <div class="lp-features-grid">
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <ul class="lp-feature-text"
-                      style="list-style-type: none; padding-left: 0; margin: 0; line-height: 1.8;">
-                      <li>&bull; Visual simulation for DFA, NFA, ε-NFA, DPDA, NPDA, Turing Machines, and Linear Bounded
-                        Automata.</li>
-                      <li>&bull; Features stack visualization, tape visualization, computation trees, step execution,
-                        and state inspection.</li>
-                    </ul>
-                    <div
-                      style="margin-top: 16px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; background: #000;">
-                      <img src="./docs/lp_mc_wkspc.png" alt="Machine Workspace" style="width: 100%; height: auto; display: block;" />
-                    </div>
-                  </div>
+          <div class="lp-gallery-block">
+            <h3 class="lp-gallery-block-title">Machine Studio</h3>
+            <div class="lp-gallery-layout">
+              <figure class="lp-gallery-hero">
+                <div class="lp-shot-frame">
+                  <img src="./docs/lp_mc_wkspc.png" alt="Machine Studio canvas with states and transitions" width="800" height="450" loading="lazy" />
                 </div>
+                <figcaption>Graph editor with simulation controls—draw DFA/NFA/PDA/TM diagrams and step or batch-test inputs.</figcaption>
+              </figure>
+              <div class="lp-gallery-duo">
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile">
+                    <img src="./docs/lp_mc_pda_4.png" alt="CFG to PDA conversion result in Machine Studio" width="800" height="450" loading="lazy" />
+                  </div>
+                  <figcaption>CFG → PDA construction: grammar rules become a pushdown automaton you can simulate on the same canvas.</figcaption>
+                </figure>
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile">
+                    <img src="./docs/screenshot.png" alt="Hosted Machine Studio demo in the browser" width="800" height="450" loading="lazy" />
+                  </div>
+                  <figcaption>Hosted web demo (subset of Machine Studio)—browser-only preview, not the full desktop shell.</figcaption>
+                </figure>
               </div>
             </div>
+          </div>
 
-            <div class="lp-feature-group" style="margin-bottom: 48px;">
-              <h3 class="lp-feature-group-title"
-                style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                Grammar Lab</h3>
-              <div class="lp-features-grid">
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <ul class="lp-feature-text"
-                      style="list-style-type: none; padding-left: 0; margin: 0; line-height: 1.8;">
-                      <li>&bull; Comprehensive grammar analysis including FIRST/FOLLOW sets and Nullable analysis.</li>
-                      <li>&bull; CNF/GNF conversions, ambiguity analysis, derivations, and grammar diagnostics.</li>
-                    </ul>
-                    <div
-                      style="margin-top: 16px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; background: #000;">
-                      <img src="./docs/lp_gl_wkspc.png" alt="Grammar Lab" style="width: 100%; height: auto; display: block;" />
-                    </div>
-                  </div>
+          <div class="lp-gallery-block">
+            <h3 class="lp-gallery-block-title">Grammar Lab</h3>
+            <div class="lp-gallery-layout">
+              <figure class="lp-gallery-hero">
+                <div class="lp-shot-frame">
+                  <img src="./docs/lp_gl_wkspc.png" alt="Grammar Lab main workspace" width="800" height="450" loading="lazy" />
                 </div>
+                <figcaption>Grammar editor with format selector (regex, Types 0–3) and analysis tabs gated by the declared type.</figcaption>
+              </figure>
+              <div class="lp-gallery-duo">
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile lp-shot-frame--contain">
+                    <img src="./docs/lp_grm_defn_1.png" alt="Grammar productions being edited" width="800" height="450" loading="lazy" />
+                  </div>
+                  <figcaption>Production list for a context-free grammar—starting point before FIRST/FOLLOW or normal-form transforms.</figcaption>
+                </figure>
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile">
+                    <img src="./docs/lp_grm_anlys_2.png" alt="FIRST and FOLLOW analysis output" width="800" height="450" loading="lazy" />
+                  </div>
+                  <figcaption>FIRST/FOLLOW tables computed from the grammar—feeds Parser Studio and classroom explanations.</figcaption>
+                </figure>
               </div>
             </div>
+          </div>
 
-            <div class="lp-feature-group">
-              <h3 class="lp-feature-group-title"
-                style="font-size: 1.5rem; color: var(--lp-text); margin-bottom: 24px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.1);">
-                Parser Studio</h3>
-              <div class="lp-features-grid">
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <ul class="lp-feature-text"
-                      style="list-style-type: none; padding-left: 0; margin: 0; line-height: 1.8;">
-                      <li>&bull; Construct and debug parsers with support for CYK, Earley, CLR(1), and LALR(1).</li>
-                      <li>&bull; View Parse Tables, Closure/GOTO sets, detect conflicts, and generate Parse Trees.</li>
-                    </ul>
-                    <div
-                      style="margin-top: 16px; border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; background: #000;">
-                      <img src="./docs/lp_ps_wkspc.png" alt="Parser Studio" style="width: 100%; height: auto; display: block;" />
-                    </div>
+          <div class="lp-gallery-block">
+            <h3 class="lp-gallery-block-title">Parser Studio</h3>
+            <div class="lp-gallery-layout lp-gallery-layout--pair-only">
+              <div class="lp-gallery-duo">
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile">
+                    <img src="./docs/lp_ps_wkspc.png" alt="Parser Studio overview" width="800" height="450" loading="lazy" />
                   </div>
-                </div>
+                  <figcaption>Parser workspace with algorithm picker, parse controls, and views for tables, stack, and syntax tree.</figcaption>
+                </figure>
+                <figure class="lp-gallery-tile">
+                  <div class="lp-shot-frame lp-shot-frame--tile">
+                    <img src="./docs/lp_ps_gm_3.png" alt="Generated parse tables and item sets" width="800" height="450" loading="lazy" />
+                  </div>
+                  <figcaption>LR-style tables and item-set machinery—inspect conflicts before stepping through a parse.</figcaption>
+                </figure>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="lp-walkthrough-section" id="walkthrough">
+        <div class="lp-features-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">Worked example: regex → NFA (Thompson construction)</h2>
+            <p class="lp-section-subtitle">A static walkthrough of a conversion that exists in Machine Studio today. This is not a live simulation—follow the steps in the desktop app or read the machine guide.</p>
+          </div>
+
+          <p class="lp-walkthrough-badge"><span class="lp-workspace-badge">Desktop app</span> Regex → NFA is a Machine Studio construct. The browser demo does not replace the full conversion UI.</p>
+
+          <ol class="lp-walkthrough-steps">
+            <li class="lp-walkthrough-step">
+              <h3 class="lp-walkthrough-step-title">1. Input — regular expression</h3>
+              <p>Choose <strong>Regex → NFA</strong> (Thompson’s construction) and enter a pattern such as:</p>
+              <pre class="lp-walkthrough-code"><code>(a+b)*abb</code></pre>
+              <p class="lp-walkthrough-note">Classic “strings ending in <code class="lp-inline-code">abb</code> over <code class="lp-inline-code">{a,b}</code>” language from automata courses.</p>
+            </li>
+            <li class="lp-walkthrough-step">
+              <h3 class="lp-walkthrough-step-title">2. Intermediate — ε-NFA fragments</h3>
+              <p>AutomataLab builds an <strong>ε-NFA</strong> (result type ENFA) by composing Thompson fragments for union, concatenation, and Kleene star—each fragment has a start and accept state linked by ε-transitions.</p>
+              <p>You can inspect the combined graph on the canvas before running further conversions.</p>
+            </li>
+            <li class="lp-walkthrough-step">
+              <h3 class="lp-walkthrough-step-title">3. Output — simulate or refine</h3>
+              <p>Test strings like <code class="lp-inline-code">abb</code> (accept) vs <code class="lp-inline-code">ab</code> (reject) with step simulation. Optionally chain <strong>ε-NFA → NFA</strong> then <strong>NFA → DFA</strong> for a deterministic view.</p>
+              <div class="lp-walkthrough-media">
+                <div class="lp-shot-frame">
+                  <img src="./docs/lp_mc_wkspc.png" alt="Machine Studio after building an automaton from a regex" width="800" height="450" loading="lazy" />
+                </div>
+                <p class="lp-walkthrough-media-caption">Machine Studio canvas—use this view after the regex construct completes (desktop).</p>
+              </div>
+            </li>
+          </ol>
+
+          <div class="lp-walkthrough-links">
+            <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine Workspace Guide →</a>
+            <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer" class="lp-doc-link">Browser demo (limited) →</a>
           </div>
         </div>
       </section>
 
       <!-- Cross-Workspace Workflow Section -->
-      <section class="lp-features-section lp-section-alt" id="workflow">
+      <section class="lp-features-section lp-section-alt lp-pipeline-section" id="pipeline">
         <div class="lp-features-container">
           <div class="lp-section-header">
-            <h2 class="lp-section-title">Move Seamlessly Between Formal Language Workflows</h2>
-            <p class="lp-section-subtitle">AutoMataLab's strongest differentiator is the ability to bridge theory
-              boundaries.</p>
+            <h2 class="lp-section-title">One grammar can travel across workspaces</h2>
+            <p class="lp-section-subtitle">The desktop app links representations—machines, grammars, parsers—so you can follow a course-style pipeline or jump to a single conversion. Machine Studio also supports regex and FA workflows that never touch Grammar Lab.</p>
           </div>
 
-          <!-- Representation Conversion Highlight -->
-          <div
-            style="display: flex; gap: 16px; justify-content: center; align-items: center; margin-bottom: 48px; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--lp-text-muted); flex-wrap: wrap;">
-            <span>DFA ↔ Regex</span>
-            <span>&bull;</span>
-            <span>NFA → DFA</span>
-            <span>&bull;</span>
-            <span>CFG → CNF</span>
-            <span>&bull;</span>
-            <span>CFG → Parser</span>
-            <span>&bull;</span>
-            <span>CFG → PDA</span>
-          </div>
-
-          <div class="lp-features-layout">
-            <div class="lp-feature-group">
-              <div class="lp-features-grid">
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body" style="display: flex; flex-direction: column; align-items: center;">
-
-                    <div
-                      style="display: flex; flex-direction: column; gap: 16px; width: 100%; align-items: center; margin-top: 8px;">
-                      <div
-                        style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; width: 100%; max-width: 600px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <img src="./docs/lp_grm_defn_1.png" alt="Grammar Definition" style="width: 100%; height: auto; display: block;" />
-                      </div>
-                      <div style="color: var(--lp-text-secondary); font-size: 1.5rem; opacity: 0.6;">↓</div>
-                      <div
-                        style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; width: 100%; max-width: 800px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <img src="./docs/lp_grm_anlys_2.png" alt="Grammar Analysis" style="width: 100%; height: auto; display: block;" />
-                      </div>
-                      <div style="color: var(--lp-text-secondary); font-size: 1.5rem; opacity: 0.6;">↓</div>
-                      <div
-                        style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; width: 100%; max-width: 800px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <img src="./docs/lp_ps_gm_3.png" alt="Parser Generation" style="width: 100%; height: auto; display: block;" />
-                      </div>
-                      <div style="color: var(--lp-text-secondary); font-size: 1.5rem; opacity: 0.6;">↓</div>
-                      <div
-                        style="border-radius: 8px; overflow: hidden; border: 1px solid rgba(255,255,255,0.1); display: flex; width: 100%; max-width: 800px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
-                        <img src="./docs/lp_mc_pda_4.png" alt="PDA Generation" style="width: 100%; height: auto; display: block;" />
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              </div>
+          <div class="lp-pipeline-tracks">
+            <div class="lp-pipeline-track">
+              <p class="lp-pipeline-track-label">Machine Studio</p>
+              <ul class="lp-pipeline-chips" aria-label="Finite automata conversions">
+                <li>Regex → NFA</li>
+                <li>NFA → DFA</li>
+                <li>ε-removal</li>
+                <li>Minimize DFA</li>
+                <li>FA → Regex</li>
+              </ul>
+            </div>
+            <div class="lp-pipeline-track">
+              <p class="lp-pipeline-track-label">Grammar → parser → machine</p>
+              <ul class="lp-pipeline-chips" aria-label="Grammar and parser pipeline">
+                <li>CFG → CNF / GNF</li>
+                <li>FIRST / FOLLOW</li>
+                <li>Open in Parser Studio</li>
+                <li>CFG → PDA</li>
+              </ul>
             </div>
           </div>
+
+          <p class="lp-pipeline-lead">Typical cross-workspace path for a context-free grammar—the same notation is carried forward at each hand-off.</p>
+
+          <ol class="lp-pipeline-steps">
+            <li class="lp-pipeline-step">
+              <article class="lp-pipeline-card">
+                <header class="lp-pipeline-card-head">
+                  <span class="lp-workspace-badge">Grammar Lab</span>
+                  <span class="lp-pipeline-step-index" aria-hidden="true">1</span>
+                </header>
+                <div class="lp-shot-frame lp-shot-frame--tile">
+                  <img src="./docs/lp_grm_defn_1.png" alt="Grammar definition in Grammar Lab" width="800" height="500" loading="lazy" />
+                </div>
+                <h3 class="lp-pipeline-card-title">Define the grammar</h3>
+                <p class="lp-pipeline-card-text">Enter productions or switch to regex format (Types 0–3). Tabs stay gated until the declared type supports them.</p>
+                <a href="#grammar" class="lp-pipeline-card-link">Grammar Lab overview</a>
+              </article>
+            </li>
+            <li class="lp-pipeline-step">
+              <article class="lp-pipeline-card">
+                <header class="lp-pipeline-card-head">
+                  <span class="lp-workspace-badge">Grammar Lab</span>
+                  <span class="lp-pipeline-step-index" aria-hidden="true">2</span>
+                </header>
+                <div class="lp-shot-frame lp-shot-frame--tile">
+                  <img src="./docs/lp_grm_anlys_2.png" alt="FIRST and FOLLOW analysis" width="800" height="500" loading="lazy" />
+                </div>
+                <h3 class="lp-pipeline-card-title">Analyze before parsing</h3>
+                <p class="lp-pipeline-card-text">Run FIRST/FOLLOW, nullable checks, and normal-form transforms on Type 2/3 grammars so Parser Studio starts from a clean spec.</p>
+                <a href="#gallery" class="lp-pipeline-card-link">More Grammar Lab shots</a>
+              </article>
+            </li>
+            <li class="lp-pipeline-step">
+              <article class="lp-pipeline-card">
+                <header class="lp-pipeline-card-head">
+                  <span class="lp-workspace-badge">Parser Studio</span>
+                  <span class="lp-pipeline-step-index" aria-hidden="true">3</span>
+                </header>
+                <div class="lp-shot-frame lp-shot-frame--tile">
+                  <img src="./docs/lp_ps_gm_3.png" alt="Parser tables in Parser Studio" width="800" height="500" loading="lazy" />
+                </div>
+                <h3 class="lp-pipeline-card-title">Build tables or simulate</h3>
+                <p class="lp-pipeline-card-text">Open the same grammar in Parser Studio—LL/LR families, CYK, Earley, or backtracking—with conflict reporting where it applies.</p>
+                <a href="#parser" class="lp-pipeline-card-link">Parser Studio overview</a>
+              </article>
+            </li>
+            <li class="lp-pipeline-step">
+              <article class="lp-pipeline-card">
+                <header class="lp-pipeline-card-head">
+                  <span class="lp-workspace-badge">Machine Studio</span>
+                  <span class="lp-pipeline-step-index" aria-hidden="true">4</span>
+                </header>
+                <div class="lp-shot-frame lp-shot-frame--tile">
+                  <img src="./docs/lp_mc_pda_4.png" alt="CFG to PDA conversion in Machine Studio" width="800" height="500" loading="lazy" />
+                </div>
+                <h3 class="lp-pipeline-card-title">Bridge to automata</h3>
+                <p class="lp-pipeline-card-text">Run CFG → PDA (standard construction) on the canvas, then step or batch-test strings like any other machine.</p>
+                <a href="#machine" class="lp-pipeline-card-link">Machine Studio overview</a>
+              </article>
+            </li>
+          </ol>
+
+          <div class="lp-pipeline-links">
+            <a href="#walkthrough" class="lp-doc-link">Regex → NFA walkthrough →</a>
+            <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar Lab guide →</a>
+            <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser Studio guide →</a>
+          </div>
+          <p class="lp-section-note">Desktop screenshots above; the hosted demo is Machine Studio only. For a regex-first path, see <a href="#walkthrough" class="lp-inline-link">Regex → NFA</a> instead of this grammar pipeline.</p>
         </div>
       </section>
 
       <!-- Live Web Demo Section -->
       <section class="lp-demo-section" id="demo">
-        <div class="lp-section-header" style="margin-bottom: 24px;">
+        <div class="lp-section-header lp-demo-section-header">
           <h2 class="lp-section-title">Live Web Demo</h2>
+          <p class="lp-section-subtitle">Machine Studio preview in the browser — full Grammar Lab and Parser Studio require the desktop application.</p>
         </div>
 
-        <div class="lp-demo-machine-strip"
-          style="text-align: center; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; color: var(--lp-text-muted); margin-bottom: 24px; letter-spacing: 0.05em;">
+        <div class="lp-demo-machine-strip">
           DFA &bull; NFA &bull; &epsilon;-NFA &bull; DPDA &bull; NPDA &bull; TM &bull; LBA
         </div>
 
         <div class="lp-demo-container">
           <!-- App Interactive Placeholder -->
           <div class="lp-demo-body" id="demo-body">
-            <img src="./docs/screenshot.png" alt="AutomataLab Simulator Preview" class="lp-demo-iframe"
-              style="object-fit: cover; pointer-events: auto;">
+            <img src="./docs/screenshot.png" alt="AutomataLab Simulator Preview" class="lp-demo-iframe lp-demo-iframe--cover">
 
             <div class="lp-demo-overlay" id="demo-overlay">
               <div class="lp-demo-play-btn" title="Launch Interactive Demo" id="demo-launch-btn-icon">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#272822" stroke-width="2"
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2"
                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
                   <polyline points="15 3 21 3 21 9"></polyline>
@@ -316,8 +582,7 @@
             </div>
 
             <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer"
-              class="lp-demo-exit-btn" id="demo-exit-btn"
-              style="text-decoration: none; display: flex; align-items: center; gap: 8px;">
+              class="lp-demo-exit-btn lp-demo-exit-btn--link" id="demo-exit-btn">
               Launch Full Simulator
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round">
@@ -328,152 +593,268 @@
             </a>
           </div>
         </div>
-        <div
-          style="text-align: center; margin-top: 16px; font-size: 0.85rem; color: var(--lp-text-muted); font-style: italic;">
-          Simulator opens in a new tab.
-        </div>
+        <p class="lp-demo-note">Simulator opens in a new tab.</p>
       </section>
 
-      <!-- Algorithms Supported Section -->
+      <!-- Algorithms Section -->
       <section class="lp-docs-section lp-section-alt" id="algorithms">
         <div class="lp-docs-container">
           <div class="lp-section-header">
-            <h2 class="lp-section-title">Algorithms Supported</h2>
+            <h2 class="lp-section-title">Algorithms you can run in the app</h2>
+            <p class="lp-section-subtitle">Expand any item for what it does, a minimal example, and where to read more. All entries reflect behavior in the current codebase—not a future roadmap.</p>
           </div>
 
-          <div class="lp-docs-grid" style="grid-auto-rows: 1fr;">
-            <div class="lp-doc-item">
-              <div class="lp-doc-number">01</div>
-              <div class="lp-doc-body">
-                <h3 class="lp-doc-heading">Automata Algorithms</h3>
-                <p class="lp-doc-text" style="margin-top: 16px;">
-                <ul
-                  style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                  <li>&bull; Subset Construction</li>
-                  <li>&bull; DFA Minimization</li>
-                  <li>&bull; ε Removal</li>
-                  <li>&bull; Regex → NFA</li>
-                  <li>&bull; DFA → Regex</li>
-                  <li>&bull; Reachability Analysis</li>
-                  <li>&bull; Dead State Detection</li>
-                </ul>
-                </p>
+          <div class="lp-algo-groups">
+            <div class="lp-algo-group">
+              <h3 class="lp-algo-group-title">Automata &amp; analysis</h3>
+              <div class="lp-algo-list">
+                <details class="lp-algo-details">
+                  <summary>Subset construction (NFA → DFA)</summary>
+                  <p>Builds a DFA whose states are sets of NFA states—classic powerset construction.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> An NFA with two paths on input <code class="lp-inline-code">a</code> becomes a DFA state <code class="lp-inline-code">{q0,q1}</code>.</p>
+                  <p><strong>In AutomataLab:</strong> Machine Studio Convert dialog with step-by-step trace (desktop app only—the hosted demo does not include conversions).</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>DFA minimization</summary>
+                  <p>Partition refinement (Hopcroft/Moore) to merge equivalent DFA states.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Two distinguishable states on string <code class="lp-inline-code">ab</code> stay separate; equivalent states merge.</p>
+                  <p><strong>In AutomataLab:</strong> Minimize DFA conversion on DFA input.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>ε-removal (ε-NFA → NFA)</summary>
+                  <p>Eliminates epsilon transitions while preserving the language.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> ε-closure adds reachable states before reading the next symbol.</p>
+                  <p><strong>In AutomataLab:</strong> ε-NFA → NFA conversion.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>Reachability &amp; dead states</summary>
+                  <p>Finds states unreachable from the start and states that cannot reach acceptance.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Prune unused branches before minimization or reporting.</p>
+                  <p><strong>In AutomataLab:</strong> Analyze panel in Machine Studio.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
               </div>
             </div>
 
-            <div class="lp-doc-item">
-              <div class="lp-doc-number">02</div>
-              <div class="lp-doc-body">
-                <h3 class="lp-doc-heading">Grammar Algorithms</h3>
-                <p class="lp-doc-text" style="margin-top: 16px;">
-                <ul
-                  style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                  <li>&bull; FIRST</li>
-                  <li>&bull; FOLLOW</li>
-                  <li>&bull; Nullable</li>
-                  <li>&bull; CNF</li>
-                  <li>&bull; GNF</li>
-                  <li>&bull; Left Recursion Detection</li>
-                  <li>&bull; Ambiguity Detection</li>
-                </ul>
-                </p>
+            <div class="lp-algo-group">
+              <h3 class="lp-algo-group-title">Grammar analysis</h3>
+              <div class="lp-algo-list">
+                <details class="lp-algo-details">
+                  <summary>FIRST &amp; FOLLOW</summary>
+                  <p>Computes terminal lookahead sets for CFG parsing and table construction.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> For <code class="lp-inline-code">E → T E'</code>, FOLLOW sets drive LL(1) table rows.</p>
+                  <p><strong>In AutomataLab:</strong> Grammar Lab FIRST/FOLLOW tab (Type 2/3).</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>CNF &amp; GNF transforms</summary>
+                  <p>Normal-form conversions used in CYK and some theoretical proofs.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Binary productions with terminals on the right in CNF.</p>
+                  <p><strong>In AutomataLab:</strong> Transformations tab (Type 2/3).</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>Ambiguity search</summary>
+                  <p>Searches for a string with two distinct parse trees (context-free grammars only).</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Classic dangling-else style grammars.</p>
+                  <p><strong>In AutomataLab:</strong> Ambiguity tab (Type 2 only—not regex or Type 3).</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>Bounded derivations (Types 0–1)</summary>
+                  <p>Searches for derivations with explicit depth/length limits.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> <code class="lp-inline-code">RESOURCE_LIMIT</code> means “not found in time”, not a proof of non-membership.</p>
+                  <p><strong>In AutomataLab:</strong> Derivations tab with limit messaging for unrestricted grammars.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+                </details>
               </div>
             </div>
 
-            <div class="lp-doc-item">
-              <div class="lp-doc-number">03</div>
-              <div class="lp-doc-body">
-                <h3 class="lp-doc-heading">Parser Algorithms</h3>
-                <p class="lp-doc-text" style="margin-top: 16px;">
-                <ul
-                  style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                  <li>&bull; CYK</li>
-                  <li>&bull; Earley</li>
-                  <li>&bull; CLR(1)</li>
-                  <li>&bull; LALR(1)</li>
-                  <li>&bull; Closure Generation</li>
-                  <li>&bull; GOTO Construction</li>
-                  <li>&bull; Conflict Detection</li>
-                </ul>
-                </p>
+            <div class="lp-algo-group">
+              <h3 class="lp-algo-group-title">Parsing</h3>
+              <div class="lp-algo-list">
+                <details class="lp-algo-details">
+                  <summary>LL(1)</summary>
+                  <p>Top-down predictive parsing from an LL(1) parse table.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Table-driven expansion on a small expression grammar.</p>
+                  <p><strong>In AutomataLab:</strong> Parser Studio with conflict reporting when the grammar is not LL(1).</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>LR(0), SLR(1), LALR(1), CLR(1)</summary>
+                  <p>Bottom-up LR families with item sets, GOTO, and closure; conflicts surfaced in the UI.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Shift/reduce conflict on a dangling-else grammar in SLR vs LALR.</p>
+                  <p><strong>In AutomataLab:</strong> Parse tables, optional LR automaton graph, stepped simulation.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>CYK &amp; Earley</summary>
+                  <p>General CFG parsing—CYK needs CNF; Earley handles arbitrary CFGs in the implementation.</p>
+                  <p class="lp-algo-example"><strong>Example:</strong> Membership test on short strings with visible chart or table filling.</p>
+                  <p><strong>In AutomataLab:</strong> Parser Studio algorithm picker with syntax tree output.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>Recursive-descent backtracking</summary>
+                  <p>Educational backtracking parser for exploring nondeterministic parse choices.</p>
+                  <p><strong>In AutomataLab:</strong> Parser Studio backtracking mode with timeline stepping.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+                </details>
               </div>
             </div>
 
-            <div class="lp-doc-item">
-              <div class="lp-doc-number">04</div>
-              <div class="lp-doc-body">
-                <h3 class="lp-doc-heading">Conversion Algorithms</h3>
-                <p class="lp-doc-text" style="margin-top: 16px;">
-                <ul
-                  style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                  <li>&bull; NFA → DFA</li>
-                  <li>&bull; ε-NFA → NFA</li>
-                  <li>&bull; DFA Minimization</li>
-                  <li>&bull; DFA → Regex</li>
-                  <li>&bull; Regex → NFA</li>
-                  <li>&bull; CFG → CNF</li>
-                  <li>&bull; CFG → GNF</li>
-                  <li>&bull; CFG → PDA</li>
-                </ul>
-                </p>
+            <div class="lp-algo-group">
+              <h3 class="lp-algo-group-title">Cross-representation conversions</h3>
+              <div class="lp-algo-list">
+                <details class="lp-algo-details">
+                  <summary>Regex → NFA (Thompson)</summary>
+                  <p>Constructs an ε-NFA from a regular expression.</p>
+                  <p><strong>In AutomataLab:</strong> Machine Studio regex construction.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>FA → Regex (GNFA elimination)</summary>
+                  <p>State elimination to extract a regular expression from a finite automaton.</p>
+                  <p><strong>In AutomataLab:</strong> Extract conversion; result can open in Grammar Lab.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>CFG → PDA</summary>
+                  <p>Standard single-state NPDA construction from a context-free grammar.</p>
+                  <p><strong>In AutomataLab:</strong> Machine Studio construct from CFG text.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
+                <details class="lp-algo-details">
+                  <summary>PDA → CFG</summary>
+                  <p>Triplet construction with automatic PDA normalization.</p>
+                  <p><strong>In AutomataLab:</strong> Extract on DPDA/NPDA; embedded grammar text can round-trip to Grammar Lab.</p>
+                  <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+                </details>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Educational Applications Section -->
-      <section class="lp-features-section" id="education">
+      <section class="lp-cap-section" id="chomsky">
         <div class="lp-features-container">
           <div class="lp-section-header">
-            <h2 class="lp-section-title">Educational Applications</h2>
-            <p class="lp-section-subtitle">Targeted tooling for students, educators, and CS curriculum.</p>
+            <h2 class="lp-section-title">What each grammar format unlocks</h2>
+            <p class="lp-section-subtitle">Grammar Lab and Parser Studio gate tools by Chomsky type. This table matches the application’s format checks—not every theoretical possibility.</p>
           </div>
+          <div class="lp-cap-table-wrap">
+            <table class="lp-cap-table">
+              <caption class="lp-cap-caption">Feature availability by grammar format in AutomataLab</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Format</th>
+                  <th scope="col">Parser Studio</th>
+                  <th scope="col">FIRST/FOLLOW</th>
+                  <th scope="col">CNF/GNF transforms</th>
+                  <th scope="col">Ambiguity search</th>
+                  <th scope="col">Derivations</th>
+                  <th scope="col">Typical machine targets</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Regex</th>
+                  <td>Yes <span class="lp-cap-note">(adapted to Type 3)</span></td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No <span class="lp-cap-note">(use Sampler)</span></td>
+                  <td>DFA–TM family</td>
+                </tr>
+                <tr>
+                  <th scope="row">Type 3</th>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>No</td>
+                  <td>Yes</td>
+                  <td>DFA–TM family</td>
+                </tr>
+                <tr>
+                  <th scope="row">Type 2 (CFG)</th>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>Yes</td>
+                  <td>NPDA, NLBA, TM</td>
+                </tr>
+                <tr>
+                  <th scope="row">Type 1 (CSG)</th>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>Yes <span class="lp-cap-note">(bounded)</span></td>
+                  <td>NLBA, TM</td>
+                </tr>
+                <tr>
+                  <th scope="row">Type 0</th>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>No</td>
+                  <td>Yes <span class="lp-cap-note">(bounded)</span></td>
+                  <td>TM</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="lp-section-note">Regex and Type 3 grammars can be sent to a wide range of machine targets; Type 2 adds NPDA; Types 1 and 0 use bounded recognizers on NLBA or TM in Machine Studio.</p>
+        </div>
+      </section>
 
-          <div class="lp-features-layout">
-            <div class="lp-feature-group">
-              <div class="lp-features-grid">
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <h4 class="lp-feature-heading">Theory of Computation</h4>
-                    <p class="lp-feature-text" style="margin-top: 12px;">
-                    <ul
-                      style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                      <li>&bull; DFA</li>
-                      <li>&bull; PDA</li>
-                      <li>&bull; Turing Machines</li>
-                    </ul>
-                    </p>
-                  </div>
-                </div>
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <h4 class="lp-feature-heading">Compiler Design</h4>
-                    <p class="lp-feature-text" style="margin-top: 12px;">
-                    <ul
-                      style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                      <li>&bull; FIRST/FOLLOW</li>
-                      <li>&bull; LR Parsing</li>
-                      <li>&bull; Conflict Analysis</li>
-                    </ul>
-                    </p>
-                  </div>
-                </div>
-                <div class="lp-feature-item">
-                  <div class="lp-feature-body">
-                    <h4 class="lp-feature-heading">GATE CS Preparation</h4>
-                    <p class="lp-feature-text" style="margin-top: 12px;">
-                    <ul
-                      style="list-style-type: none; padding-left: 0; color: var(--lp-text-secondary); line-height: 1.8; font-size: 0.95rem;">
-                      <li>&bull; Formal Languages</li>
-                      <li>&bull; Parsing</li>
-                      <li>&bull; Automata</li>
-                    </ul>
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
+      <section class="lp-features-section lp-section-alt" id="learn">
+        <div class="lp-features-container">
+          <div class="lp-section-header">
+            <h2 class="lp-section-title">What are you trying to understand?</h2>
+            <p class="lp-section-subtitle">Pick a goal—each path maps to a workspace and a sensible first step in the desktop app or browser demo.</p>
+          </div>
+          <div class="lp-learn-grid">
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Trace strings on a finite automaton</h3>
+              <p>See whether inputs are accepted and how state changes step by step.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Machine Studio — load the “even zeros” example in the browser demo or build your own DFA on desktop.</p>
+              <a href="#demo" class="lp-doc-link">Try browser demo →</a>
+            </article>
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Convert NFA to DFA or minimize</h3>
+              <p>Follow subset construction or partition refinement with intermediate steps.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Machine Studio → Convert (desktop app only).</p>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Machine guide →</a>
+            </article>
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Compute FIRST/FOLLOW or CNF</h3>
+              <p>Prepare a grammar for LL/LR tables or CYK.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Grammar Lab on a Type 2/3 grammar, then open Parser Studio.</p>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Grammar guide →</a>
+            </article>
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Debug LR conflicts or build parse trees</h3>
+              <p>Compare SLR, LALR, and CLR tables on the same grammar.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Parser Studio (desktop).</p>
+              <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Parser guide →</a>
+            </article>
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Explore pushdown machines or Turing tapes</h3>
+              <p>Watch stack and tape heads during simulation; inspect computation trees for nondeterminism.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Machine Studio — NPDA “balanced parentheses” or TM examples (demo includes selected types).</p>
+              <a href="#demo" class="lp-doc-link">Launch demo →</a>
+            </article>
+            <article class="lp-learn-card">
+              <h3 class="lp-learn-title">Teach or present in a classroom</h3>
+              <p>Step execution live; use in-app F1 User Manual and F2 Theory Handbook on desktop.</p>
+              <p class="lp-learn-where"><strong>Start in:</strong> Desktop build for full workspaces; cite the project in academic materials.</p>
+              <a href="#citation" class="lp-doc-link">Citation block →</a>
+            </article>
           </div>
         </div>
       </section>
@@ -483,27 +864,34 @@
         <div class="lp-docs-container">
           <div class="lp-section-header">
             <h2 class="lp-section-title">Documentation</h2>
-            <p class="lp-section-subtitle">Deep dive into the architecture and API of AutomataLab.</p>
+            <p class="lp-section-subtitle">Install the desktop app, try the browser demo, or read the wiki for workspace-specific depth.</p>
           </div>
 
-          <div style="margin-bottom: 24px;">
-            <h3
-              style="font-size: 1.3rem; color: var(--lp-text); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
-              User Documentation</h3>
+          <div class="lp-quickstart">
+            <h3 class="lp-docs-subheading">Quickstart (desktop)</h3>
+            <ol class="lp-quickstart-list">
+              <li><strong>Install</strong> — Download the Windows, Linux, or macOS build from <a href="#downloads">Get AutomataLab</a> (or build from source per the <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Contributing-Guide" target="_blank" rel="noreferrer">Contributing Guide</a>).</li>
+              <li><strong>Workspace hub</strong> — Launch the app and pick a workspace from the hub (or <strong>Open File</strong>). Return via <strong>File → Go to Workspace Hub</strong>.</li>
+              <li><strong>Load an example</strong> — Open a bundled example or import <code class="lp-inline-code">.autolab.json</code> / JFLAP <code class="lp-inline-code">.jff</code> in Machine Studio.</li>
+              <li><strong>Simulate</strong> — Step or play execution; use batch tests where available.</li>
+              <li><strong>Go deeper</strong> — Press <kbd class="lp-kbd">F1</kbd> for the User Manual and <kbd class="lp-kbd">F2</kbd> for the Theory Handbook inside the app.</li>
+            </ol>
+            <p class="lp-quickstart-alt">Prefer the browser? <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer">Launch the Machine Studio demo</a> — Grammar Lab and Parser Studio require the desktop app.</p>
           </div>
-          <div class="lp-docs-grid" style="margin-bottom: 48px;">
+
+          <h3 class="lp-docs-subheading">User Documentation</h3>
+          <div class="lp-docs-grid lp-docs-grid--spaced">
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Getting Started</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Installation, setup,
-                  and your first automaton.</p>
+                <p class="lp-doc-blurb">Installation, setup, and your first automaton.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Getting-Started" target="_blank" rel="noreferrer" class="lp-doc-link">Read Guide →</a>
               </div>
             </div>
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Machine Workspace Guide</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Visual simulation,
+                <p class="lp-doc-blurb">Visual simulation,
                   execution, and machine debugging workflows.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Machine-Workspace-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Read Guide →</a>
               </div>
@@ -511,7 +899,7 @@
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Grammar Lab Guide</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">FIRST/FOLLOW
+                <p class="lp-doc-blurb">FIRST/FOLLOW
                   analysis, conversions, ambiguity detection, and diagnostics.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Grammar-Lab-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Read Guide →</a>
               </div>
@@ -519,23 +907,19 @@
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Parser Studio Guide</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Generate parsers,
+                <p class="lp-doc-blurb">Generate parsers,
                   parse tables, and inspect conflicts visually.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Parser-Studio-Guide" target="_blank" rel="noreferrer" class="lp-doc-link">Read Guide →</a>
               </div>
             </div>
           </div>
 
-          <div style="margin-bottom: 24px;">
-            <h3
-              style="font-size: 1.3rem; color: var(--lp-text); border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
-              Developer Documentation</h3>
-          </div>
+          <h3 class="lp-docs-subheading">Developer Documentation</h3>
           <div class="lp-docs-grid" style="grid-auto-rows: 1fr;">
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Architecture Reference</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Internal
+                <p class="lp-doc-blurb">Internal
                   architecture, state management, and application design.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Architecture" target="_blank" rel="noreferrer"
                   class="lp-doc-link">Read Architecture Docs →</a>
@@ -544,7 +928,7 @@
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">File Format Specification</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Project structure,
+                <p class="lp-doc-blurb">Project structure,
                   serialization format, and compatibility guarantees.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/File-Format" target="_blank" rel="noreferrer"
                   class="lp-doc-link">Read Format Spec →</a>
@@ -553,7 +937,7 @@
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">Contribution Guide</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Development
+                <p class="lp-doc-blurb">Development
                   workflow, standards, and contribution process.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Contributing-Guide" target="_blank"
                   class="lp-doc-link">Read Contributing Guide →</a>
@@ -562,7 +946,7 @@
             <div class="lp-doc-item">
               <div class="lp-doc-body">
                 <h3 class="lp-doc-heading">GitHub Wiki</h3>
-                <p style="font-size: 0.85rem; color: var(--lp-text-secondary); margin: 8px 0 16px;">Community-maintained
+                <p class="lp-doc-blurb">Community-maintained
                   documentation, tutorials, examples, troubleshooting guides, and project knowledge base.</p>
                 <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer"
                   class="lp-doc-link">Read Wiki →</a>
@@ -575,10 +959,9 @@
       <!-- Academic Citation Section -->
       <section class="lp-citation-section" id="citation">
         <div class="lp-citation-container">
-          <div class="lp-section-header" style="text-align: center; margin-bottom: 40px;">
-            <h2 class="lp-section-title" style="font-size: 2.2rem; margin-bottom: 16px;">Academic Use</h2>
-            <p class="lp-section-subtitle" style="margin: 0 auto; max-width: 600px;">If you use AutomataLab in your
-              research, teaching, or publications, please cite it as follows:</p>
+          <div class="lp-section-header lp-citation-header">
+            <h2 class="lp-section-title">Academic Use</h2>
+            <p class="lp-section-subtitle">If you use AutomataLab in your research, teaching, or publications, please cite it as follows:</p>
           </div>
 
           <div class="lp-citation-content">
@@ -610,7 +993,7 @@
                 <h3 class="lp-download-number">Windows</h3>
                 <p class="lp-download-desc">x64 setup</p>
                 <div class="lp-download-version" id="dl-win-ver"
-                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.0.0
+                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.1.0
                 </div>
                 <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-win-btn"
                   class="lp-download-btn">
@@ -631,7 +1014,7 @@
                       <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
                         <div
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); text-align: left;">
-                          automatalab_5.0.0_x64.exe</div>
+                          automatalab_5.1.0_x64.exe</div>
                         <div id="dl-win-sha"
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-muted); word-break: break-all; text-align: left;">
                           SHA256: 8f4e92a8e8f81f1b0a2c91a3b1a8f9c1b3d7a9b1c2e4f6a8b0c2d4e6f8a0b2c4
@@ -656,7 +1039,7 @@
                 <h3 class="lp-download-number">Linux</h3>
                 <p class="lp-download-desc">Debian x64 .deb</p>
                 <div class="lp-download-version" id="dl-deb-ver"
-                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.0.0
+                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.1.0
                 </div>
                 <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-deb-btn"
                   class="lp-download-btn">
@@ -677,7 +1060,7 @@
                       <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
                         <div
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); text-align: left;">
-                          automatalab_5.0.0_amd64.deb</div>
+                          automatalab_5.1.0_amd64.deb</div>
                         <div id="dl-deb-sha"
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-muted); word-break: break-all; text-align: left;">
                           SHA256: 3a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b
@@ -702,7 +1085,7 @@
                 <h3 class="lp-download-number">macOS</h3>
                 <p class="lp-download-desc">Apple Silicon & Intel</p>
                 <div class="lp-download-version" id="dl-mac-ver"
-                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.0.0
+                  style="font-size: 0.95rem; font-weight: 500; color: var(--lp-text-muted); margin-bottom: 12px;">v5.1.0
                 </div>
                 <a href="https://github.com/reeshavsinha/AutomataLab/releases/latest" id="dl-mac-btn"
                   class="lp-download-btn">
@@ -723,7 +1106,7 @@
                       <div style="display: flex; flex-direction: column; gap: 4px; width: 100%;">
                         <div
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-secondary); text-align: left;">
-                          automatalab_5.0.0_universal.dmg</div>
+                          automatalab_5.1.0_universal.dmg</div>
                         <div id="dl-mac-sha"
                           style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--lp-text-muted); word-break: break-all; text-align: left;">
                           SHA256: 5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f
@@ -745,37 +1128,45 @@
           </div>
         </div>
       </section>
+
+      <section class="lp-cta-band" id="start">
+        <div class="lp-cta-band-inner">
+          <h2 class="lp-cta-band-title">Ready to explore formal languages hands-on?</h2>
+          <p class="lp-cta-band-text">Download the full offline lab, or start with the hosted Machine Studio demo. Documentation and source code are always one click away.</p>
+          <div class="lp-hero-cta-group lp-cta-band-actions">
+            <a href="#downloads" class="lp-cta-button lp-cta-primary">Download AutomataLab</a>
+            <a href="https://automata-lab-sim.vercel.app/simulator?demo=true" target="_blank" rel="noopener noreferrer" class="lp-cta-button lp-cta-secondary">Try browser demo</a>
+            <a href="https://github.com/reeshavsinha/AutomataLab/wiki/Getting-Started" target="_blank" rel="noreferrer" class="lp-cta-button lp-cta-secondary">Getting Started wiki</a>
+          </div>
+        </div>
+      </section>
     </main>
 
     <!-- Footer -->
-    <footer class="lp-footer"
-      style="padding: 60px 40px; border-top: 1px solid var(--lp-border); background: var(--lp-bg);">
+    <footer class="lp-footer">
       <div class="lp-footer-container">
         <div class="lp-footer-col">
-          <div class="lp-footer-logo"
-            style="display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.4rem; margin-bottom: 8px; color: var(--lp-text); letter-spacing: -0.02em;">
-            <img src="./logo-transparent.svg" alt="AutomataLab Logo" style="height: 1.7rem; width: 1.7rem; object-fit: contain; transform: translateY(-2px);">
-            AutomataLab
+          <div class="lp-footer-logo-row">
+            <img src="./logo-transparent.svg" alt="" width="27" height="27">
+            <span>AutomataLab</span>
           </div>
-          <p class="lp-footer-tagline"
-            style="color: var(--lp-text-secondary); font-size: 0.95rem; margin-bottom: 24px; font-weight: 500;">
+          <p class="lp-footer-tagline">
             Integrated Environment for Automata, Grammars and Parser Construction
           </p>
-          <div
-            style="display: flex; flex-direction: column; gap: 4px; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--lp-text-muted);">
+          <div class="lp-footer-meta">
             <span>Maintainer: Reeshav Sinha</span>
             <span>Contact: reeshavsinhawork@gmail.com</span>
             <span>License: MIT</span>
-            <span>Version: v5.0.0</span>
+            <span id="footer-version">Version: v5.1.0</span>
             <span>© 2026 Reeshav Sinha</span>
           </div>
         </div>
 
         <div class="lp-footer-col">
           <h4 class="lp-footer-col-title">Quick Links</h4>
-          <a href="#workspaces" class="lp-footer-link">Machine Workspace</a>
-          <a href="#workspaces" class="lp-footer-link">Grammar Lab</a>
-          <a href="#workspaces" class="lp-footer-link">Parser Studio</a>
+          <a href="#machine" class="lp-footer-link">Machine Studio</a>
+          <a href="#grammar" class="lp-footer-link">Grammar Lab</a>
+          <a href="#parser" class="lp-footer-link">Parser Studio</a>
           <a href="#docs" class="lp-footer-link">Documentation</a>
           <a href="https://github.com/reeshavsinha/AutomataLab/wiki" target="_blank" rel="noreferrer"
             class="lp-footer-link">GitHub Wiki</a>
@@ -797,8 +1188,7 @@
 
         <div class="lp-footer-col">
           <h4 class="lp-footer-col-title">Tech Stack</h4>
-          <div
-            style="display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; color: var(--lp-text-secondary);">
+          <div class="lp-footer-stack">
             <span>React</span>
             <span>TypeScript</span>
             <span>Tauri</span>

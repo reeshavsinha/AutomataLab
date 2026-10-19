@@ -23,6 +23,7 @@ import type { MachineDefinition, MachineType } from '@/engines/machine/core/type
 import type { ConversionResult } from '@/engines/machine/conversions'
 import { generateId } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
+import { navigateAppHash } from '@/utils/demoMode'
 import Dialog from '@/components/common/Dialog'
 
 export default function ConversionsModal({ onClose }: { onClose: () => void }) {
@@ -103,7 +104,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     setText('')
     setView('result')
     setLabelMode('short')
-    if (plugin.mode === 'transform') runTransformNow(plugin)
+    if (plugin.mode === 'transform' || plugin.mode === 'extract') runTransformNow(plugin)
   }
 
   const build = () => {
@@ -140,6 +141,29 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     loadMachine({ ...laidOut, id: generateId('machine') }, false)
     requestFitView()
     toast.success('Replaced the current machine with the converted result.')
+    onClose()
+  }
+
+  const openExtractInGrammarLab = () => {
+    if (!result || typeof result.result !== 'string' || !selected) return
+    const grammarText = result.result as string
+    const isRegex = selected.kind === 'dfa-to-regex'
+    openMachine(
+      {
+        id: generateId('tab'),
+        name: isRegex ? 'Extracted regex' : 'Extracted CFG',
+        type: 'CFG',
+        language: '',
+        states: [],
+        transitions: [],
+        alphabet: [],
+        grammarText,
+        grammarFormat: isRegex ? 'REGEX' : 'TYPE_2',
+      },
+      null,
+    )
+    navigateAppHash('#/grammar')
+    toast.success('Opened extract in Grammar Lab.')
     onClose()
   }
 
@@ -249,7 +273,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Transform error */}
-          {selected && selected.mode === 'transform' && !result && error && (
+          {selected && (selected.mode === 'transform' || selected.mode === 'extract') && !result && error && (
             <ErrorBox message={error} />
           )}
 
@@ -390,7 +414,10 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
             <button onClick={back} style={secondaryBtn}>Choose another</button>
             <div style={{ flex: 1 }} />
             {typeof result.result === 'string' ? (
-              <button onClick={() => { navigator.clipboard.writeText(result.result as string); toast.success('Copied to clipboard!') }} style={primaryBtn}>Copy to Clipboard</button>
+              <>
+                <button onClick={() => { navigator.clipboard.writeText(result.result as string); toast.success('Copied to clipboard!') }} style={secondaryBtn}>Copy to clipboard</button>
+                <button onClick={openExtractInGrammarLab} style={primaryBtn}>Open in Grammar Lab →</button>
+              </>
             ) : (
               <>
                 <button onClick={replaceCurrent} style={secondaryBtn} title="Apply the result to the current machine, replacing it">Replace current</button>
@@ -446,6 +473,20 @@ function Picker({
         ) : (
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
             No route from {machineType} to {target === 'ALL' ? 'a different machine' : target}.
+          </div>
+        )}
+      </div>
+      <div>
+        <GroupTitle>Extract to text</GroupTitle>
+        {matching(extracts).length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {matching(extracts).map((m) => (
+              <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            No extraction from {machineType} to {target === 'ALL' ? 'text' : target}.
           </div>
         )}
       </div>

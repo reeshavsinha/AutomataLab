@@ -1,4 +1,5 @@
 import { isNonterminal } from './parser'
+import { EPSILON } from './types'
 import type {
   DerivationSearchLimits,
   DerivationSearchResult,
@@ -28,6 +29,24 @@ function key(form: GrammarSymbol[]): string {
 
 function matchesAt(form: GrammarSymbol[], pattern: GrammarSymbol[], position: number): boolean {
   return pattern.every((symbol, offset) => form[position + offset] === symbol)
+}
+
+function terminalSymbolCount(form: GrammarSymbol[]): number {
+  return form.filter((symbol) => !isNonterminal(symbol) && symbol !== EPSILON).length
+}
+
+/** CFG / regular-linear grammars never rewrite terminals, so excess terminals cannot be undone. */
+function hasExcessTerminals(grammar: GeneralGrammar, form: GrammarSymbol[], target: GrammarSymbol[]): boolean {
+  if (target.length === 0) return false
+  if (grammar.format === 'TYPE_0') return false
+  const limit = terminalSymbolCount(target)
+  const onlyNonterminalLhs = grammar.productions.every((production) =>
+    production.lhs.every((symbol) => isNonterminal(symbol)),
+  )
+  if (grammar.format === 'TYPE_2' || grammar.format === 'TYPE_3' || (grammar.format === 'TYPE_1' && onlyNonterminalLhs)) {
+    return terminalSymbolCount(form) > limit
+  }
+  return false
 }
 
 function buildSteps(node: SearchNode): DerivationStep[] {
@@ -71,6 +90,9 @@ export function findDerivation(
 
     const current = queue.shift()!
     exploredNodes++
+    if (hasExcessTerminals(grammar, current.form, target)) {
+      continue
+    }
     const complete = current.form.every((symbol) => !isNonterminal(symbol))
     if (complete && key(current.form) === key(target)) {
       return { status: 'FOUND', steps: buildSteps(current), exploredNodes }

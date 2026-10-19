@@ -15,6 +15,7 @@
 // ============================================================
 
 import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 const FOCUSABLE =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -30,9 +31,22 @@ interface DialogProps {
   cardStyle?: CSSProperties
   /** Backdrop stacking order (Help sits above the others at 3500). */
   zIndex?: number
+  /** When false, clicking the dimmed backdrop does not call onClose. */
+  closeOnBackdrop?: boolean
+  /** When false, Escape does not call onClose. */
+  closeOnEscape?: boolean
 }
 
-export default function Dialog({ onClose, children, label, labelledBy, cardStyle, zIndex = 2000 }: DialogProps) {
+export default function Dialog({
+  onClose,
+  children,
+  label,
+  labelledBy,
+  cardStyle,
+  zIndex = 2000,
+  closeOnBackdrop = true,
+  closeOnEscape = true,
+}: DialogProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
@@ -45,7 +59,7 @@ export default function Dialog({ onClose, children, label, labelledBy, cardStyle
     ;(firstFocusable ?? card)?.focus()
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' && closeOnEscape) {
         e.preventDefault()
         e.stopPropagation()
         onCloseRef.current()
@@ -79,19 +93,25 @@ export default function Dialog({ onClose, children, label, labelledBy, cardStyle
       window.removeEventListener('keydown', onKeyDown, true)
       previouslyFocused?.focus?.()
     }
-  }, [])
+  }, [closeOnEscape])
 
-  return (
+  const shell = (
     <div
-      onClick={() => onCloseRef.current()}
+      onClick={() => {
+        if (closeOnBackdrop) onCloseRef.current()
+      }}
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.6)',
+        background: 'rgba(0, 0, 0, 0.55)',
+        backdropFilter: 'blur(4px)',
+        WebkitBackdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex,
+        padding: '16px',
+        boxSizing: 'border-box',
       }}
     >
       <div
@@ -109,4 +129,6 @@ export default function Dialog({ onClose, children, label, labelledBy, cardStyle
       </div>
     </div>
   )
+
+  return typeof document !== 'undefined' ? createPortal(shell, document.body) : shell
 }

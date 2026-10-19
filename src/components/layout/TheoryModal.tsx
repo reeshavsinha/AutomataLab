@@ -11,6 +11,8 @@
 
 import React, { useState, useMemo, CSSProperties, ReactNode } from 'react'
 import Dialog from '@/components/common/Dialog'
+import { labTheorySections } from '@/content/labTheorySections'
+import { renderTheoryMath, TheoryMathBox } from '@/content/theoryMath'
 import {
   BookOpen,
   Search,
@@ -67,6 +69,9 @@ const inlineCodeStyle: CSSProperties = {
 }
 
 function C({ children }: { children: ReactNode }) {
+  if (typeof children === 'string') {
+    return <code style={inlineCodeStyle}>{renderTheoryMath(children)}</code>
+  }
   return <code style={inlineCodeStyle}>{children}</code>
 }
 
@@ -275,27 +280,7 @@ function Table({ headers, rows }: { headers: string[]; rows: (string | ReactNode
 }
 
 function MathBox({ formula, label }: { formula: string; label?: string }) {
-  return (
-    <div
-      style={{
-        background: 'var(--bg-secondary)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: '6px',
-        padding: '10px 16px',
-        margin: '10px 0 14px',
-        fontFamily: 'var(--font-mono, monospace)',
-        fontSize: '13px',
-        color: 'var(--text-primary)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        overflowX: 'auto',
-      }}
-    >
-      <span>{formula}</span>
-      {label && <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '12px', flexShrink: 0 }}>({label})</span>}
-    </div>
-  )
+  return <TheoryMathBox formula={formula} label={label} />
 }
 
 // ------------------------------------------------------------
@@ -316,11 +301,12 @@ interface TheoryModalProps {
 }
 
 export default function TheoryModal({ onClose }: TheoryModalProps) {
-  const [selectedId, setSelectedId] = useState('chomsky-hierarchy')
+  const [selectedId, setSelectedId] = useState('automata-lab-primer')
   const [searchQuery, setSearchQuery] = useState('')
 
   const sections: SectionItem[] = useMemo(
     () => [
+      ...(labTheorySections as SectionItem[]),
       // =========================================================================
       // PART I: TOC - FOUNDATIONS & REGULAR LANGUAGES
       // =========================================================================
@@ -349,18 +335,25 @@ export default function TheoryModal({ onClose }: TheoryModalProps) {
         content: (
           <>
             <H2>The Chomsky Hierarchy &amp; Formal Language Foundations</H2>
+            <Callout type="tip" title="In plain terms">
+              A <Strong>grammar</Strong> is a set of rewrite rules. You start from the <Strong>start symbol</Strong> and
+              repeatedly replace symbols until only input characters (terminals) remain. The <Strong>Chomsky hierarchy</Strong>{' '}
+              groups grammars by how powerful those rules are — from simple “read left-to-right” patterns (Type 3) up to
+              anything a computer can enumerate (Type 0). In Automata Lab, pick the matching format in Grammar Lab; the{' '}
+              <Strong>Properties</Strong> tab restates these ideas for your current file.
+            </Callout>
             <P>
-              Introduced by linguist Noam Chomsky, the <Strong>Chomsky Hierarchy</Strong> classifies formal grammars
-              and languages based on their generative power and computational complexity. Each language class is generated
-              by a specific grammar form and recognized by an abstract automata class.
+              Formally, each class is defined by restrictions on productions and corresponds to a standard family of
+              recognizing machines. Stronger grammars generate more languages, but many decision questions become harder
+              or impossible.
             </P>
 
-            <H3>Language Type Containment Hierarchy</H3>
+            <H3>Language type containment (nested families)</H3>
             <P>
-              The formal language families form a strict containment hierarchy, where each level is a proper subset of
-              the class above it:
+              Each row below sits inside the next: every regular language is context-free, and so on. Deterministic
+              context-free languages (DCFL) sit between regular and general CFL for many practical parsers.
             </P>
-            <MathBox formula="L(Regular) ⊂ L(Deterministic CFL) ⊂ L(Context-Free) ⊂ L(Context-Sensitive) ⊂ L(Decidable) ⊂ L(Turing-Recognizable)" />
+            <MathBox formula="Regular ⊂ DCFL ⊂ CFL ⊂ CSL ⊂ Decidable ⊂ Recursively enumerable" />
 
             <Table
               headers={['Type', 'Grammar Class', 'Production Rule Constraints', 'Recognizing Automaton', 'Primary Applications']}
@@ -398,24 +391,24 @@ export default function TheoryModal({ onClose }: TheoryModalProps) {
 
             <H3>Core Formal Language Primitives</H3>
             <P>
-              1. <Strong>Alphabet (Σ)</Strong>: A finite, nonempty set of discrete symbols (e.g., <C>Σ = &#123;0, 1&#125;</C>).
+              1. <Strong>Alphabet (Σ)</Strong>: A finite, nonempty set of discrete symbols (e.g., <C>{"Σ = {0, 1}"}</C>).
               <br />
               2. <Strong>String (Word, w)</Strong>: A finite sequence of symbols chosen from Σ. <C>|w|</C> denotes length; <C>ε</C> (or <C>λ</C>) is the unique string of length 0.
               <br />
-              3. <Strong>Language (L)</Strong>: Any subset <C>L ⊆ Σ*</C>. Note that <C>∅</C> (empty set, size 0) is distinct from <C>&#123;ε&#125;</C> (set containing 1 string of length 0).
+              3. <Strong>Language (L)</Strong>: Any subset <C>L ⊆ Σ*</C>. Note that <C>∅</C> (empty set, size 0) is distinct from <C>{"{ε}"}</C> (set containing 1 string of length 0).
             </P>
 
             <H3>Fundamental Operations on Languages</H3>
             <P>
-              • <Strong>Union</Strong>: <C>L ∪ M = &#123; s | s ∈ L or s ∈ M &#125;</C>
+              • <Strong>Union</Strong>: <C>{"L ∪ M = { s | s ∈ L or s ∈ M }"}</C>
               <br />
-              • <Strong>Concatenation</Strong>: <C>LM = &#123; st | s ∈ L and t ∈ M &#125;</C>
+              • <Strong>Concatenation</Strong>: <C>{"LM = { st | s ∈ L and t ∈ M }"}</C>
               <br />
-              • <Strong>Kleene Closure (L*)</Strong>: <C>L* = ⋃ (i=0 to ∞) L^i</C>, where <C>L^0 = &#123;ε&#125;</C>
+              • <Strong>Kleene Closure (L*)</Strong>: <C>L* = ⋃ (i=0 to ∞) L^i</C>, where <C>{"L^0 = {ε}"}</C>
               <br />
-              • <Strong>Positive Closure (L+)</Strong>: <C>L+ = ⋃ (i=1 to ∞) L^i = L* \ &#123;ε&#125;</C> (unless <C>ε ∈ L</C>)
+              • <Strong>Positive Closure (L+)</Strong>: <C>{"L+ = ⋃ (i=1 to ∞) L^i = L* \\ {ε}"}</C> (unless <C>ε ∈ L</C>)
               <br />
-              • <Strong>Reversal (L^R)</Strong>: <C>L^R = &#123; w^R | w ∈ L &#125;</C>
+              • <Strong>Reversal (L^R)</Strong>: <C>{"L^R = { w^R | w ∈ L }"}</C>
             </P>
           </>
         ),
@@ -440,10 +433,14 @@ export default function TheoryModal({ onClose }: TheoryModalProps) {
         content: (
           <>
             <H2>Regular Expressions &amp; Algebraic Foundations</H2>
+            <Callout type="tip" title="In plain terms">
+              A regular expression is a <Strong>recipe for building strings</Strong>: literals, concatenation (write
+              symbols next to each other), alternation (<C>|</C>), and repetition (<C>*</C>, <C>+</C>, <C>?</C>). In
+              Automata Lab, Regex format and Type 3 grammars describe the same class of languages as DFAs.
+            </Callout>
             <P>
-              A <Strong>Regular Expression (RE)</Strong> is a declarative algebraic notation specifying strings in a
-              regular language. By Kleene's Theorem, regular expressions, DFAs, NFAs, and ε-NFAs possess identical
-              expressive power.
+              By Kleene&apos;s theorem, regular expressions, DFAs, NFAs, and ε-NFAs describe exactly the same languages
+              (the <Strong>regular languages</Strong>).
             </P>
 
             <H3>Algebraic Laws of Regular Expressions</H3>
@@ -502,9 +499,15 @@ export default function TheoryModal({ onClose }: TheoryModalProps) {
         content: (
           <>
             <H2>Finite Automata Models &amp; Conversions</H2>
+            <Callout type="tip" title="In plain terms">
+              Picture a flowchart: each state is a bubble, each arrow reads one symbol and moves to the next state. You
+              start at the start state and read the input left to right. If you finish in an accept state, the string is
+              accepted. In <Strong>Machine Studio</Strong>, draw DFA/NFA/ε-NFA machines and use <Strong>Convert</Strong> for
+              ε-removal, subset construction, and minimization.
+            </Callout>
             <P>
-              A <Strong>Finite Automaton (FA)</Strong> is an abstract computing machine that transitions between a finite set
-              of states based on input symbols, maintaining finite historical memory.
+              A <Strong>finite automaton</Strong> has finitely many states and no external memory beyond the current
+              state — enough for regular languages only.
             </P>
 
             <H3>1. Deterministic Finite Automata (DFA)</H3>
@@ -516,7 +519,7 @@ export default function TheoryModal({ onClose }: TheoryModalProps) {
               <br />
               • <C>q_0 ∈ Q</C>: Start state; <C>F ⊆ Q</C>: Set of final accepting states.
               <br />
-              • <Strong>Language</Strong>: <C>L(M) = &#123; w ∈ Σ* | δ̂(q_0, w) ∈ F &#125;</C>.
+              • <Strong>Language</Strong>: <C>{"L(M) = { w ∈ Σ* | δ̂(q_0, w) ∈ F }"}</C>.
             </P>
 
             <H3>2. Thompson's Construction (RE → ε-NFA)</H3>
@@ -550,9 +553,9 @@ Inductive Steps:
               <br />
               • <C>Q_D = P(Q_N)</C> (subsets of <C>Q_N</C>)
               <br />
-              • <C>q_D = ECLOSE(&#123;q_0&#125;)</C>
+              • <C>{"q_D = ECLOSE({q_0})"}</C>
               <br />
-              • <C>F_D = &#123; S ⊆ Q_N | S ∩ F_N ≠ ∅ &#125;</C>
+              • <C>{"F_D = { S ⊆ Q_N | S ∩ F_N ≠ ∅ }"}</C>
               <br />
               • <C>δ_D(S, a) = ECLOSE(⋃ (p ∈ S) δ_N(p, a))</C>
             </P>
@@ -564,9 +567,9 @@ Inductive Steps:
             <P>
               Two states <C>p, q</C> are equivalent (<C>p ≈ q</C>) iff for all <C>w ∈ Σ*</C>, <C>δ̂(p, w) ∈ F ⇔ δ̂(q, w) ∈ F</C>.
               <br />
-              1. Mark all pairs <C>&#123;p, q&#125;</C> with <C>p ∈ F, q ∉ F</C> as distinguishable.
+              1. Mark all pairs <C>{"{p, q}"}</C> with <C>p ∈ F, q ∉ F</C> as distinguishable.
               <br />
-              2. For each unmarked pair and symbol <C>a ∈ Σ</C>, if <C>&#123;δ(p, a), δ(q, a)&#125;</C> is marked, mark <C>&#123;p, q&#125;</C>.
+              2. For each unmarked pair and symbol <C>a ∈ Σ</C>, if <C>{"{δ(p, a), δ(q, a)}"}</C> is marked, mark <C>{"{p, q}"}</C>.
               <br />
               3. Repeat until fixpoint; merge remaining unmarked pairs into equivalence classes.
             </P>
@@ -597,27 +600,27 @@ Inductive Steps:
               of regular languages, linking equivalence relations over strings directly to the state space of minimal DFAs.
             </P>
 
-            <H3>The Indistinguishability Relation (≡_L)</H3>
-            <MathBox formula="x ≡_L y ⇔ ∀ z ∈ Σ* : (xz ∈ L ⇔ yz ∈ L)" />
-            <Callout type="theorem" title="Properties of ≡_L">
-              1. <Strong>Equivalence Relation</Strong>: Reflexive, symmetric, and transitive partition over <C>Σ*</C>.
+            <H3>The indistinguishability relation (≡<sub>L</sub>)</H3>
+            <MathBox formula="x ≡_L y ⇔ ∀ z ∈ Σ*: (xz ∈ L ⇔ yz ∈ L)" />
+            <Callout type="theorem" title="Properties of ≡ₗ">
+              1. <Strong>Equivalence relation</Strong>: reflexive, symmetric, and transitive — partitions <C>Σ*</C> into classes.
               <br />
-              2. <Strong>Right Invariance</Strong>: If <C>x ≡_L y</C>, then <C>∀ a ∈ Σ : xa ≡_L ya</C>.
+              2. <Strong>Right invariance</Strong>: if <C>x ≡_L y</C>, then for every <C>a ∈ Σ</C>, <C>xa ≡_L ya</C>.
               <br />
-              3. <Strong>Theorem Statement</Strong>: <C>L</C> is regular <Strong>iff</Strong> the index (number of equivalence classes) of <C>≡_L</C> is finite. The minimum DFA state count equals the index of <C>≡_L</C>.
+              3. <Strong>Theorem</Strong>: <C>L</C> is regular if and only if <C>≡_L</C> has finitely many equivalence classes. A minimal DFA has one state per class.
             </Callout>
 
-            <H3>Worked Proof: Non-Regularity of L = &#123;a^n b^n | n ≥ 0&#125;</H3>
-            <Callout type="proof" title="Myhill-Nerode Non-Regularity Proof">
-              1. Consider the infinite string family <C>S = &#123;a^i | i ≥ 0&#125; = &#123;ε, a, aa, aaa, ...&#125;</C>.
+            <H3>Worked proof: L = {'{aⁿbⁿ | n ≥ 0}'} is not regular</H3>
+            <Callout type="proof" title="Myhill–Nerode non-regularity proof">
+              1. Let <C>{'S = {a^i | i ≥ 0} = {ε, a, aa, aaa, …}'}</C>.
               <br />
-              2. Let <C>a^i, a^j ∈ S</C> with <C>i ≠ j</C>. Choose distinguishing extension <C>z = b^i</C>.
+              2. Take <C>a^i, a^j ∈ S</C> with <C>i ≠ j</C>. Use the extension <C>z = b^i</C>.
               <br />
-              3. Concatenating gives: <C>a^i b^i ∈ L</C>, but <C>a^j b^i ∉ L</C> (since <C>i ≠ j</C>).
+              3. Then <C>a^i b^i ∈ L</C>, but <C>a^j b^i ∉ L</C> because <C>i ≠ j</C>.
               <br />
-              4. Thus <C>a^i ≢_L a^j</C> for all <C>i ≠ j</C>. Every element of <C>S</C> belongs to a distinct equivalence class.
+              4. So <C>a^i ≢_L a^j</C> for all <C>i ≠ j</C> — infinitely many pairwise distinct classes.
               <br />
-              5. The index of <C>≡_L</C> is infinite; by Myhill-Nerode, <C>L</C> is <Strong>not regular</Strong>.
+              5. The index of <C>≡_L</C> is infinite; by Myhill–Nerode, <C>L</C> is <Strong>not regular</Strong>.
             </Callout>
           </>
         ),
@@ -752,24 +755,24 @@ Inductive Steps:
               &nbsp;&nbsp;• Set Difference (<C>L_1 \ L_2</C>): <C>F_prod = F_1 × (Q_2 \ F_2)</C>
             </P>
             <P>
-              • <Strong>Homomorphism ($h: \Sigma \to \Delta^*$)</Strong>: Replace every transition label <C>a</C> with string <C>h(a)</C>.
+              • <Strong>Homomorphism (<C>h: Σ → Δ*</C>)</Strong>: replace each transition label <C>a</C> with string <C>h(a)</C>.
               <br />
-              • <Strong>Inverse Homomorphism ($h^{-1}(L)$)</Strong>: Construct DFA <C>M'</C> with <C>δ'(q, a) = δ̂(q, h(a))</C>.
+              • <Strong>Inverse homomorphism (<C>h⁻¹(L)</C>)</Strong>: build DFA <C>M'</C> with <C>δ'(q, a) = δ̂(q, h(a))</C>.
             </P>
 
             <H3>2. CFL Non-Closure Proofs &amp; Counterexamples</H3>
             <Callout type="proof" title="Why CFL is NOT Closed Under Intersection">
               Consider two valid Context-Free Languages:
               <br />
-              <C>L_1 = &#123;a^n b^n c^m | n, m ≥ 1&#125;</C> (CFL: PDA counts a's and b's, ignores c's)
+              <C>{"L_1 = {a^n b^n c^m | n, m ≥ 1}"}</C> (CFL: PDA counts a's and b's, ignores c's)
               <br />
-              <C>L_2 = &#123;a^m b^n c^n | m, n ≥ 1&#125;</C> (CFL: PDA ignores a's, counts b's and c's)
+              <C>{"L_2 = {a^m b^n c^n | m, n ≥ 1}"}</C> (CFL: PDA ignores a's, counts b's and c's)
               <br />
               Their intersection is:
               <br />
-              <C>L_1 ∩ L_2 = &#123;a^n b^n c^n | n ≥ 1&#125;</C>
+              <C>{"L_1 ∩ L_2 = {a^n b^n c^n | n ≥ 1}"}</C>
               <br />
-              By the CFL Pumping Lemma, <C>&#123;a^n b^n c^n&#125;</C> is <Strong>not context-free</Strong>. Thus, CFLs are <Strong>not closed under intersection</Strong>.
+              By the CFL Pumping Lemma, <C>{"{a^n b^n c^n}"}</C> is <Strong>not context-free</Strong>. Thus, CFLs are <Strong>not closed under intersection</Strong>.
             </Callout>
 
             <Callout type="proof" title="Why CFL is NOT Closed Under Complement">
@@ -801,7 +804,7 @@ Inductive Steps:
               <br />
               • <Strong>Intersection with Regular</Strong>: <Strong>Closed</Strong>.
               <br />
-              • <Strong>Union &amp; Intersection</Strong>: <Strong>Not Closed</Strong>. (e.g., <C>L_1 = &#123;a^n b^n c^m&#125;</C> and <C>L_2 = &#123;a^m b^n c^n&#125;</C> are both DCFL, but their union/intersection are not DCFL).
+              • <Strong>Union &amp; Intersection</Strong>: <Strong>Not Closed</Strong>. (e.g., <C>{"L_1 = {a^n b^n c^m}"}</C> and <C>{"L_2 = {a^m b^n c^n}"}</C> are both DCFL, but their union/intersection are not DCFL).
             </P>
           </>
         ),
@@ -831,12 +834,20 @@ Inductive Steps:
         content: (
           <>
             <H2>Context-Free Grammars, Simplification &amp; Normal Forms</H2>
+            <Callout type="tip" title="In plain terms">
+              A <Strong>context-free grammar</Strong> (Type 2) is what you write for programming-language syntax: one
+              nonterminal on the left, any mix of symbols on the right. <Strong>Normal forms</Strong> reshape rules into
+              a rigid pattern so algorithms (especially <Strong>CYK</Strong>) are easy to code. In <Strong>Grammar Lab</Strong>,
+              open <Strong>Transformations</Strong> to remove ε-rules and unit productions, then convert to{' '}
+              <Strong>CNF</Strong> or <Strong>GNF</Strong>; paste the result back into the editor or send it to Parser
+              Studio.
+            </Callout>
             <P>
-              A <Strong>Context-Free Grammar (CFG)</Strong> is a 4-tuple <C>G = (V, T, P, S)</C>. Normal forms standardize
-              grammars to enable deterministic polynomial parsing (such as CYK).
+              Formally, a CFG is <C>G = (V, T, P, S)</C> — nonterminals <C>V</C>, terminals <C>T</C>, productions{' '}
+              <C>P</C>, start symbol <C>S</C>.
             </P>
 
-            <H3>1. Grammar Simplification Pipeline</H3>
+            <H3>1. Grammar simplification pipeline</H3>
             <P>Must be applied in strict sequence:</P>
             <P>
               1. <Strong>Eliminate ε-Productions</Strong>: Compute nullable nonterminals (<C>A ⇒* ε</C>). For each production containing nullable symbols, add combinations with those symbols omitted.
@@ -851,7 +862,7 @@ Inductive Steps:
             </P>
 
             <H3>2. Chomsky Normal Form (CNF)</H3>
-            <MathBox formula="A → BC   \text{ or }   A → a   (A, B, C ∈ V,  a ∈ T)" label="CNF Canonical Form" />
+            <MathBox formula="A → BC  or  A → a  (A, B, C ∈ V, a ∈ T)" label="CNF canonical form" />
             <P>
               • <Strong>Derivation Length Theorem</Strong>: If <C>G</C> is in CNF, any string <C>w ∈ L(G)</C> of length <C>n = |w| ≥ 1</C> requires <Strong>exactly 2n - 1 derivation steps</Strong> and a parse tree with <C>2n - 1</C> interior nodes.
             </P>
@@ -885,11 +896,19 @@ Inductive Steps:
         content: (
           <>
             <H2>CFL Algorithms: CYK, Earley Parsing &amp; Analysis</H2>
+            <Callout type="tip" title="In plain terms">
+              These algorithms answer: &quot;Is this string in the language of my grammar?&quot;{' '}
+              <Strong>Earley</Strong> works on general CFGs (Parser Studio). <Strong>CYK</Strong> needs CNF first but
+              fills a triangle table — good for exams and short inputs. <Strong>LL/LR</Strong> tables (also in Parser
+              Studio) are faster for the grammars compilers actually use. Grammar Lab&apos;s <Strong>Derivations</Strong>{' '}
+              tab shows trees for Type 2; use <Strong>FIRST/FOLLOW</Strong> before expecting LL(1) to succeed.
+            </Callout>
             <P>
-              While general CFG membership is in <C>P</C>, parsing algorithms differ significantly in constraints and complexity.
+              CFG membership is decidable in polynomial time; practical parsers add restrictions (LL, LR) for speed and
+              determinism.
             </P>
 
-            <H3>1. The CYK (Cocke–Younger–Kasami) Algorithm</H3>
+            <H3>1. The CYK (Cocke–Younger–Kasami) algorithm</H3>
             <P>
               A dynamic programming algorithm for testing membership of string <C>w = a_1 a_2 ... a_n</C> in grammar <C>G</C> (must be in CNF).
             </P>
@@ -974,8 +993,13 @@ Inductive Steps:
         content: (
           <>
             <H2>Pushdown Automata (PDA) Formalisms</H2>
+            <Callout type="tip" title="In plain terms">
+              A PDA is a finite automaton plus a <Strong>stack</Strong> (last-in, first-out). It can match nested patterns such
+              as balanced parentheses or <C>aⁿbⁿ</C>. In Automata Lab, use <Strong>CFG → PDA</Strong> from Grammar Lab or
+              Convert on a CFG; simulate NPDA/DPDA in Machine Studio with <C>read, pop → push</C> labels.
+            </Callout>
             <P>
-              A <Strong>Pushdown Automaton (PDA)</Strong> is a finite-state machine augmented with an unbounded LIFO stack memory.
+              A <Strong>pushdown automaton (PDA)</Strong> is a finite-state machine augmented with an unbounded LIFO stack.
             </P>
 
             <H3>Formal 7-Tuple Definition</H3>
@@ -983,13 +1007,13 @@ Inductive Steps:
             <P>
               • <C>Q</C>: States; <C>Σ</C>: Input alphabet; <C>Γ</C>: Stack alphabet.
               <br />
-              • <C>δ: Q × (Σ ∪ &#123;ε&#125;) × Γ → P(Q × Γ*)</C>: Transition function.
+              • <C>{"δ: Q × (Σ ∪ {ε}) × Γ → P(Q × Γ*)"}</C>: Transition function.
               <br />
               • <C>q_0</C>: Start state; <C>Z_0 ∈ Γ</C>: Initial bottom marker; <C>F ⊆ Q</C>: Accepting states.
             </P>
 
             <H3>Instantaneous Description (ID)</H3>
-            <MathBox formula="(q, aw, Xβ) ⊢ (p, w, αβ)    \text{where } (p, α) ∈ δ(q, a, X)" />
+            <MathBox formula="(q, aw, Xβ) ⊢ (p, w, αβ)  where (p, α) ∈ δ(q, a, X)" />
 
             <H3>Acceptance Modes &amp; Equivalence</H3>
             <P>
@@ -1004,9 +1028,9 @@ Inductive Steps:
             <P>
               Given CFG <C>G = (V, T, P, S)</C>, construct PDA accepting by empty stack:
               <br />
-              1. For each production <C>A → β</C>: Add <C>δ(q, ε, A) = &#123;(q, β)&#125;</C>
+              1. For each production <C>A → β</C>: Add <C>{"δ(q, ε, A) = {(q, β)}"}</C>
               <br />
-              2. For each terminal <C>a ∈ T</C>: Add <C>δ(q, a, a) = &#123;(q, ε)&#125;</C> (match and pop)
+              2. For each terminal <C>a ∈ T</C>: Add <C>{"δ(q, a, a) = {(q, ε)}"}</C> (match and pop)
             </P>
           </>
         ),
@@ -1035,7 +1059,7 @@ Inductive Steps:
 
             <H3>DPDA Determinism Constraints</H3>
             <Callout type="theorem" title="DPDA Formal Constraints">
-              1. For all <C>q ∈ Q, a ∈ Σ ∪ &#123;ε&#125;, X ∈ Γ</C>, <C>|δ(q, a, X)| ≤ 1</C>.
+              1. For all <C>{"q ∈ Q, a ∈ Σ ∪ {ε}, X ∈ Γ"}</C>, <C>|δ(q, a, X)| ≤ 1</C>.
               <br />
               2. If <C>δ(q, a, X) ≠ ∅</C> for some <C>a ∈ Σ</C>, then <C>δ(q, ε, X) = ∅</C> (cannot have simultaneous ε and non-ε choices).
             </Callout>
@@ -1080,7 +1104,7 @@ Inductive Steps:
               ]}
             />
 
-            <H3>The Bridge: DCFLs $\equiv$ LR(k) Grammars</H3>
+            <H3>The bridge: DCFLs ≡ LR(k) grammars</H3>
             <Callout type="theorem" title="Knuth's Equivalence Theorem">
               A language <C>L</C> is a <Strong>Deterministic Context-Free Language (DCFL)</Strong> if and only if it can be generated by an <Strong>LR(k)</Strong> grammar (and with endmarker <C>$</C>, an LR(1) grammar).
               <br />
@@ -1099,17 +1123,24 @@ Inductive Steps:
         content: (
           <>
             <H2>Context-Sensitive Grammars &amp; Linear Bounded Automata</H2>
+            <Callout type="tip" title="In plain terms">
+              Type 1 grammars can rewrite a <Strong>chunk in context</Strong> (symbols on both sides of a nonterminal),
+              but rules cannot shrink the string forever. Languages like <C>aⁿbⁿcⁿ</C> need this extra power. In Automata
+              Lab, pick <Strong>Type 1</Strong>, read <Strong>Properties</Strong>, and use <Strong>Derivations</Strong>{' '}
+              with bounded search — then try an <Strong>NLBA</Strong> recognizer in Machine Studio. Parser Studio table
+              generators are for Type 2/3, not full CSGs.
+            </Callout>
             <P>
-              <Strong>Context-Sensitive Languages (Type-1)</Strong> model language features requiring non-local context checks
-              (such as variable declaration before use).
+              Context-sensitive languages sit strictly between context-free and unrestricted languages in the Chomsky
+              hierarchy.
             </P>
 
-            <H3>Context-Sensitive Grammars (CSG)</H3>
+            <H3>Context-sensitive grammars (CSG)</H3>
             <MathBox formula="α A β → α γ β    (A ∈ V,  γ ∈ (V ∪ T)+,  α, β ∈ (V ∪ T)*)" />
             <P>
               • <Strong>Non-Contracting Rule</Strong>: <C>|LHS| ≤ |RHS|</C> for all productions.
               <br />
-              • Classic Non-CFL languages like <C>L = &#123;a^n b^n c^n | n ≥ 1&#125;</C> and <C>L = &#123;ww | w ∈ &#123;a, b&#125;*&#125;</C> are context-sensitive.
+              • Classic Non-CFL languages like <C>{"L = {a^n b^n c^n | n ≥ 1}"}</C> and <C>{"L = {ww | w ∈ {a, b}*}"}</C> are context-sensitive.
             </P>
 
             <H3>Recognizing Automaton: Linear Bounded Automata (LBA)</H3>
@@ -1131,11 +1162,20 @@ Inductive Steps:
         content: (
           <>
             <H2>Pumping Lemmas: Adversarial Proof Systems</H2>
+            <Callout type="tip" title="In plain terms">
+              Pumping lemmas are <Strong>impossibility proofs</Strong>. To show a language is <Strong>not</Strong>{' '}
+              regular (or not context-free), you play a game: assume it were regular, let the opponent name a pump length{' '}
+              <C>p</C>, you pick a long string <C>z</C> in the language, then show that repeating a middle piece (<C>y</C>{' '}
+              or <C>v</C>/<C>x</C>) eventually produces a string <Strong>outside</Strong> the language. If that works for
+              every legal split, the assumption was wrong. Automata Lab does not automate these proofs — use them on paper
+              when simulation cannot separate &quot;too hard&quot; from &quot;not in the language.&quot;
+            </Callout>
             <P>
-              Pumping lemmas formalize the pigeonhole principle over infinite languages with finite memory.
+              Formally, pumping captures finite memory: a DFA with <C>p</C> states cannot track unbounded counters in an
+              infinite family of strings.
             </P>
 
-            <H3>1. Pumping Lemma for Regular Languages</H3>
+            <H3>1. Pumping lemma for regular languages</H3>
             <Callout type="theorem" title="Regular Pumping Lemma">
               If <C>L</C> is regular, <C>∃ p ≥ 1</C> such that <C>∀ z ∈ L</C> with <C>|z| ≥ p</C>, <C>z = xyz</C> where:
               <br />
@@ -1146,7 +1186,7 @@ Inductive Steps:
               3. <C>∀ i ≥ 0 : x y^i z ∈ L</C>
             </Callout>
 
-            <H3>2. Pumping Lemma for Context-Free Languages</H3>
+            <H3>2. Pumping lemma for context-free languages</H3>
             <Callout type="theorem" title="CFL Pumping Lemma">
               If <C>L</C> is context-free, <C>∃ n ≥ 1</C> such that <C>∀ z ∈ L</C> with <C>|z| ≥ n</C>, <C>z = uvwxy</C> where:
               <br />
@@ -1157,7 +1197,7 @@ Inductive Steps:
               3. <C>∀ i ≥ 0 : u v^i w x^i y ∈ L</C>
             </Callout>
             <P>
-              <Strong>Proof Game for Non-CFL ($L = &#123;a^n b^n c^n&#125;$)</Strong>:
+              <Strong>Proof game for non-CFL </Strong><C>{'L = {a^n b^n c^n}'}</C>:
               <br />
               Pick <C>z = a^n b^n c^n</C>. Since <C>|vwx| ≤ n</C>, the substring <C>vwx</C> can span at most two adjacent symbol types (e.g., only a's and b's). Pumping <C>i = 2</C> increases those symbol counts without increasing the third symbol count, violating the 1:1:1 equality constraint.
             </P>
@@ -1177,16 +1217,24 @@ Inductive Steps:
         content: (
           <>
             <H2>Turing Machines &amp; Computational Models</H2>
+            <Callout type="tip" title="In plain terms">
+              A Turing machine is a finite control plus an <Strong>infinite tape</Strong> and a read/write head. It is the
+              usual model of &quot;any program that could run on a computer&quot; in theory. In <Strong>Machine Studio</Strong>,
+              build <Strong>TM</Strong> or <Strong>multi-tape TM</Strong> machines: each step reads a cell, writes, and moves{' '}
+              <C>L</C>/<C>R</C>/<C>S</C>. <Strong>LBA</Strong> is the same idea with a tape that only grows with the input —
+              enough for Type 1 languages. Type 0 grammars in Grammar Lab use a <Strong>bounded derivation search</Strong>, not
+              a full universal TM diagram.
+            </Callout>
             <P>
-              A <Strong>Turing Machine (TM)</Strong> is the standard mathematical model of general digital computers.
+              Formally, a TM is the reference model for computability and for Type 0 recognition in textbooks.
             </P>
 
-            <H3>Formal 7-Tuple Definition</H3>
+            <H3>Formal 7-tuple definition</H3>
             <MathBox formula="M = (Q, Σ, Γ, δ, q_0, B, F)" />
             <P>
               • <C>Q</C>: Finite states; <C>Σ</C>: Input alphabet (<C>B ∉ Σ</C>); <C>Γ</C>: Tape alphabet (<C>Σ ⊂ Γ</C>).
               <br />
-              • <C>B ∈ Γ \ Σ</C>: Blank symbol; <C>δ: Q × Γ → Q × Γ × &#123;L, R&#125;</C>: Transition function.
+              • <C>B ∈ Γ \ Σ</C>: Blank symbol; <C>{"δ: Q × Γ → Q × Γ × {L, R}"}</C>: Transition function.
               <br />
               • <C>q_0</C>: Start state; <C>F ⊆ Q</C>: Set of final accepting states.
             </P>
@@ -1225,11 +1273,18 @@ Inductive Steps:
         content: (
           <>
             <H2>Turing Machine Design Patterns &amp; Subroutines</H2>
+            <Callout type="tip" title="In plain terms">
+              Textbook TMs are built from a few tricks: <Strong>mark</Strong> symbols you have already checked,{' '}
+              <Strong>sweep</Strong> left and right over the tape, compare halves for palindromes, and reuse{' '}
+              <Strong>subroutines</Strong> (copy a block, shift the tape). In the app, start from Load Example TMs and step
+              through with the tape panel open before designing your own.
+            </Callout>
             <P>
-              Constructing Turing Machines is software engineering in an elementary low-level language. Real TMs rely on standard design patterns.
+              Construction techniques mirror low-level programming: invariants on tape contents replace high-level data
+              structures.
             </P>
 
-            <H3>Core Design Patterns</H3>
+            <H3>Core design patterns</H3>
             <P>
               1. <Strong>Mark-and-Scan (Crossing Off Symbols)</Strong>: Replace processed characters with markers (<C>X, Y</C>) to track progress across sweeps (e.g., verifying <C>0^n 1^n</C>).
               <br />
@@ -1240,7 +1295,7 @@ Inductive Steps:
               4. <Strong>Tape Shifting Subroutine</Strong>: Shift entire tape contents right by 1 cell to insert a symbol: read character into state register, write previous, move right, repeat until <C>B</C>.
             </P>
 
-            <H3>Execution Trace: Palindrome Recognition on $a b b a$</H3>
+            <H3>Execution trace: palindrome recognition on <C>abba</C></H3>
             <CodeBlock
               code={`1. (q0, [a]bba)  --> Mark 'X', remember 'a' in state -> (q_scan_a, X[b]ba)
 2. (q_scan_a, Xbb[a]) --> Reach right end, verify matching 'a', replace with Blank -> (q_left, Xb[b]B)
@@ -1270,11 +1325,20 @@ Inductive Steps:
         content: (
           <>
             <H2>Enumerators, Dovetailing &amp; The Church–Turing Thesis</H2>
+            <Callout type="tip" title="In plain terms">
+              Some languages are <Strong>recognizable</Strong>: if a string is in the language, a TM eventually accepts. Others
+              are <Strong>decidable</Strong>: the machine always halts with yes or no. An <Strong>enumerator</Strong> prints
+              strings one by one (like listing all outputs a program could ever print). <Strong>Dovetailing</Strong> runs many
+              computations in round-robin so you do not get stuck forever on one that loops. The <Strong>Church–Turing thesis</Strong>{' '}
+              says every &quot;reasonable&quot; model of computation agrees on what is computable — not a theorem, but the
+              foundation for calling problems undecidable.
+            </Callout>
             <P>
-              Computability can be characterized either by <Strong>recognition</Strong> (testing membership) or <Strong>generation</Strong> (enumerating elements).
+              Recognition (membership) and generation (enumeration) describe the same recursive enumerable class in
+              different ways.
             </P>
 
-            <H3>1. Turing Enumerators</H3>
+            <H3>1. Turing enumerators</H3>
             <P>
               An <Strong>Enumerator</Strong> is a Turing Machine with a printer tape that outputs a stream of strings.
             </P>
@@ -1301,7 +1365,7 @@ Inductive Steps:
 
             <H3>3. The Church–Turing Thesis</H3>
             <P>
-              All reasonable computational models (Turing Machines, $\lambda$-Calculus, RAM Machines, Register Machines, Post Tag Systems, $\mu$-Recursive Functions) define the <Strong>exact same boundary of computable functions</Strong>.
+              All reasonable computational models (Turing machines, λ-calculus, RAM machines, register machines, Post tag systems, μ-recursive functions) define the <Strong>exact same boundary of computable functions</Strong>.
             </P>
           </>
         ),
@@ -1324,12 +1388,20 @@ Inductive Steps:
         content: (
           <>
             <H2>Decidability, Undecidability &amp; Semantic Limits</H2>
+            <Callout type="tip" title="In plain terms">
+              A problem is <Strong>decidable</Strong> if an algorithm always gives an answer in finite time. It is{' '}
+              <Strong>undecidable</Strong> if no such algorithm exists — the famous example is whether an arbitrary program
+              halts on an arbitrary input. For <Strong>Type 2</Strong> grammars, many questions (emptiness, membership) are
+              decidable; for <Strong>Type 0</Strong>, general membership is not — Grammar Lab only <Strong>searches</Strong>{' '}
+              for derivations and may hit a resource limit. That behavior matches semi-decision, not a bug.
+            </Callout>
             <P>
-              Computability theory classifies mathematical problems into decidable (solvable by an algorithm that always halts) and undecidable.
+              Computability theory separates problems with always-halting algorithms from those that cannot be solved
+              uniformly.
             </P>
 
-            <H3>1. Diagonalization Language ($L_d$) — Non-RE Proof</H3>
-            <MathBox formula="L_d = &#123; w_i | w_i ∉ L(M_i) &#125;" label="Diagonalization Language" />
+            <H3>1. Diagonalization language (L_d) — non-RE proof</H3>
+            <MathBox formula="L_d = { w_i | w_i ∉ L(M_i) }" label="Diagonalization language" />
             <Callout type="proof" title="Proof that L_d is Non-RE">
               Suppose TM <C>M_k</C> recognizes <C>L_d</C>. Test <C>w_k ∈ L(M_k)</C>:
               <br />
@@ -1340,11 +1412,11 @@ Inductive Steps:
               Hence no such <C>M_k</C> exists; <C>L_d</C> is provably <Strong>Not Recursively Enumerable</Strong>.
             </Callout>
 
-            <H3>2. The Halting Problem ($H_M$) &amp; Universal Language ($L_u$)</H3>
+            <H3>2. The halting problem (H_M) and universal language (L_u)</H3>
             <P>
-              • <C>L_u = &#123; ⟨M, w⟩ | M accepts w &#125;</C> (RE, but Undecidable).
+              • <C>{"L_u = { ⟨M, w⟩ | M accepts w }"}</C> (RE, but Undecidable).
               <br />
-              • <C>H_M = &#123; ⟨M, w⟩ | M halts on w &#125;</C> (RE, but Undecidable).
+              • <C>{"H_M = { ⟨M, w⟩ | M halts on w }"}</C> (RE, but Undecidable).
             </P>
 
             <H3>3. Rice's Theorem</H3>
@@ -1375,27 +1447,34 @@ Inductive Steps:
         content: (
           <>
             <H2>Reductions &amp; Formal Proof Techniques</H2>
+            <Callout type="tip" title="In plain terms">
+              A <Strong>reduction</Strong> converts instances of problem A into instances of problem B so that solving B
+              would let you solve A. To prove B is hard, reduce from a <Strong>known hard</Strong> problem A into B (A → B),
+              not the other way around. Exam recipe: assume you could decide B, build a machine that decides A using your
+              reduction — contradiction if A is already known undecidable (usually halting or acceptance for TMs).
+            </Callout>
             <P>
-              Reduction is the primary mathematical technique for transferring computational difficulty between problems.
+              Mapping reductions preserve yes/no answers and transfer decidability and undecidability in opposite
+              directions.
             </P>
 
-            <H3>1. Mapping Reduction ($A \le_m B$)</H3>
+            <H3>1. Mapping reduction (A ≤ₘ B)</H3>
             <P>
-              A language <C>A</C> is mapping reducible to <C>B</C> (<C>A \le_m B</C>) if there exists a computable function <C>f: Σ* \to Σ*</C> such that:
+              Language <C>A</C> is mapping reducible to <C>B</C> (<C>A ≤ₘ B</C>) if there is a computable <C>f: Σ* → Σ*</C> with:
             </P>
-            <MathBox formula="w ∈ A \iff f(w) ∈ B" label="Mapping Reduction Condition" />
+            <MathBox formula="w ∈ A ⇔ f(w) ∈ B" label="Mapping reduction" />
 
             <Callout type="warning" title="Crucial Rules on Direction of Reduction">
               If <C>A \le_m B</C>:
               <br />
-              • <Strong>Decidability flows backwards</Strong>: If <C>B</C> is Decidable $\implies A$ is Decidable.
+              • <Strong>Decidability flows backwards</Strong>: if <C>B</C> is decidable, then <C>A</C> is decidable.
               <br />
-              • <Strong>Undecidability flows forwards</Strong>: If <C>A</C> is Undecidable $\implies B$ is Undecidable.
+              • <Strong>Undecidability flows forwards</Strong>: if <C>A</C> is undecidable, then <C>B</C> is undecidable.
               <br />
-              • <Strong>Common Error</Strong>: Reducing an unknown problem <C>B</C> to a known problem <C>A</C> proves NOTHING about <C>B</C>! You must always reduce <Strong>KNOWN $\le_m$ UNKNOWN</Strong>.
+              • <Strong>Common error</Strong>: reducing an unknown <C>B</C> to a known <C>A</C> proves nothing about <C>B</C>. Always reduce <Strong>known ≤ₘ unknown</Strong>.
             </Callout>
 
-            <H3>2. Step-by-Step Recipe: Proving Undecidability of $L_X$</H3>
+            <H3>2. Recipe: proving undecidability of L_X</H3>
             <CodeBlock
               code={`Step 1: Choose a known undecidable problem (usually A_TM or HALT_TM).
 Step 2: Define reduction function f(⟨M, w⟩) that constructs a new machine M'.
@@ -1433,11 +1512,19 @@ Step 5: Conclude that since A_TM is undecidable, L_X is undecidable.`}
         content: (
           <>
             <H2>Complexity Theory &amp; Intractability</H2>
+            <Callout type="tip" title="In plain terms">
+              <Strong>Decidability</Strong> asks whether a problem has any algorithm at all. <Strong>Complexity</Strong> asks
+              how <Strong>fast</Strong> that algorithm can be as inputs grow. <Strong>P</Strong> problems are “easy” (polynomial
+              time). <Strong>NP</Strong> problems have yes-answers you can <Strong>check</Strong> quickly if someone hands you a
+              certificate (e.g. a satisfying assignment for a formula). <Strong>NP-complete</Strong> problems are the hardest
+              ones in NP — if any of them got a fast algorithm, all of NP would. Automata Lab focuses on automata and parsers;
+              this chapter is exam reference, not a built-in SAT solver.
+            </Callout>
             <P>
-              Complexity theory classifies decidable problems by the asymptotic time and memory space required to solve them.
+              Complexity theory classifies <Strong>decidable</Strong> problems by asymptotic time and memory space.
             </P>
 
-            <H3>Complexity Hierarchy &amp; Inclusions</H3>
+            <H3>Complexity hierarchy &amp; inclusions</H3>
             <MathBox formula="P ⊆ NP ⊆ PSPACE = NPSPACE ⊆ EXPTIME" />
 
             <Table
@@ -1451,11 +1538,11 @@ Step 5: Conclude that since A_TM is undecidable, L_X is undecidable.`}
               ]}
             />
 
-            <H3>Worked NP-Completeness Reduction: 3-SAT $\le_p$ Vertex Cover</H3>
+            <H3>Worked reduction: 3-SAT ≤ₚ vertex cover</H3>
             <Callout type="proof" title="3-SAT to Vertex Cover Reduction">
               Given 3-CNF formula with <C>m</C> clauses and <C>n</C> variables:
               <br />
-              1. For each variable <C>x_i</C>, construct a 2-vertex "variable gadget" connected by edge <C>(x_i, \bar&#123;x&#125;_i)</C>.
+              1. For each variable <C>x_i</C>, build a 2-vertex variable gadget on edge <C>(x_i, x̄_i)</C>.
               <br />
               2. For each clause <C>(l_1 \lor l_2 \lor l_3)</C>, construct a 3-vertex "clause triangle".
               <br />
@@ -1492,11 +1579,17 @@ Step 5: Conclude that since A_TM is undecidable, L_X is undecidable.`}
         content: (
           <>
             <H2>Lexical Analysis &amp; Scanner Architecture</H2>
+            <Callout type="tip" title="In plain terms">
+              The <Strong>scanner</Strong> (lexer) reads characters and groups them into <Strong>tokens</Strong> — keywords,
+              identifiers, numbers, punctuation. It is a <Strong>regular</Strong> problem: think DFA or regex. Grammar Lab token
+              rules (uppercase = nonterminal, <C>num</C> vs <C>n u m</C>) mirror what a lexer must decide. Machine Studio regex
+              → NFA is the same idea as Flex turning lexer specs into automata.
+            </Callout>
             <P>
-              The scanner converts raw source code characters into classified tokens while managing symbol tables and buffers.
+              The scanner converts source text into classified tokens and feeds a symbol table for the parser.
             </P>
 
-            <H3>1. The Compiler Pipeline Architecture</H3>
+            <H3>1. The compiler pipeline architecture</H3>
             <CodeBlock
               code={`Source Code ──► [ Scanner ] ──► [ Parser ] ──► [ Semantic Analyzer ] ──► [ ICG ] ──► [ Optimizer ] ──► [ Target Code Gen ] ──► Target Code
                     │              │                   │                 │             │                  │
@@ -1544,27 +1637,32 @@ Step 5: Conclude that since A_TM is undecidable, L_X is undecidable.`}
         content: (
           <>
             <H2>Top-Down Parsing &amp; Predictive LL(1) Analyzers</H2>
+            <Callout type="tip" title="In plain terms">
+              <Strong>Top-down</Strong> parsing starts at the start symbol and chooses productions to match the input from the
+              left. <Strong>LL(1)</Strong> means one token of lookahead decides each step. Compute <Strong>FIRST/FOLLOW</Strong> in
+              Grammar Lab, fix left recursion with <Strong>Transformations</Strong>, then open <Strong>Parser Studio → LL(1)</Strong>{' '}
+              and watch conflicts (empty cells) in the table.
+            </Callout>
             <P>
-              Top-down parsing constructs the parse tree starting at the root start symbol <C>S</C> and produces a
-              <Strong>Leftmost Derivation</Strong>.
+              Top-down parsers build a parse tree from the root and correspond to a <Strong>leftmost derivation</Strong>.
             </P>
 
-            <H3>1. Algorithmic FIRST and FOLLOW Calculations</H3>
+            <H3>1. Algorithmic FIRST and FOLLOW calculations</H3>
             <Callout type="theorem" title="Rules for FIRST(α) and FOLLOW(A)">
               <Strong>FIRST(α)</Strong>:
               <br />
-              1. If <C>X</C> is terminal, <C>FIRST(X) = &#123;X&#125;</C>.
+              1. If <C>X</C> is terminal, <C>{"FIRST(X) = {X}"}</C>.
               <br />
               2. If <C>X → ε</C>, add <C>ε</C> to <C>FIRST(X)</C>.
               <br />
-              3. For <C>X → Y_1 Y_2 ... Y_k</C>, add <C>FIRST(Y_i) \ &#123;ε&#125;</C> to <C>FIRST(X)</C> if all preceding <C>Y_1...Y_(i-1)</C> are nullable. Add <C>ε</C> iff all <C>Y_j</C> are nullable.
+              3. For <C>X → Y_1 Y_2 ... Y_k</C>, add <C>{"FIRST(Y_i) \\ {ε}"}</C> to <C>FIRST(X)</C> if all preceding <C>Y_1...Y_(i-1)</C> are nullable. Add <C>ε</C> iff all <C>Y_j</C> are nullable.
               <br />
               <br />
               <Strong>FOLLOW(A)</Strong>:
               <br />
               1. Add <C>$</C> to <C>FOLLOW(S)</C>.
               <br />
-              2. For <C>A → α B β</C>, add <C>FIRST(β) \ &#123;ε&#125;</C> to <C>FOLLOW(B)</C>.
+              2. For <C>A → α B β</C>, add <C>{"FIRST(β) \\ {ε}"}</C> to <C>FOLLOW(B)</C>.
               <br />
               3. For <C>A → α B</C> or <C>A → α B β</C> where <C>ε ∈ FIRST(β)</C>, add <C>FOLLOW(A)</C> to <C>FOLLOW(B)</C>.
             </Callout>
@@ -1601,12 +1699,17 @@ F  -> ( E ) | id`}
         content: (
           <>
             <H2>Bottom-Up Parsing &amp; Operator-Precedence (OPG)</H2>
+            <Callout type="tip" title="In plain terms">
+              <Strong>Bottom-up</Strong> parsers read tokens left to right but build the tree from the <Strong>leaves up</Strong>:
+              shift tokens onto a stack, then <Strong>reduce</Strong> when the top matches a grammar rule. Operator-precedence
+              is a simplified version for expressions. Full LR parsers in Parser Studio use the same shift/reduce idea with
+              richer tables — see the LR chapter next.
+            </Callout>
             <P>
-              Bottom-up parsers construct derivations in reverse (rightmost derivation in reverse) by identifying and reducing
-              <Strong>handles</Strong>.
+              Bottom-up parsing reverses a rightmost derivation by finding and reducing <Strong>handles</Strong> on the stack.
             </P>
 
-            <H3>1. Shift-Reduce Operations</H3>
+            <H3>1. Shift-reduce operations</H3>
             <P>
               • <Strong>Shift</Strong>: Push current input token to stack.
               <br />
@@ -1650,12 +1753,17 @@ F  -> ( E ) | id`}
         content: (
           <>
             <H2>The LR Parsing Family: Comprehensive Theory &amp; Worked Trace</H2>
+            <Callout type="tip" title="In plain terms">
+              <Strong>LR</Strong> = scan <Strong>L</Strong>eft to right, build a <Strong>R</Strong>ightmost derivation in reverse.
+              Parser Studio implements <Strong>LR(0), SLR, LALR, CLR</Strong>: same states, different use of FOLLOW/lookahead.
+              Red cells are <Strong>shift/reduce</Strong> or <Strong>reduce/reduce</Strong> conflicts — the grammar (or merge
+              choice) is ambiguous for that method. Step the simulation with the timeline to match the trace below.
+            </Callout>
             <P>
-              <Strong>LR(k)</Strong> parsers (Left-to-right scan, Rightmost derivation in reverse, <C>k</C> lookaheads) represent
-              the industry standard for programming language compilers.
+              <Strong>LR(k)</Strong> parsers are the standard table-driven bottom-up family used in Yacc/Bison-style tools.
             </P>
 
-            <H3>1. LR Parser Hierarchy &amp; State Counts</H3>
+            <H3>1. LR parser hierarchy &amp; state counts</H3>
             <MathBox formula="LR(0) ⊂ SLR(1) ⊂ LALR(1) ⊂ CLR(1)" label="Language Recognition Power" />
             <MathBox formula="States(LR(0)) = States(SLR(1)) = States(LALR(1)) \le States(CLR(1))" label="State Space" />
 
@@ -1723,11 +1831,17 @@ $ 0 E 1                         $    Accept! (on '$')`}
         content: (
           <>
             <H2>Semantic Analysis, Symbol Tables &amp; Type Systems</H2>
+            <Callout type="tip" title="In plain terms">
+              Parsing answers “is this syntax valid?” <Strong>Semantics</Strong> answers “does it <Strong>mean</Strong> something
+              sensible?” — variables declared before use, types match, scopes resolve. Automata Lab does not run a full type
+              checker; Parser Studio shows <Strong>parse trees</Strong> you would attach attributes to in an SDD/SDT chapter.
+              Think of Type 1 grammars in Grammar Lab as the theory side of “context matters.”
+            </Callout>
             <P>
-              Semantic analysis verifies that the parse tree obeys language semantic rules (types, scopes, declarations).
+              Semantic analysis checks scopes, types, and declarations on top of the parse tree.
             </P>
 
-            <H3>1. Symbol Table Architectures</H3>
+            <H3>1. Symbol table architectures</H3>
             <P>
               • <Strong>Chained Hash Table with Scope Stack</Strong>: Entering a block pushes a new local hashtable; exiting pops it.
               <br />
@@ -1769,11 +1883,17 @@ $ 0 E 1                         $    Accept! (on '$')`}
         content: (
           <>
             <H2>Syntax-Directed Translation (SDD &amp; SDT)</H2>
+            <Callout type="tip" title="In plain terms">
+              An <Strong>attribute grammar</Strong> hangs extra values on parse-tree nodes (e.g. type, code, constant value).{' '}
+              <Strong>S-attributed</Strong> = values flow <Strong>up</Strong> from children (good with bottom-up/LR).{' '}
+              <Strong>L-attributed</Strong> = values can flow <Strong>down</Strong> from parent and left siblings (good with
+              top-down/LL). Parser Studio’s tree view is where you would visualize those attributes in a full compiler.
+            </Callout>
             <P>
-              Augments context-free grammars with semantic attributes and executable actions.
+              SDDs attach semantic attributes and actions to grammar productions.
             </P>
 
-            <H3>1. S-Attributed vs. L-Attributed SDD Comparison</H3>
+            <H3>1. S-attributed vs. L-attributed SDD comparison</H3>
             <Table
               headers={['Feature', 'S-Attributed SDT', 'L-Attributed SDT']}
               rows={[
@@ -1813,11 +1933,17 @@ $ 0 E 1                         $    Accept! (on '$')`}
         content: (
           <>
             <H2>Intermediate Code Generation (ICG)</H2>
+            <Callout type="tip" title="In plain terms">
+              After parsing you rarely jump straight to machine code. Compilers use an <Strong>intermediate representation</Strong>{' '}
+              (AST, three-address code, SSA) that is easier to optimize. Parser Studio’s <Strong>syntax tree</Strong> is the
+              front-end shape; LLVM IR and similar live in the stages described here — not simulated in Automata Lab, but the
+              same pipeline idea.
+            </Callout>
             <P>
-              Intermediate representations (IR) provide machine-independent abstractions for optimization and retargeting.
+              IRs decouple front-end parsing from back-end code generation and optimization.
             </P>
 
-            <H3>1. AST vs. Directed Acyclic Graph (DAG)</H3>
+            <H3>1. AST vs. directed acyclic graph (DAG)</H3>
             <CodeBlock
               code={`        AST for: a + a * (b - c)                  DAG for: a + a * (b - c)
                   +                                         +
@@ -1870,13 +1996,17 @@ $ 0 E 1                         $    Accept! (on '$')`}
         content: (
           <>
             <H2>Static Single Assignment (SSA Form) &amp; Dominators</H2>
+            <Callout type="tip" title="In plain terms">
+              <Strong>SSA</Strong> renames variables so each assignment happens once; at merge points (after <C>if</C>), a{' '}
+              <Strong>φ (phi)</Strong> function picks the right incoming value. <Strong>Dominators</Strong> tell you which
+              blocks must run before others — used to place φ nodes and many optimizations. LLVM bitcode is SSA-shaped; this
+              is advanced back-end theory, not a Parser Studio feature.
+            </Callout>
             <P>
-              <Strong>Static Single Assignment (SSA)</Strong> is the standard intermediate representation used in modern
-              production compilers (LLVM, GCC). In SSA form, <Strong>every variable is assigned exactly once</Strong>,
-              and every variable use is dominated by its unique definition.
+              In SSA, each variable is assigned once; φ-functions merge values at control-flow joins.
             </P>
 
-            <H3>1. SSA Transformation &amp; $\phi$-Functions</H3>
+            <H3>1. SSA transformation and φ-functions</H3>
             <P>Linear code renaming:</P>
             <CodeBlock
               code={`Non-SSA Form:
@@ -1887,7 +2017,7 @@ SSA Form:
   x_1 = a_0 + b_0
   x_2 = x_1 * c_0`}
             />
-            <P>At control-flow merge points, SSA introduces <Strong>$\phi$-functions</Strong>:</P>
+            <P>At control-flow merge points, SSA introduces <Strong>φ-functions</Strong>:</P>
             <CodeBlock
               code={`if (condition) {
     x_1 = 10;
@@ -1901,12 +2031,12 @@ x_3 = φ(x_1, x_2);  // Selects x_1 if coming from then-branch, x_2 if from else
             <P>
               • <Strong>Dominance (d dom n)</Strong>: Node <C>d</C> dominates node <C>n</C> if every execution path from entry to <C>n</C> must pass through <C>d</C>.
               <br />
-              • <Strong>Immediate Dominator ($idom(n)$)</Strong>: The unique closest strict dominator of <C>n</C>.
+              • <Strong>Immediate dominator idom(n)</Strong>: the closest strict dominator of <C>n</C>.
               <br />
-              • <Strong>Dominance Frontier ($DF(X)$)</Strong>: The set of nodes <C>Y</C> such that <C>X</C> dominates a predecessor of <C>Y</C>, but does <Strong>not strictly dominate</Strong> <C>Y</C> itself.
+              • <Strong>Dominance frontier DF(X)</Strong>: nodes <C>Y</C> where <C>X</C> dominates some predecessor of <C>Y</C> but does not strictly dominate <C>Y</C>.
             </P>
             <Callout type="theorem" title="Optimal φ-Placement Criterion">
-              If a basic block <C>B</C> contains a definition of variable <C>x</C>, a $\phi$-function for <C>x</C> must be inserted in the <Strong>Iterated Dominance Frontier</Strong> <C>IDF(B)</C>.
+              If block <C>B</C> defines <C>x</C>, insert a φ-function for <C>x</C> on the <Strong>iterated dominance frontier</Strong> <C>IDF(B)</C>.
             </Callout>
 
             <H3>3. SSA-Based Optimization Highlights</H3>
@@ -1940,11 +2070,17 @@ x_3 = φ(x_1, x_2);  // Selects x_1 if coming from then-branch, x_2 if from else
         content: (
           <>
             <H2>Code Optimization &amp; Data-Flow Frameworks</H2>
+            <Callout type="tip" title="In plain terms">
+              Optimizers split code into <Strong>basic blocks</Strong> (straight-line chunks) and propagate facts: which variables
+              are <Strong>live</Strong>, which expressions are already computed, which definitions <Strong>reach</Strong> a point.
+              Same math as fixed-point iteration on graphs — different domain from automata, but still “analyze a finite model of
+              the program.”
+            </Callout>
             <P>
-              Optimization transforms code into a semantically equivalent program that executes faster and consumes less memory.
+              Data-flow analysis summarizes program behavior over graphs of basic blocks to enable safe transforms.
             </P>
 
-            <H3>1. Basic Block Leaders (Algorithm 8.5)</H3>
+            <H3>1. Basic block leaders (Algorithm 8.5)</H3>
             <P>
               1. First instruction is a Leader.
               <br />
@@ -1953,7 +2089,7 @@ x_3 = φ(x_1, x_2);  // Selects x_1 if coming from then-branch, x_2 if from else
               3. Instruction immediately following any jump is a Leader.
             </P>
 
-            <H3>2. Data-Flow Analysis Frameworks $(D, V, \wedge, F)$</H3>
+            <H3>2. Data-flow analysis frameworks (D, V, ∧, F)</H3>
             <Table
               headers={['Analysis', 'Direction', 'Domain', 'Transfer Equation', 'Meet Operator (Confluence)']}
               rows={[
@@ -2003,11 +2139,16 @@ x_3 = φ(x_1, x_2);  // Selects x_1 if coming from then-branch, x_2 if from else
         content: (
           <>
             <H2>Loop Optimization &amp; Advanced Transforms</H2>
+            <Callout type="tip" title="In plain terms">
+              Most run time sits in <Strong>loops</Strong>. Compilers hoist unchanged calculations out of loops (LICM), replace
+              multiplies with adds (strength reduction), and sometimes unroll or fuse loops for speed. These are IR-level edits
+              backed by the data-flow analyses in the previous chapter.
+            </Callout>
             <P>
-              Because programs spend ~90% of execution time in ~10% of code (inner loops), loop optimizations yield the greatest performance gains.
+              Loop-centric transforms target the hot regions identified by profiling and control-flow structure.
             </P>
 
-            <H3>1. Loop-Invariant Code Motion (LICM)</H3>
+            <H3>1. Loop-invariant code motion (LICM)</H3>
             <P>
               Hoists statements whose operands do not change during loop iterations out of the loop body into a loop pre-header block.
             </P>
@@ -2060,11 +2201,17 @@ After Strength Reduction:
         content: (
           <>
             <H2>Target Code Generation &amp; Instruction Scheduling</H2>
+            <Callout type="tip" title="In plain terms">
+              The <Strong>back end</Strong> picks real CPU instructions, orders them to fill pipelines, and respects addressing
+              modes. <Strong>Maximal munch</Strong> appears again — match the largest IR subtree the target can implement in one
+              instruction. Contrast with Machine Studio: you draw the automaton; a compiler emits one for the lexer/parser stages
+              automatically from specs.
+            </Callout>
             <P>
-              The compiler backend maps machine-independent IR to target machine instructions while maximizing pipeline throughput.
+              Code generation maps IR to target instructions; scheduling hides latency and hazards.
             </P>
 
-            <H3>1. Instruction Selection: Tree-Covering with Maximal Munch</H3>
+            <H3>1. Instruction selection: tree-covering with maximal munch</H3>
             <P>
               The IR is represented as expression trees. The code generator matches subtrees against target machine instruction tile patterns, choosing largest tiles to minimize total instruction count.
             </P>
@@ -2098,11 +2245,17 @@ After Strength Reduction:
         content: (
           <>
             <H2>Register Allocation via Graph Coloring</H2>
+            <Callout type="tip" title="In plain terms">
+              CPUs have few <Strong>registers</Strong> but programs use many temporaries. The compiler builds an <Strong>interference
+              graph</Strong> (variables that are live at the same time cannot share a register) and <Strong>colors</Strong> it with at
+              most <C>K</C> colors. If impossible, <Strong>spill</Strong> some variables to memory. Chaitin–Briggs is the classic
+              heuristic; JITs often use faster linear scan.
+            </Callout>
             <P>
-              Register allocation assigns an unbounded number of IR temporary variables to a finite set of <C>K</C> physical CPU registers.
+              Register allocation maps IR temporaries to a finite register file, spilling when necessary.
             </P>
 
-            <H3>1. Register Interference Graph (RIG)</H3>
+            <H3>1. Register interference graph (RIG)</H3>
             <P>
               • <Strong>Nodes</Strong>: Variable live ranges.
               <br />
@@ -2142,11 +2295,17 @@ After Strength Reduction:
         content: (
           <>
             <H2>Runtime Environments &amp; Garbage Collection</H2>
+            <Callout type="tip" title="In plain terms">
+              Compiled code runs with a <Strong>stack</Strong> (function calls, local variables) and a <Strong>heap</Strong>{' '}
+              (dynamic allocation). <Strong>Garbage collection</Strong> finds unreachable heap objects and frees them — tracing
+              (mark-and-sweep), copying, or generational strategies. PDA/TM stacks in Machine Studio model the <Strong>parser/call
+              stack</Strong> idea, not a full GC.
+            </Callout>
             <P>
-              Runtime systems manage the physical memory layout, function stack linkages, and automated dynamic memory recycling.
+              Runtimes lay out stack and heap, link activation records, and recycle dynamic memory.
             </P>
 
-            <H3>1. Runtime Memory Layout &amp; Activation Records</H3>
+            <H3>1. Runtime memory layout &amp; activation records</H3>
             <CodeBlock
               code={`       Low Memory   ┌─────────────────────────────────────┐
                     │               Code                  │  ──► Static, read-only
@@ -2194,13 +2353,20 @@ After Strength Reduction:
         content: (
           <>
             <H2>Compiler Correctness, Undefined Behavior &amp; Verification</H2>
+            <Callout type="tip" title="In plain terms">
+              A correct compiler preserves <Strong>meaning</Strong>: running the compiled program should match the source language
+              rules. <Strong>Undefined behavior (UB)</Strong> lets optimizers assume “bad things never happen” — so bugs can get
+              worse after optimization. <Strong>Rice’s theorem</Strong> (decidability chapter) explains why perfect optimization
+              is impossible in general. CompCert is the famous proof-carrying counterexample — rare in industry, important in
+              theory.
+            </Callout>
             <P>
-              A compiler is correct if the executable semantics of the compiled target program match the formal source semantics.
+              Correctness ties source and target semantics; UB and undecidability bound what optimizers may assume.
             </P>
 
-            <H3>1. Semantic Preservation &amp; Formally Verified Compilers</H3>
+            <H3>1. Semantic preservation &amp; formally verified compilers</H3>
             <P>
-              • <Strong>Semantic Preservation</Strong>: <C>\text&#123;Sem&#125;(\text&#123;Target&#125;) \equiv \text&#123;Sem&#125;(\text&#123;Source&#125;)</C>.
+              • <Strong>Semantic preservation</Strong>: <C>Sem(Target) ≡ Sem(Source)</C> — compiled behavior matches the source language rules.
               <br />
               • <Strong>Formally Verified Compilers (CompCert)</Strong>: Written in Coq with machine-checked mathematical proofs that no compiler bugs or miscompilations can ever occur.
             </P>
@@ -2238,12 +2404,16 @@ After Strength Reduction:
         content: (
           <>
             <H2>The Grand Synthesis: Why Theory of Computation Matters to Compilers</H2>
+            <Callout type="tip" title="In plain terms">
+              Use this page as a <Strong>map</Strong>: regex/DFA → lexer, CFG/LR → parser, attributes → semantics, TM/undecidability
+              → limits of analysis. Automata Lab lets you <Strong>practice</Strong> the first two layers (Machine Studio, Grammar
+              Lab, Parser Studio); later compiler chapters explain what production tools add around them.
+            </Callout>
             <P>
-              Compiler engineering is the direct industrial realization of formal automata theory. Every compiler phase
-              corresponds to an exact stratum of the Chomsky Hierarchy.
+              Compiler phases align with Chomsky classes and the machines that recognize them.
             </P>
 
-            <H3>The Theoretical Correspondence Matrix</H3>
+            <H3>The theoretical correspondence matrix</H3>
             <Table
               headers={['Theory of Computation Concept', 'Compiler Engineering Implementation', 'Industrial Tool / Component']}
               rows={[
@@ -2362,7 +2532,7 @@ Target Machine Instructions       ──► Code Generation (Tree-Covering / Gra
               Theory of Computation &amp; Compiler Design Handbook
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-              Comprehensive Theoretical Foundations, Algorithmic Decision Systems, Parsers, SSA &amp; Optimization
+              Start with &quot;Automata Lab: Start here&quot; for beginners · Full TOC &amp; compiler reference below
             </div>
           </div>
         </div>

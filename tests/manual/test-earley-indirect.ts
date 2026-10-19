@@ -1,5 +1,5 @@
-import { parseGrammarText, tokenizeGrammarString } from './src/engines/grammar/parser';
-import { EarleySimulation } from './src/engines/parser/earley';
+import { parseGrammarText, tokenizeGrammarString } from '../../src/engines/grammar/parser';
+import { EarleySimulation } from '../../src/engines/parser/earley';
 
 try {
   const cfg = parseGrammarText(`A -> B a | ε

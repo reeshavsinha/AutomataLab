@@ -12,6 +12,7 @@ export function GrammarDerivationTab() {
   
   const session = machine ? getSession(machine.id) : {};
   const derivationInput = session.derivationInput || '';
+  const derivationQueryNonce = session.derivationQueryNonce ?? 0;
   
   const [inputStr, setInputStr] = useState(derivationInput);
   
@@ -24,11 +25,12 @@ export function GrammarDerivationTab() {
   const workerRef = useRef<Worker | null>(null);
 
   React.useEffect(() => {
-    // If the inputStr doesn't match the session derivationInput (e.g., when switching tabs), update it
     setInputStr(derivationInput);
     setLeftmost(session.leftmost || []);
     setRightmost(session.rightmost || []);
     setError(session.derivationError || null);
+    setSearchResult(null);
+    setSearching(false);
   }, [machine?.id]);
 
   React.useEffect(() => {
@@ -41,11 +43,17 @@ export function GrammarDerivationTab() {
       return;
     }
 
+    if (derivationQueryNonce === 0) {
+      setSearching(false);
+      return;
+    }
+
     if (!derivationInput.trim() && derivationInput !== '') {
-        setLeftmost([]);
-        setRightmost([]);
-        setError(null);
-        return;
+      setLeftmost([]);
+      setRightmost([]);
+      setError(null);
+      setSearchResult(null);
+      return;
     }
     
     if (!cfg) {
@@ -92,9 +100,6 @@ export function GrammarDerivationTab() {
       };
     }
 
-    // Only parse if we don't already have results for this input
-    if (session.leftmost && session.leftmost.length > 0) return;
-
     try {
       const tokens = derivationInput.trim() ? tokenizeInputString(derivationInput, cfg.terminals) : [];
       const sim = new EarleySimulation(cfg);
@@ -116,16 +121,27 @@ export function GrammarDerivationTab() {
       setLeftmost([]);
       setRightmost([]);
     }
-  }, [cfg, grammar, derivationInput, machine?.id]);
+  }, [cfg, grammar, derivationInput, derivationQueryNonce, machine?.id]);
 
-  if ((!cfg && !grammar) || !machine || grammarFormat === 'REGEX') return <div style={{ padding: 16 }}>Choose a non-regex grammar with valid productions.</div>;
+  if (!machine) {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Open or create a grammar tab to use derivations.</div>;
+  }
+  if (grammarFormat === 'REGEX') {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Derivations apply to explicit grammars. Switch to Type 0–3 or convert the regex to a Type 3 grammar.</div>;
+  }
+  if (!grammar) {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Enter valid productions for the selected format, then test membership with a terminal string.</div>;
+  }
 
   const handleParse = () => {
+    setSearchResult(null);
+    setError(null);
     updateSession(machine.id, { 
       derivationInput: inputStr,
-      leftmost: undefined, // Clear session cache so it recalculates
+      leftmost: undefined,
       rightmost: undefined,
-      derivationError: undefined 
+      derivationError: undefined,
+      derivationQueryNonce: derivationQueryNonce + 1,
     });
   };
 
@@ -208,7 +224,17 @@ export function GrammarDerivationTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16 }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Derivations</h3>
-      
+      {!cfg && (grammarFormat === 'TYPE_0' || grammarFormat === 'TYPE_1') && (
+        <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Type {grammarFormat === 'TYPE_0' ? '0' : '1'} grammars are too powerful for a guaranteed yes/no answer in finite time. Enter a string and click <strong>Find derivation</strong> (search does not start automatically). If the run hits a <strong>resource limit</strong>, the string was not found within the bound — that is not a proof that it is impossible.
+        </p>
+      )}
+      {derivationQueryNonce === 0 && !error && !searchResult && leftmost.length === 0 && (
+        <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          {cfg ? 'Enter a string and click Parse to build leftmost and rightmost derivations.' : 'Enter a string and click Find derivation.'}
+        </p>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input 
           type="text"
@@ -232,7 +258,13 @@ export function GrammarDerivationTab() {
       </div>
 
       {error && (
-        <div style={{ color: '#ef4444', marginBottom: 16, fontSize: '0.85rem' }}>{error}</div>
+        <div style={{
+          color: searchResult?.status === 'RESOURCE_LIMIT' || searchResult?.status === 'NOT_FOUND_WITHIN_LIMIT' ? '#d97706' : '#ef4444',
+          marginBottom: 16,
+          fontSize: '0.85rem',
+        }}>
+          {error}
+        </div>
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -1,6 +1,39 @@
 const SIMULATOR_URL = "https://automata-lab-sim.vercel.app/simulator";
 
 document.addEventListener('DOMContentLoaded', () => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Mobile navigation drawer
+  const navToggle = document.querySelector('.lp-nav-toggle');
+  const mobileNav = document.getElementById('lp-mobile-nav');
+  if (navToggle && mobileNav) {
+    const closeMobileNav = () => {
+      mobileNav.hidden = true;
+      navToggle.setAttribute('aria-expanded', 'false');
+      navToggle.setAttribute('aria-label', 'Open navigation menu');
+      document.body.classList.remove('lp-mobile-nav-open');
+    };
+
+    navToggle.addEventListener('click', () => {
+      const open = mobileNav.hidden;
+      mobileNav.hidden = !open;
+      navToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      navToggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+      document.body.classList.toggle('lp-mobile-nav-open', open);
+    });
+
+    mobileNav.querySelectorAll('a').forEach((link) => {
+      link.addEventListener('click', () => closeMobileNav());
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !mobileNav.hidden) {
+        closeMobileNav();
+        navToggle.focus();
+      }
+    });
+  }
+
   // Defensive Lenis Initialization
   let lenis;
   if (typeof Lenis !== 'undefined') {
@@ -57,10 +90,13 @@ document.addEventListener('DOMContentLoaded', () => {
       const versionTag = data?.tag_name || 'latest';
 
       // Update version tag elements dynamically
+      const displayVersion = 'v' + versionTag.replace(/^v/, '');
       ['dl-win-ver', 'dl-deb-ver', 'dl-mac-ver'].forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.textContent = 'v' + versionTag.replace(/^v/, '');
+        if (el) el.textContent = displayVersion;
       });
+      const footerVer = document.getElementById('footer-version');
+      if (footerVer) footerVer.textContent = `Version: ${displayVersion}`;
 
       // Map assets to columns dynamically
       assets.forEach(asset => {
@@ -133,7 +169,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Ambient Glow Parallax (stays centered, bulges towards cursor)
   const glow = document.querySelector('.lp-ambient-glow');
-  if (glow) {
+  if (glow && !prefersReducedMotion) {
     document.addEventListener('mousemove', (e) => {
       const centerX = window.innerWidth / 2;
       const centerY = window.innerHeight / 2;
@@ -150,10 +186,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Spotlight Glow on Cards
-  const grids = document.querySelectorAll('.lp-features-grid, .lp-docs-grid, .lp-downloads-grid');
+  const grids = document.querySelectorAll('.lp-features-grid, .lp-docs-grid, .lp-downloads-grid, .lp-learn-grid, .lp-gallery-duo, .lp-pipeline-steps');
   grids.forEach(grid => {
     grid.addEventListener('mousemove', (e) => {
-      const cards = grid.querySelectorAll('.lp-feature-item, .lp-doc-item, .lp-download-item');
+      const cards = grid.querySelectorAll('.lp-feature-item, .lp-doc-item, .lp-download-item, .lp-learn-card, .lp-gallery-tile, .lp-pipeline-card');
       cards.forEach(card => {
         const rect = card.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -164,33 +200,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // Scroll Spy for Navigation Links
+  // Scroll spy — map in-page sections to nav hrefs (e.g. #machine → Workspaces)
+  const SCROLL_SPY_NAV = {
+    home: 'home',
+    platform: 'home',
+    workspaces: 'workspaces',
+    machine: 'workspaces',
+    grammar: 'workspaces',
+    parser: 'workspaces',
+    gallery: 'gallery',
+    walkthrough: 'gallery',
+    pipeline: 'pipeline',
+    demo: 'demo',
+    algorithms: 'algorithms',
+    chomsky: 'algorithms',
+    learn: 'learn',
+    docs: 'docs',
+    citation: 'docs',
+    downloads: 'downloads',
+    start: 'downloads',
+  };
+
   const sections = document.querySelectorAll('section[id]');
   const navLinks = document.querySelectorAll('.lp-nav-link');
 
   if (sections.length > 0 && navLinks.length > 0 && typeof IntersectionObserver !== 'undefined') {
-    const observerOptions = {
-      root: null,
-      rootMargin: '-20% 0px -60% 0px',
-      threshold: 0
-    };
+    const visible = new Map();
 
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
+      entries.forEach((entry) => {
         if (entry.isIntersecting) {
-          navLinks.forEach(link => {
-            link.classList.remove('lp-nav-active');
-            if (link.getAttribute('href') === `#${entry.target.id}`) {
-              link.classList.add('lp-nav-active');
-            }
-          });
+          visible.set(entry.target.id, entry.intersectionRatio);
+        } else {
+          visible.delete(entry.target.id);
         }
       });
-    }, observerOptions);
 
-    sections.forEach(section => {
-      observer.observe(section);
+      let bestId = null;
+      let bestRatio = 0;
+      visible.forEach((ratio, id) => {
+        if (ratio >= bestRatio) {
+          bestRatio = ratio;
+          bestId = id;
+        }
+      });
+
+      if (!bestId) return;
+      const navId = SCROLL_SPY_NAV[bestId] || bestId;
+      const activeHref = `#${navId}`;
+
+      navLinks.forEach((link) => {
+        link.classList.toggle('lp-nav-active', link.getAttribute('href') === activeHref);
+      });
+    }, {
+      root: null,
+      rootMargin: '-72px 0px -55% 0px',
+      threshold: [0, 0.1, 0.25, 0.5, 0.75, 1],
     });
+
+    sections.forEach((section) => observer.observe(section));
   }
 
   // Scroll Animation for Items
@@ -262,7 +330,7 @@ document.addEventListener('DOMContentLoaded', () => {
         navigator.clipboard.writeText(textToCopy).then(() => {
           // Temporarily show Copied! text
           const originalHTML = btn.innerHTML;
-          btn.innerHTML = '<span style="color: #a6e22e; font-size: 0.75rem; font-family: \'JetBrains Mono\', monospace; font-weight: 600; padding: 0 4px;">Copied!</span>';
+          btn.innerHTML = '<span style="color: #1a7f37; font-size: 0.75rem; font-family: \'JetBrains Mono\', monospace; font-weight: 600; padding: 0 4px;">Copied!</span>';
           setTimeout(() => {
             btn.innerHTML = originalHTML;
           }, 2000);
@@ -272,4 +340,5 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   });
+
 });

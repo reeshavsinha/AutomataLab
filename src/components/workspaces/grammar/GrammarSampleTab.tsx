@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 import { useMachineStore } from '@/store/machineStore';
 import { Production } from '@/engines/grammar/types';
+import { sampleStringsFromGeneralGrammar } from '@/engines/grammar/sampleLanguage';
 import { regexToNfa } from '@/engines/machine/conversions/regexToNfa';
 import { runToCompletion } from '@/engines/machine/core/engineFactory';
 
 export function GrammarSampleTab() {
-  const { cfg, rawText, grammarFormat, getSession, updateSession } = useGrammarStore();
+  const { cfg, grammar, rawText, grammarFormat, getSession, updateSession } = useGrammarStore();
   const machine = useMachineStore((s) => s.machine);
   
   const session = machine ? getSession(machine.id) : {};
@@ -20,7 +21,8 @@ export function GrammarSampleTab() {
   if (!machine) return <div style={{ padding: 16 }}>No grammar loaded.</div>;
 
   const handleGenerate = () => {
-    if (grammarFormat !== 'REGEX' && (!cfg || !cfg.startSymbol)) return;
+    if (grammarFormat !== 'REGEX' && !cfg && !grammar) return;
+    if (grammarFormat !== 'REGEX' && cfg && !cfg.startSymbol) return;
     setIsGenerating(true);
     updateSession(machine.id, { samples: [] });
 
@@ -56,6 +58,17 @@ export function GrammarSampleTab() {
           }
         }
         const finalSamples = Array.from(generated).sort((a, b) => a.length - b.length || a.localeCompare(b));
+        updateSession(machine.id, { samples: finalSamples });
+        setIsGenerating(false);
+        return;
+      }
+
+      if (!cfg && grammar) {
+        const finalSamples = sampleStringsFromGeneralGrammar(grammar, {
+          maxLength,
+          maxSteps,
+          maxSamples: 500,
+        });
         updateSession(machine.id, { samples: finalSamples });
         setIsGenerating(false);
         return;

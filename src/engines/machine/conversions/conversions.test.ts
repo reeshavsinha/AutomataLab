@@ -16,6 +16,8 @@ import { nfaToDfa } from './subsetConstruction'
 import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { cfgToPda } from './cfgToPda'
+import { dfaToRegex } from './dfaToRegex'
+import { pdaToCfg } from './pdaToCfg'
 import { parseGrammarText } from '../../grammar/parser'
 // ─── helpers ────────────────────────────────────────────────────
 
@@ -295,6 +297,66 @@ describe('cfgToPda', () => {
     expect(() => parseGrammarText('x -> a')).toThrow()
     expect(() => parseGrammarText('no arrow here')).toThrow()
     expect(() => parseGrammarText('# only a comment')).toThrow()
+  })
+})
+
+// ─── FA → Regex (state elimination) ─────────────────────────────
+
+describe('dfaToRegex', () => {
+  it('extracts a regex from a DFA', () => {
+    const r = dfaToRegex(dfaRedundant)
+    expect(typeof r.result).toBe('string')
+    expect((r.result as string).length).toBeGreaterThan(0)
+    expect(r.steps.length).toBeGreaterThan(0)
+  })
+
+  it('handles a machine with no accept states', () => {
+    const noAccept: MachineDefinition = {
+      ...dfaRedundant,
+      states: dfaRedundant.states.map((s) => ({ ...s, isAccept: false })),
+    }
+    expect(dfaToRegex(noAccept).result).toBe('∅')
+  })
+
+  it('rejects non-finite automata types', () => {
+    const pda = cfgToPda('S -> a').result as MachineDefinition
+    expect(() => dfaToRegex(pda)).toThrow(/finite automata/)
+  })
+})
+
+// ─── PDA → CFG (triplet construction) ───────────────────────────
+
+describe('pdaToCfg', () => {
+  it('extracts a CFG from a normalized PDA', () => {
+    const pda: MachineDefinition = {
+      id: 'pda_test',
+      name: 'valid_pda',
+      type: 'DPDA',
+      language: '',
+      alphabet: ['a', 'b'],
+      blankSymbol: 'Z',
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true },
+        { id: 'q1', label: 'q1', x: 0, y: 0, isStart: false, isAccept: false },
+      ],
+      transitions: [
+        { id: 't0', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'Z', push: 'AZ' },
+        { id: 't1', from: 'q1', to: 'q1', symbols: [], read: 'a', pop: 'A', push: 'A' },
+        { id: 't2', from: 'q1', to: 'q0', symbols: [], read: 'b', pop: 'A', push: '' },
+      ],
+    }
+    const r = pdaToCfg(pda)
+    expect(typeof r.result).toBe('string')
+    expect((r.result as string).includes('S ->')).toBe(true)
+    expect(r.steps.length).toBeGreaterThan(0)
+  })
+
+  it('throws on PDA with epsilon pop outside setup', () => {
+    const pda = cfgToPda('S -> a').result as MachineDefinition
+    pda.grammarText = undefined
+    const loop = pda.transitions.find((t) => t.from === t.to && t.pop === 'S')
+    if (loop) loop.pop = ''
+    expect(() => pdaToCfg(pda)).toThrow(/ε-pop/)
   })
 })
 

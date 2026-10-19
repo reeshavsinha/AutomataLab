@@ -17,9 +17,15 @@ export interface GrammarSession {
   leftmost?: string[][];
   rightmost?: string[][];
   derivationError?: string | null;
+  /** Incremented when the user clicks Parse / Find derivation; bounds search never runs at 0. */
+  derivationQueryNonce?: number;
   samples?: string[];
   maxLengthStr?: string;
   maxStepsStr?: string;
+  /** Grammar editor accordion + syntax guide — per tab, survives workspace remounts. */
+  openGrouped?: boolean;
+  openFlat?: boolean;
+  showGrammarSyntaxHelp?: boolean;
 }
 
 interface GrammarStore {

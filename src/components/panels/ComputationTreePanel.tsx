@@ -1,5 +1,5 @@
 // ============================================================
-// ComputationTreePanel — Computation Tree Viewer (NFA / ε-NFA / NPDA).
+// ComputationTreePanel — Computation Tree Viewer (NFA / ε-NFA / NPDA / NLBA).
 // Renders the tree of all explored computation branches: colour-coded by
 // status (🟢 accepted / 🔴 rejected / 🟡 running / ⚪ interior), collapsible
 // subtrees, click-to-inspect, and branch/depth stats. The headline
@@ -18,6 +18,8 @@ import {
   type ComputationTreeNode,
   type TreeNodeStatus,
 } from '@/engines/machine/core/computationTree'
+import { isTMType } from '@/engines/machine/core/utils'
+import { formatTapeSnapshot } from '@/utils/exporters'
 
 /** Cap on rendered rows — guards against UI freeze on huge branchings (PRD risk). */
 const MAX_ROWS = 600
@@ -62,6 +64,7 @@ export default function ComputationTreePanel() {
   // the same state at the same step (first-parent-wins): it's a trellis/DAG, not
   // a true tree. NPDA keeps real per-branch lineage. Be honest about which (UX #3).
   const isTrellis = machine.type === 'NFA' || machine.type === 'ENFA'
+  const showsTape = isTMType(machine.type)
   const artifactName = isTrellis ? 'trellis' : 'tree'
 
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -297,6 +300,17 @@ export default function ComputationTreePanel() {
                 </span>
               )}
 
+              {showsTape && node.config.tapes && node.config.tapes.length > 0 && (
+                <span
+                  style={{ color: 'var(--text-muted)', fontSize: '10px', maxWidth: 'min(280px, 45vw)', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                  title={node.config.tapes.map((t, i) => formatTapeSnapshot(t)).join(' · ')}
+                >
+                  {node.config.tapes.map((t, i) =>
+                    node.config.tapes!.length > 1 ? `Tp${i + 1}:${formatTapeSnapshot(t)}` : formatTapeSnapshot(t),
+                  ).join(' ')}
+                </span>
+              )}
+
               {/* Collapsed subtree size hint */}
               {hasChildren && isCollapsed && (
                 <span style={{ color: 'var(--text-muted)', fontSize: '10px' }}>
@@ -356,6 +370,16 @@ export default function ComputationTreePanel() {
               : ''}
             )
           </div>
+          {showsTape && selected.config.tapes && selected.config.tapes.length > 0 && (
+            <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px', lineHeight: 1.45 }}>
+              {selected.config.tapes.map((t, i) => (
+                <div key={i}>
+                  {selected.config.tapes!.length > 1 ? `Tape ${i + 1}: ` : 'Tape: '}
+                  {formatTapeSnapshot(t)}
+                </div>
+              ))}
+            </div>
+          )}
           {(selected.config.mergedParents ?? 0) > 0 && (
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
               Reached by {1 + (selected.config.mergedParents ?? 0)} parent branches this step

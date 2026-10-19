@@ -6,6 +6,7 @@ import { useFileActions } from '@/hooks/useFileActions'
 import { useUIStore } from '@/store/uiStore'
 import type { MachineDefinition, MachineType } from '@/engines/machine/core/types'
 import { ThemeIcon, HelpIcon } from '@/components/toolbar/icons'
+import { navigateAppHash } from '@/utils/demoMode'
 
 function tabLabel(tab: MachineDefinition): string {
   if (tab.name) return tab.name
@@ -175,7 +176,7 @@ export default function TabBar() {
                 switchTab(index);
                 const preferredRoute = useMachineStore.getState().tabRoutes[tab.id];
                 if (preferredRoute && preferredRoute !== window.location.hash) {
-                  window.location.hash = preferredRoute;
+                  navigateAppHash(preferredRoute);
                 }
               }
             }}
@@ -448,7 +449,7 @@ export default function TabBar() {
           <ThemeIcon />
         </button>
         <button 
-          title="Help & keyboard shortcuts (F1)" 
+          title="Help & keyboard shortcuts" 
           onClick={() => useUIStore.getState().openModal('help')}
           style={{
             background: 'transparent',

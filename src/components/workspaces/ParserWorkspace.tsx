@@ -103,8 +103,8 @@ export function ParserWorkspace({ definition }: { definition?: MachineDefinition
             <div style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', marginTop: 24, fontSize: 12, color: 'var(--text-muted)', letterSpacing: 2, userSelect: 'none' }}>GRAMMAR</div>
           </div>
         ) : (
-          <div style={{ height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ flex: 1, overflow: 'hidden' }}>
+          <div style={{ height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
               <GrammarEditorPanel onCollapse={() => setLeftCollapsed(true)} />
             </div>
           </div>

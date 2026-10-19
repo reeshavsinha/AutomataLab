@@ -1,0 +1,120 @@
+.grammar-editor-panel {
+  min-width: 0 !important;
+  width: 100%;
+  max-width: 100%;
+  container-type: inline-size;
+  container-name: grammar-editor;
+}
+
+.grammar-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: center;
+  gap: 4px 6px;
+  padding: 4px 8px;
+  min-height: 28px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.grammar-editor-toolbar--parser {
+  flex-wrap: nowrap;
+  padding: 0 8px;
+  gap: 4px;
+}
+
+.grammar-editor-toolbar--parser.is-compact {
+  padding: 0 4px;
+}
+
+.grammar-toolbar-primary {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+}
+
+.grammar-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+@container grammar-editor (max-width: 420px) {
+  .grammar-editor-panel--lab .grammar-editor-toolbar {
+    row-gap: 6px;
+  }
+
+  .grammar-editor-panel--lab .grammar-toolbar-primary {
+    flex: 1 1 100%;
+  }
+
+  .grammar-editor-panel--lab .grammar-toolbar-actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+}
+
+.grammar-format-label {
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 3.25rem;
+  opacity: 1;
+  transition:
+    max-width 0.18s ease,
+    opacity 0.15s ease,
+    margin 0.18s ease;
+}
+
+.grammar-btn-text {
+  display: inline-block;
+  overflow: hidden;
+  white-space: nowrap;
+  max-width: 5.5rem;
+  opacity: 1;
+  vertical-align: middle;
+  transition:
+    max-width 0.18s ease,
+    opacity 0.15s ease;
+}
+
+.grammar-btn-compact-label {
+  display: none;
+}
+
+.grammar-epsilon-btn .grammar-btn-compact-label {
+  display: none;
+}
+
+@container grammar-editor (max-width: 320px) {
+  .grammar-format-label {
+    max-width: 0;
+    opacity: 0;
+    margin-right: -4px;
+  }
+
+  .grammar-btn-text {
+    max-width: 0;
+    opacity: 0;
+  }
+
+  .grammar-epsilon-btn .grammar-btn-compact-label {
+    display: inline;
+  }
+}
+
+@container grammar-editor (max-width: 299px) {
+  .grammar-editor-panel--parser .grammar-format-label,
+  .grammar-editor-panel--parser .grammar-btn-text {
+    max-width: 0;
+    opacity: 0;
+  }
+}

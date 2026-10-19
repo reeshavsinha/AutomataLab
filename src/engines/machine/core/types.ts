@@ -111,6 +111,8 @@ export interface MachineDefinition {
    * not constrain stack symbols (UX audit #7).
    */
   stackAlphabet?: string[]
+  /** PDA only — stack contents before the first step (e.g. CFG→PDA bottom marker). */
+  initialStack?: string[]
   /**
    * TM/LBA only — declared tape alphabet Γ (should include the blank and all of Σ).
    * Optional and declarative: when set, the validator warns if a read/write uses a

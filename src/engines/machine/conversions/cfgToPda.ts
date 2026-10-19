@@ -17,6 +17,7 @@ import { MachineBuilder } from './helpers'
 import { parseGrammarText } from '../../grammar/parser'
 import type { CFG } from '../../grammar/types'
 import { EPSILON } from '../../grammar/types'
+import { formatPush } from './pdaNormalize'
 
 /** Pick a single-char bottom-of-stack marker that doesn't clash with a grammar symbol. */
 function pickMarker(g: CFG): string {
@@ -37,11 +38,11 @@ export function cfgToPda(text: string): ConversionResult {
   const qLoop = builder.addState({ label: 'q_loop' })
   const qAccept = builder.addState({ label: 'q_accept', isAccept: true })
 
-  // Push the start symbol on top of the bottom marker.
+  // Pop the pre-loaded bottom marker; push start symbol and marker (≤2 symbols).
   const tInit = builder.addTransition(qStart, qLoop, {
     read: '',
-    pop: '',
-    push: grammar.startSymbol + ',' + marker,
+    pop: marker,
+    push: formatPush([grammar.startSymbol, marker]),
   })
   steps.push({
     title: 'Set up the PDA',
@@ -54,9 +55,7 @@ export function cfgToPda(text: string): ConversionResult {
 
   // One self-loop per production: pop the LHS, push the RHS (leftmost on top).
   for (const p of grammar.productions) {
-    // Join with commas to explicitly preserve multi-character symbols
-    // when NPDAEngine pushes them onto the stack.
-    const pushStr = p.rhs.join(',')
+    const pushStr = p.rhs.length === 0 ? '' : p.rhs.join(',')
     const t = builder.addTransition(qLoop, qLoop, {
       read: '',
       pop: p.lhs,
@@ -111,7 +110,9 @@ export function cfgToPda(text: string): ConversionResult {
     language: `L(G), start symbol ${grammar.startSymbol}`,
     alphabet: Array.from(grammar.terminals),
     stackAlphabet: [...Array.from(grammar.nonterminals), ...Array.from(grammar.terminals), marker],
+    initialStack: [marker],
   })
+  result.grammarText = text
 
   return {
     kind: 'cfg-to-pda',

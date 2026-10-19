@@ -1,10 +1,10 @@
-import { MachineDefinition, AutomataState, MachineType } from '@/engines/machine/core/types';
+import { MachineDefinition, AutomataState, MachineType, GrammarFormat } from '@/engines/machine/core/types';
 
 // ============================================================
 // AutomataLab — Built-in example gallery
 // One flat registry consumed by the Toolbar "Load Example" menu. Entries are
 // grouped in the UI by their `type` (machine workspace: DFA/NFA/ENFA/DPDA/
-// NPDA/TM/LBA; grammar workspace: CFG/CSG; parser workspace: CFG_PARSER).
+// NPDA/TM/LBA; grammar workspace: CFG/CSG/UG; parser workspace: CFG_PARSER).
 //
 // Machine automata are built with small helpers so coordinates/ids stay
 // consistent and correct. Grammars are plain `grammarText`.
@@ -124,9 +124,15 @@ function tm(
   };
 }
 
-/** Grammar / parser example (CFG / CSG / CFG_PARSER). */
-function g(name: string, type: 'CFG' | 'CSG' | 'CFG_PARSER', grammarText: string, language: string): Ex {
-  return { name, type, grammarText, language, states: [], transitions: [], alphabet: [] };
+/** Grammar / parser example (CFG / CSG / UG / CFG_PARSER). */
+function g(
+  name: string,
+  type: 'CFG' | 'CSG' | 'UG' | 'CFG_PARSER',
+  grammarText: string,
+  language: string,
+  grammarFormat?: GrammarFormat,
+): Ex {
+  return { name, type, grammarText, language, grammarFormat, states: [], transitions: [], alphabet: [] };
 }
 
 export const EXAMPLES: Record<string, Ex> = {
@@ -555,13 +561,54 @@ export const EXAMPLES: Record<string, Ex> = {
   cfgSignedNumber: g('CFG: Signed binary number', 'CFG', 'N -> SIGN D | D\nSIGN -> + | -\nD -> 0 D | 1 D | 0 | 1', 'Optionally signed binary'),
   cfgFloat: g('CFG: Fixed-point number', 'CFG', 'F -> D . D\nD -> 0 D | 1 D | 0 | 1', 'Binary fixed-point literal'),
   cfgOddLength: g('CFG: Odd-length strings', 'CFG', 'S -> a S a | a S b | b S a | b S b | a | b', 'Odd-length strings over {a,b}'),
+  cfgCommentBlock: g('CFG: Nested block comments', 'CFG', 'C -> / * T * /\nT -> eps | T X T\nX -> id | num | + | -', 'C-style block comments (toy)'),
+  cfgJsonString: g('CFG: Quoted JSON string', 'CFG', 'S -> " T "\nT -> eps | T C\nC -> a | b | c | 0 | 1', 'Double-quoted string literal'),
+  cfgScientific: g('CFG: Scientific notation', 'CFG', 'N -> D E | D\nD -> D DIG | DIG\nE -> e SIGN D | E SIGN D\nSIGN -> + | -\nDIG -> 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9', 'Mantissa with optional exponent'),
+  cfgRustMacro: g('CFG: Macro invocation', 'CFG', 'M -> id ! ( ARGS )\nARGS -> ARG ARGS | eps\nARG -> id | num | str', 'Identifier! ( … ) macro call'),
+  cfgChomskyHierarchy: g('CFG: Chomsky normal form demo', 'CFG', 'S -> A B | B C\nA -> a\nB -> b\nC -> c', 'Already in CNF (for CYK demos)'),
+  cfgExprNoRecursion: g('CFG: Expressions (no left recursion)', 'CFG', 'E -> T E2\nE2 -> + T E2 | eps\nT -> F T2\nT2 -> * F T2 | eps\nF -> ( E ) | id', 'LL-friendly expression grammar'),
+
+  // ══════════════════════════════════════════════════════════
+  // GRAMMAR WORKSPACE — Regular expressions (Regex format)
+  // ══════════════════════════════════════════════════════════
+  regexEnds01: g('Regex: (0|1)*01', 'CFG', '(0|1)*01', 'Binary strings ending in 01', 'REGEX'),
+  regexAStarBStar: g('Regex: a*b*', 'CFG', 'a*b*', 'Zero or more a then zero or more b', 'REGEX'),
+  regexAbStar: g('Regex: (ab)*', 'CFG', '(ab)*', 'Zero or more ab pairs', 'REGEX'),
+  regexOrAbb: g('Regex: (a|b)*abb', 'CFG', '(a|b)*abb', 'Strings ending in abb', 'REGEX'),
+  regexEvenLength: g('Regex: (aa|bb)*', 'CFG', '(aa|bb)*', 'Even length over aa and bb blocks', 'REGEX'),
+  regexNoConsecutive1: g('Regex: (0|10)*', 'CFG', '(0|10)*', 'No consecutive 1s (one encoding)', 'REGEX'),
+  regexBinaryDiv3: g('Regex: mod-3 binary (toy)', 'CFG', '(0|1(01*0)*1)*', 'Binary strings with value ≡ 0 (mod 3)', 'REGEX'),
+  regexIdent: g('Regex: C identifier', 'CFG', '[A-Za-z_][A-Za-z0-9_]*', 'Letter/underscore then alphanumerics', 'REGEX'),
+  regexInteger: g('Regex: Signed integer', 'CFG', '[+-]?[0-9]+', 'Optional sign and digits', 'REGEX'),
+  regexEmailToy: g('Regex: Toy email', 'CFG', '[a-z]+@[a-z]+\\.[a-z]+', 'Simplified email-shaped pattern', 'REGEX'),
+
+  // ══════════════════════════════════════════════════════════
+  // GRAMMAR WORKSPACE — Type 3 (regular) grammars
+  // ══════════════════════════════════════════════════════════
+  type3AStarB: g('Type 3: a*b', 'CFG', 'S -> a S | b', 'Right-linear: zero or more a then one b', 'TYPE_3'),
+  type3AStarBStar: g('Type 3: a*b*', 'CFG', 'S -> a S | b T\nT -> b T | eps', 'Right-linear a* then b*', 'TYPE_3'),
+  type3EndsAbb: g('Type 3: (a|b)*abb', 'CFG', 'S -> a S | b S | b B\nB -> b C\nC -> b', 'Right-linear strings ending in abb', 'TYPE_3'),
+  type3EvenAs: g('Type 3: a^{2n}', 'CFG', 'S -> a A | eps\nA -> a S', 'Even number of a', 'TYPE_3'),
+  type3LeftLinearBn: g('Type 3: b^n a^m (left-linear)', 'CFG', 'S -> B a | a\nB -> B b | b', 'Left-linear: some b then some a', 'TYPE_3'),
+  type3UnaryNumbers: g('Type 3: Unary numerals', 'CFG', 'S -> 1 S | 0 | 1 | eps', 'Unary strings over 0 and 1', 'TYPE_3'),
+
+  // ══════════════════════════════════════════════════════════
+  // GRAMMAR WORKSPACE — Unrestricted grammars (Type 0 / UG)
+  // ══════════════════════════════════════════════════════════
+  ugContracting: g('UG: Contracting rules (Type 0)', 'UG', 'S A -> a\nS -> a A', 'Not context-sensitive; demonstrates Type 0 shape', 'TYPE_0'),
+  ugSentential: g('UG: Sentential form rewrite', 'UG', 'S -> a S B | B\na B -> B a\nB -> b B | b', 'Unrestricted productions with multi-symbol LHS', 'TYPE_0'),
+  ugPalindromeMarker: g('UG: Marked palindrome helper', 'UG', 'S -> a S a | b S b | a | b | eps\nA a -> a A\nA -> eps', 'Palindrome core with auxiliary marker rules', 'TYPE_0'),
+  ugMixedAlphabet: g('UG: Mixed terminal insertion', 'UG', 'S -> a A | b B\nA -> a A | a\nB -> b B | b', 'Parallel a- and b-chains from shared start', 'TYPE_0'),
 
   // ══════════════════════════════════════════════════════════
   // GRAMMAR WORKSPACE — Context-Sensitive Grammars (CSG)
   // ══════════════════════════════════════════════════════════
-  csgAnBnCn: g('CSG: aⁿbⁿcⁿ', 'CSG', 'S -> a b c | a S B c\nc B -> B c\nb B -> b b', 'aⁿbⁿcⁿ'),
-  csgWW: g('CSG: Copy language (ww)', 'CSG', 'S -> a A S | b B S | eps\nA a -> a A\nA b -> b A\nB a -> a B\nB b -> b B\nA -> a\nB -> b', 'w w'),
-  csgPow2: g('CSG: a^(2ⁿ)', 'CSG', 'S -> L D R\nL D -> L a D D\nD a -> a D\nD R -> R\nL a -> a L\nL R -> eps', 'a raised to a power of two'),
+  csgAnBnCn: g('CSG: aⁿbⁿcⁿ', 'CSG', 'S -> a b c | a S B c\nc B -> B c\nb B -> b b', 'aⁿbⁿcⁿ', 'TYPE_1'),
+  csgWW: g('CSG: Copy language (ww)', 'CSG', 'S -> a A S | b B S | eps\nA a -> a A\nA b -> b A\nB a -> a B\nB b -> b B\nA -> a\nB -> b', 'w w', 'TYPE_1'),
+  csgPow2: g('CSG: a^(2ⁿ)', 'CSG', 'S -> L D R\nL D -> L a D D\nD a -> a D\nD R -> R\nL a -> a L\nL R -> eps', 'a raised to a power of two', 'TYPE_1'),
+  csgAnBnCnAlt: g('CSG: aⁿbⁿcⁿ (alternate)', 'CSG', 'S -> a B C | a S B C\nB c -> c B\nb B -> b b', 'Second classic aⁿbⁿcⁿ construction', 'TYPE_1'),
+  csgMarkedCopy: g('CSG: Marked copy (w#w)', 'CSG', 'S -> a S A | b S B | #\nA a -> a A\nA b -> b A\nB a -> a B\nB b -> b B\nA -> a\nB -> b', 'Copy with end marker #', 'TYPE_1'),
+  csgLengthNonContract: g('CSG: aⁿbⁿ (CSG shell)', 'CSG', 'S -> a S B | a B\nB -> b B | b', 'Non-contracting aⁿbⁿ-style rules', 'TYPE_1'),
 
   // ══════════════════════════════════════════════════════════
   // PARSER WORKSPACE — CFG_PARSER (LL/LR table demos & Theory)
@@ -642,14 +689,15 @@ export const EXAMPLE_GROUP_LABEL: Partial<Record<MachineType, string>> = {
   NPDA: 'NPDA — Nondeterministic Pushdown',
   TM: 'TM — Turing Machines',
   LBA: 'LBA — Linear Bounded Automata',
-  CFG: 'CFG — Context-Free Grammars',
-  CSG: 'CSG — Context-Sensitive Grammars',
+  CFG: 'CFG — Context-Free Grammars (Type 2; includes Regex & Type 3 entries)',
+  CSG: 'CSG — Context-Sensitive Grammars (Type 1)',
+  UG: 'UG — Unrestricted Grammars (Type 0)',
   CFG_PARSER: 'Parser Grammars',
 }
 
 export const EXAMPLE_TYPES_BY_WORKSPACE: Record<'machine' | 'grammar' | 'parser', MachineType[]> = {
   machine: ['DFA', 'NFA', 'ENFA', 'MEALY', 'MOORE', 'DPDA', 'NPDA', 'TM', 'LBA'],
-  grammar: ['CFG', 'CSG'],
+  grammar: ['CFG', 'CSG', 'UG'],
   parser: ['CFG_PARSER'],
 }
 

@@ -64,6 +64,11 @@ describe('machine capability registry', () => {
       supportsStack: true,
       supportsTape: false,
     })
+    expect(getMachineCapabilities('NLBA')).toMatchObject({
+      supportsComputationTree: true,
+      supportsTape: true,
+      supportsStack: false,
+    })
     expect(getMachineCapabilities('TM')).toMatchObject({
       supportsTape: true,
       supportsStack: false,

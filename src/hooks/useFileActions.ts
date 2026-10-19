@@ -16,6 +16,7 @@ import { isTauri } from '@tauri-apps/api/core'
 import { toast } from '@/store/toastStore'
 import type { MachineType } from '@/engines/machine/core/types'
 import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
+import { navigateAppHash } from '@/utils/demoMode'
 
 export function useFileActions(opts?: { bindKeys?: boolean }) {
   const { machine, activeTabIndex, dirtyTabs, tabPaths, addTab, openMachine, markTabSaved } = useMachineStore()
@@ -48,9 +49,9 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
       bumpRecent()
       
       const type = def.type;
-      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG' || type === 'UG') window.location.hash = '#/grammar';
-      else window.location.hash = '#/machine';
+      if (type === 'CFG_PARSER') navigateAppHash('#/parser');
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') navigateAppHash('#/grammar');
+      else navigateAppHash('#/machine');
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') toast.error(err.message)
     }
@@ -58,16 +59,16 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
 
   const handleOpenRecent = useCallback(async (file: RecentFile) => {
     try {
-      const def = await loadMachineFromPath(file.path)
+      const def = await loadMachineFromPath(file.path, { kind: file.kind })
       openMachine(def, file.path)
       setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
 
       const type = def.type;
-      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG' || type === 'UG') window.location.hash = '#/grammar';
-      else window.location.hash = '#/machine';
+      if (type === 'CFG_PARSER') navigateAppHash('#/parser');
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') navigateAppHash('#/grammar');
+      else navigateAppHash('#/machine');
     } catch {
       removeRecentFile(file.path)
       bumpRecent()

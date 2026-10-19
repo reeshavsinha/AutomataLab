@@ -2,15 +2,71 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v5.1.0
+
+Documentation and landing release on top of the v5.0.0 feature line. No engine or file-format breaking changes.
+
+### Changed
+
+- **GitHub Wiki:** Full refresh and second QA pass for Machine Studio, Grammar Lab, and Parser Studio (demo boundary, LR graph tiers, PDA stack convention, Analyze/Export/Batch UI paths).
+- **Landing page (`page/`):** Hero layout, quickstart copy, workspace rail/stats, doc-card hover behavior, and accuracy vs `demoMode` / desktop capabilities.
+- **In-app help (F1/F2):** User manual and keyboard cheat sheet aligned with **File / Edit / View / Help** chrome (toolbar **Export**, input-bar **Batch**; MTM/NLBA in machine docs).
+- **Branding:** Refreshed desktop app icon (`src-tauri/icons/*`) and menu-bar logo (`logo-transparent.svg`, replacing `logo.png`). Users updating from **v5.0.0** installers see the new mark after install/restart; Windows pinned shortcuts may need unpin/repin if the taskbar icon cache is stale.
+- **README**, **release_notes.md**, and version manifests bumped to **5.1.0**.
+
+### Notes
+
+- Vitest baseline unchanged: **65 files / 724 tests** (`npm test`).
+
 ## v5.0.0
 
+Major release: three hash-routed workspaces (Machine Studio, Grammar Lab, Parser Studio), Chomsky format-aware grammars, Phase C machine features, extract conversions, and desktop file UX.
+
 ### Added
-- **Grammar Lab:** A dedicated workspace for designing and analyzing Context-Free Grammars. Features include real-time Nullability, FIRST, and FOLLOW set computations, as well as ambiguity and left-recursion detection.
-- **Grammar Transformations:** Natively convert any Context-Free Grammar into Chomsky Normal Form (CNF) and Greibach Normal Form (GNF) with a single click.
-- **Parser Studio:** A massive new workspace for executing Top-Down and Bottom-Up parsers.
-- **Deterministic Parsers:** Construct Parse Tables and visualize Shift/Reduce actions for LL(1), LR(0), SLR(1), LALR(1), and CLR(1) algorithms.
-- **General Parsers:** Parse any ambiguous grammar using the CYK dynamic programming algorithm or the Earley chart parser.
-- **Visualizations:** Real-time generation of the LR Item Set DFA, interactive CYK matrices, and top-down/bottom-up step-by-step Abstract Syntax Tree (AST) building visualizations.
+
+#### Workspaces & documentation
+- **Workspace hub** (`#/`) and routes `#/machine`, `#/grammar`, `#/parser` with tab sync into grammar/parser stores.
+- **Grammar Lab** for regex and Chomsky **Types 0–3** with format classification; CFG-only tools (FIRST/FOLLOW, CNF/GNF, etc.) gated by `grammarLabCapabilities` / `GrammarLabTabGate`.
+- **Parser Studio** on the same grammar syntax as Grammar Lab (shared `grammarSyntaxGuide`).
+- **F1 User Manual** and **F2 Theory Handbook** (`labTheorySections`, `theoryMath`); cross-links between Parser and Grammar help (syntax table on Grammar tab only).
+- **Tabs onboarding** modal for new users (`TabsOnboardingModal`); Help entry to replay workspace intro.
+
+#### Machine Studio
+- **Phase C machines:** multi-track TM (`MTM`), NLBA, hierarchical TM submachines, TM **watchers** (transient per-tab debugger breakpoints), Mealy/Moore transducers, and grammar-derived recognizers with bounded Type 0/1 search.
+- **Extract conversions:** **FA → regex** (GNFA state elimination) and **PDA → CFG** (JFLAP-style triplet construction after `pdaNormalize`); **Extract to text** in the Convert dialog with **Open in Grammar Lab** for results.
+- **CFG → PDA** stores source `grammarText` on the NPDA for language-preserving PDA→CFG→Grammar round-trip when re-extracting.
+- **Computation tree** exports: JSON and Markdown outlines; **SVG outline** (`treeToSVG`); NLBA/multi-tape labels via `formatTapeSnapshot` in tree export.
+- **Hosted simulator boundary** (`demoMode.ts`): thin demo machine/example list; full desktop shell detected via Tauri runtime (`__TAURI_INTERNALS__`).
+
+#### Grammar Lab
+- **Bounded derivation search** for Types 0–3 with explicit `FOUND` / `NOT_FOUND_WITHIN_LIMIT` / `RESOURCE_LIMIT` / `CANCELLED` (worker-backed for interactive search).
+- **Properties, diagnostics, sample language, and fundamentals** copy tuned per Chomsky type (`grammarFundamentals`, `sampleLanguage`).
+- **Grammar → machine** toolbar targets via `MachineTargetPicker` (portal menu).
+
+#### Parser Studio
+- **LL(1), LR(0), SLR(1), LALR(1), CLR(1), CYK, Earley**, and recursive-descent backtracking with parse tables, automaton graph, syntax tree, and timeline.
+- **LR automaton graph** tiered layout: full detail up to 200 states, compact to 500, simplified (truncated items, tighter spacing) to **1500**; graph hidden above 1500 (parse tables and simulation unchanged). Layout worker + `GlobalRoutingEngine` (`LRLayoutStrategy` removed).
+- **Parser layout cache** on the machine tab (`parserLayoutCache`); invalidated when grammar or state count changes.
+
+#### Desktop (Tauri)
+- **Open Recent** for `.autolab.json` / `.jff` machines and grammar/parser **`.txt`** files; `RecentFileKind` labels in the File menu; available from the hub when recents exist.
+
+### Changed
+- **Export modal:** computation-tree SVG; parser/machine bundle exports unchanged in spirit, tree section expanded for NLBA tapes.
+- **File manager:** `loadMachineFromPath` for grammar/parser text; recent entries record kind on save.
+- **README** aligned with three workspaces, extracts, Tauri recents, and contributor notes on known limits.
+- **Toolchain:** TypeScript **7**; `tsconfig` path alias `@/*` → `./src/*` without deprecated `baseUrl`.
+
+### Fixed
+- **PDA → CFG** push normalization (e.g. comma-separated two-symbol pushes) via `expandPush` / `pdaNormalize`.
+- **Open Recent `.txt`** without stored `kind` infers parser vs grammar from `#/parser` when applicable.
+- **LR automaton cache** no longer skips relayout when LR state count changes but algorithm matches.
+- **Onboarding / demo:** modal visibility on desktop dev builds; opaque dialog card styling; backdrop does not dismiss onboarding accidentally.
+
+### Notes
+- **PDA → CFG** on an NPDA that still carries `grammarText` from CFG→PDA returns that grammar text instead of a fresh triplet (intentional round-trip). Clear `grammarText` to force triplet extraction.
+- **Open Recent** is Tauri-only (path-based). Legacy recent `.txt` entries without `kind` may open as Grammar until re-saved.
+- Vitest baseline for this line: **65 files / 724 tests** (see `npm test`).
 
 ## v4.1.0
 

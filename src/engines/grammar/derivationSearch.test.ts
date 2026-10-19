@@ -20,6 +20,13 @@ describe('bounded general-grammar derivation search', () => {
     expect(result.exploredNodes).toBeLessThanOrEqual(4)
   })
 
+  it('prunes CFG sentential forms that already have too many terminals for the target', () => {
+    const grammar = parseGeneralGrammarText('S -> a S b | a b', 'TYPE_2')
+    const result = findDerivation(grammar, ['a', 'b'], { maxNodes: 50_000 })
+    expect(result.status).toBe('FOUND')
+    expect(result.exploredNodes).toBeLessThan(30)
+  })
+
   it('reports resource limits rather than non-membership after a bounded search', () => {
     const grammar = parseGeneralGrammarText('S -> a S | a', 'TYPE_2')
     const result = findDerivation(grammar, ['a', 'a', 'a'], { maxDepth: 1 })

@@ -32,6 +32,7 @@
   flex-direction: column;
   background-color: var(--bg-secondary);
   overflow: hidden;
+  min-width: 0;
 }
 
 .workspace-shell-sidebar-left {

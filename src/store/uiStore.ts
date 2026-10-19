@@ -8,7 +8,15 @@ import { create } from 'zustand'
 export type Theme = 'dark' | 'light'
 export type ActivePanel = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'watchers' | 'submachines' | 'delta' | 'output'
 /** Top-level modal dialogs that can be opened from both the menu bar and toolbar. */
-export type ModalKind = 'help' | 'manual' | 'theory' | 'export' | 'convert' | 'batch' | 'analysis'
+export type ModalKind =
+  | 'help'
+  | 'manual'
+  | 'theory'
+  | 'workspace-intro'
+  | 'export'
+  | 'convert'
+  | 'batch'
+  | 'analysis'
 
 const THEME_KEY = 'automatalab-theme'
 const PANEL_KEY = 'automatalab-active-panel'

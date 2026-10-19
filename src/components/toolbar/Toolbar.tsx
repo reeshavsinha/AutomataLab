@@ -15,20 +15,22 @@ import { useFileActions } from '@/hooks/useFileActions'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
 import { isPDAType, isTMType, isTransducerType, generateId } from '@/engines/machine/core/utils'
-import { canOpenInParserStudio, grammarMachineTargets, isGraphMachineType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
+import { canOpenInParserStudio, isGraphMachineType, isGrammarType, isParserType } from '@/engines/machine/core/capabilities'
+import { useGrammarStore } from '@/store/grammarStore'
 import { useHistoryStore } from '@/store/historyStore'
 import type { GrammarFormat, MachineType, MachineDefinition } from '@/engines/machine/core/types'
 import { EXAMPLE_TYPES_BY_WORKSPACE } from '@/utils/examples'
-import { DEMO_EXAMPLE_KEYS, DEMO_MACHINE_TYPES, hasDemoModeQuery } from '@/utils/demoMode'
+import { DEMO_EXAMPLE_KEYS, DEMO_MACHINE_TYPES, isHostedDemoActive, navigateAppHash } from '@/utils/demoMode'
 import ExamplePicker from '@/components/toolbar/ExamplePicker'
-import { cfgToPda, grammarToRecognizer, regularGrammarToMachine, regexToRegularGrammar } from '@/engines/machine/conversions'
+import { MachineTargetPicker } from '@/components/toolbar/MachineTargetPicker'
+import { convertGrammarToMachine, regexToRegularGrammar } from '@/engines/machine/conversions'
 import {
   NewIcon, OpenIcon, SaveIcon, ExportIcon,
   UndoIcon, RedoIcon, CutIcon, CopyIcon, PasteIcon, DeleteIcon,
   ZoomInIcon, ZoomOutIcon, FitIcon, LayoutIcon,
   PlayIcon, PauseIcon, StepIcon, StepBackIcon, ResetIcon,
   AnalyzeIcon, ConvertIcon, ThemeIcon, HelpIcon,
-  GrammarLabIcon, ParserStudioIcon, MachineWorkspaceIcon
+  GrammarLabIcon, ParserStudioIcon,
 } from '@/components/toolbar/icons'
 
 function transitionFormat(type: MachineType): 'fa' | 'pda' | 'tm' {
@@ -72,7 +74,7 @@ function Sep() {
 }
 
 export default function Toolbar() {
-  const isDemoMode = import.meta.env.VITE_SIMULATOR_MODE === 'true' || hasDemoModeQuery(window.location.search)
+  const isDemoMode = import.meta.env.VITE_SIMULATOR_MODE === 'true' || isHostedDemoActive(window.location.search)
   const {
     machine, setMachineName, setMachineType, setAlphabet, setOutputAlphabet,
     setStackAlphabet, setTapeAlphabet,
@@ -111,10 +113,13 @@ export default function Toolbar() {
   const isGrammarContext = isGrammarType(machine.type)
   const isParserContext = isParserType(machine.type)
   const isMachineContext = isGraph
-  const hasGrammar = !!machine.grammarText && machine.grammarText.trim().length > 0;
-  const grammarFormat: GrammarFormat = machine.grammarFormat ?? (machine.type === 'CSG' ? 'TYPE_1' : machine.type === 'UG' ? 'TYPE_0' : 'TYPE_2')
-  const [machineTargetsOpen, setMachineTargetsOpen] = useState(false)
-
+  const grammarStoreText = useGrammarStore((s) => s.rawText)
+  const grammarStoreFormat = useGrammarStore((s) => s.grammarFormat)
+  const resolvedGrammarText = (grammarStoreText || machine.grammarText || '').trim()
+  const hasGrammar = resolvedGrammarText.length > 0
+  const grammarFormat: GrammarFormat = machine.grammarFormat
+    ?? grammarStoreFormat
+    ?? (machine.type === 'CSG' ? 'TYPE_1' : machine.type === 'UG' ? 'TYPE_0' : 'TYPE_2')
   const createTabDef = (type: MachineType, suffix: string, grammarText = machine.grammarText, format = grammarFormat): MachineDefinition => {
     let baseName = machine.name;
     baseName = baseName.replace(/\s*\[(?:Grammar|Parser|PDA)\]$/, '');
@@ -154,29 +159,24 @@ export default function Toolbar() {
   }
 
   const handleTransferToMachine = (target: MachineType) => {
-    if (!hasGrammar) return;
+    if (!hasGrammar) {
+      toast.warning('Enter a grammar before converting to a machine.')
+      return
+    }
     try {
-      const source = grammarFormat === 'REGEX'
-        ? regexToRegularGrammar(machine.grammarText || '')
-        : machine.grammarText || ''
-      const res = grammarFormat === 'REGEX' || grammarFormat === 'TYPE_3'
-        ? regularGrammarToMachine(source, target)
-        : grammarFormat === 'TYPE_2' && target === 'NPDA'
-          ? cfgToPda(source)
-          : (target === 'NLBA' || target === 'TM')
-            ? grammarToRecognizer(source, grammarFormat, target)
-          : null
-      if (!res) {
-        toast.warning(`A verified ${grammarFormat.replace('_', ' ')} → ${target} construction is not available yet.`)
-        return
-      }
-      const pdaDef = res.result as MachineDefinition;
-      let baseName = machine.name;
-      baseName = baseName.replace(/\s*\[(?:Grammar|Parser|PDA)\]$/, '');
-      pdaDef.name = `${baseName} [${target}]`;
-      insertTab(pdaDef);
+      const res = convertGrammarToMachine(resolvedGrammarText, grammarFormat, target)
+      const machineDef = res.result as MachineDefinition
+      let baseName = machine.name
+      baseName = baseName.replace(/\s*\[(?:Grammar|Parser|PDA|NLBA|TM|NPDA|DFA|NFA|ENFA|DPDA|LBA)\]$/, '')
+      machineDef.name = `${baseName} [${target}]`
+      insertTab(machineDef)
+      useMachineStore.setState((s) => ({
+        tabRoutes: { ...s.tabRoutes, [machineDef.id]: '#/machine' },
+      }))
+      navigateAppHash('#/machine')
+      toast.success(`Opened ${target} in Machine Studio`)
     } catch (e) {
-      toast.error(`Failed to convert grammar to ${target}: ${(e as Error).message}`);
+      toast.error(`Failed to convert grammar to ${target}: ${(e as Error).message}`)
     }
   }
 
@@ -312,37 +312,10 @@ export default function Toolbar() {
               {!isGrammarContext && <TbBtn title="Open in Grammar Lab" onClick={handleTransferToGrammar}><GrammarLabIcon /></TbBtn>}
               {!isParserContext && canOpenInParserStudio(grammarFormat) && <TbBtn title="Open in Parser Studio" onClick={handleTransferToParser}><ParserStudioIcon /></TbBtn>}
               {!isMachineContext && (
-                <div style={{ position: 'relative' }}>
-                  <TbBtn title="Convert grammar to a machine" onClick={() => setMachineTargetsOpen((open) => !open)}><MachineWorkspaceIcon /></TbBtn>
-                  {machineTargetsOpen && (
-                    <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, zIndex: 200, width: 210, maxHeight: 310, overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-sm)', boxShadow: 'var(--shadow-md)', padding: 4 }}>
-                      <div style={{ padding: '5px 7px', color: 'var(--text-muted)', fontSize: 10, fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-                        {grammarFormat.replace('_', ' ')} targets
-                      </div>
-                      {grammarMachineTargets(grammarFormat).map((target) => {
-                        const available = grammarFormat === 'REGEX'
-                          || grammarFormat === 'TYPE_3'
-                          || (grammarFormat === 'TYPE_2' && target === 'NPDA')
-                          || target === 'NLBA'
-                          || target === 'TM'
-                        return (
-                          <button
-                            key={target}
-                            disabled={!available}
-                            title={available ? `Build an equivalent ${target}` : 'No sound construction is available for this target.'}
-                            onClick={() => {
-                              setMachineTargetsOpen(false)
-                              handleTransferToMachine(target)
-                            }}
-                            style={{ display: 'block', width: '100%', padding: '7px 8px', textAlign: 'left', background: 'transparent', border: 'none', borderRadius: 3, color: available ? 'var(--text-primary)' : 'var(--text-muted)', opacity: available ? 1 : 0.5, cursor: available ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-mono)', fontSize: 12 }}
-                          >
-                            {target}{available ? '' : ' — unavailable'}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                <MachineTargetPicker
+                  grammarFormat={grammarFormat}
+                  onSelect={handleTransferToMachine}
+                />
               )}
             </>
           )}

@@ -7,6 +7,7 @@
 import { useState, useMemo, type CSSProperties, type ReactNode } from 'react'
 import Dialog from '@/components/common/Dialog'
 import { useUIStore } from '@/store/uiStore'
+import { GRAMMAR_TOKEN_ROWS } from '@/content/grammarSyntaxGuide'
 import {
   BookOpen,
   Layers,
@@ -193,32 +194,32 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
         keywords: ['overview', 'architecture', 'introduction', 'welcome', 'theory', 'automatalab', 'workspaces'],
         content: (
           <>
-            <H2>AutomataLab — Interactive Formal Language Studio</H2>
+            <H2>AutomataLab — three workspaces, one language</H2>
             <P>
-              <Strong>AutomataLab</Strong> is a unified computer science environment designed for studying, building, simulating, and verifying formal language models and parsing algorithms. It provides three interconnected, dedicated workspaces:
+              AutomataLab is a desktop lab for formal languages: draw machines, write grammars, and debug parsers with the same notation throughout. Use <Strong>F1</Strong> for this manual, <Strong>F2</Strong> for theory, and <Strong>Help ▸ Help &amp; keyboard shortcuts</Strong> for a one-page cheat sheet per workspace.
             </P>
             <Table
-              headers={['Workspace', 'Primary Models', 'Key Capabilities']}
+              headers={['Workspace', 'You build', 'Typical workflow']}
               rows={[
                 [
-                  'Automata Designer',
-                  'DFA, NFA, ε-NFA, Mealy, Moore, DPDA, NPDA, TM, LBA',
-                  'Infinite canvas visual graph editor, step-by-step simulation, multi-branch exploration, multi-tape Turing machines, conversions, and batch test suites.',
+                  'Machine Studio',
+                  'DFA, NFA, ε-NFA, transducers, PDA, TM, LBA',
+                  'Load example → simulate strings → Convert (ε-removal, subset, minimize) or Analyze equivalence.',
                 ],
                 [
-                  'Grammar Laboratory',
-                  'CFG (Context-Free) & CSG (Context-Sensitive)',
-                  'Live grammar analysis, FIRST/FOLLOW set derivation, CNF/GNF transformations, left-recursion elimination, left-factoring, ambiguity detection, and language sampling.',
+                  'Grammar Lab',
+                  'Regex; Type 0–3 grammars',
+                  'Pick format → Properties → Sampler / Derivations / Transformations → send to Parser or Machine Studio.',
                 ],
                 [
                   'Parser Studio',
-                  'LL(1), LR(0), SLR(1), LALR(1), CLR(1), Earley, CYK, Backtracking',
-                  'Interactive parsing tables, LR automaton state graph visualization, conflict inspectors, stack/closure step-by-step debuggers, and parse tree derivation visualizers.',
+                  'LL, LR, Earley, CYK, backtracking',
+                  'Edit grammar → pick algorithm → step parse table / stack / tree; inspect conflicts.',
                 ],
               ]}
             />
-            <Callout type="tip" title="Inter-Workspace Synergy">
-              You can effortlessly transfer models between workspaces using the toolbar buttons: synthesize an NPDA in Automata Designer from a grammar in Grammar Lab, or send a grammar directly into Parser Studio for table-driven simulation!
+            <Callout type="tip" title="Moving work between workspaces">
+              Toolbar transfer buttons send the current grammar to Parser Studio or build a standard recognizer (NPDA, DFA, bounded NLBA/TM shell) in Machine Studio without retyping rules.
             </Callout>
           </>
         ),
@@ -245,25 +246,26 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
 
             <H3>Top Menu Bar & Toolbars</H3>
             <P>
-              • <Strong>File Menu</Strong> — New, Open (<C>Ctrl+O</C>), Save (<C>Ctrl+S</C>), Save As (<C>Ctrl+Shift+S</C>), Export Bundle (<C>Ctrl+E</C>), Load Example gallery, and Recent Files.<br />
+              • <Strong>File Menu</Strong> — New, Open (<C>Ctrl+O</C>), Save (<C>Ctrl+S</C>), Save As (<C>Ctrl+Shift+S</C>), Load Example gallery, and <Strong>Open Recent</Strong> (desktop/Tauri: machines plus grammar or parser <C>.txt</C> files; labels show <C>(Grammar)</C> / <C>(Parser)</C> when saved from those workspaces). On the hub, Open Recent works when you have recents; Open/Save require a workspace tab.<br />
               • <Strong>Edit Menu</Strong> — Full Undo/Redo (<C>Ctrl+Z</C> / <C>Ctrl+Y</C>), Cut/Copy/Paste (<C>Ctrl+X</C> / <C>Ctrl+C</C> / <C>Ctrl+V</C>), Select All (<C>Ctrl+A</C>), and Delete selection.<br />
-              • <Strong>Simulate / Tools</Strong> — Quick triggers for Play/Pause, Single Step, Reset, and Batch Execution dialogs.<br />
-              • <Strong>Theme Toggle</Strong> — Seamlessly toggle between dark mode and light mode via the menu bar or the theme icon on the bottom right.
+              • <Strong>View Menu</Strong> — Zoom, fit to view, side panel visibility, and light/dark theme.<br />
+              • <Strong>Toolbar</Strong> — Machine type, Convert, Analyze (FA only), <Strong>Export</Strong> (δ-table, trace, tree, ZIP bundle), and canvas tools. Simulation uses the bottom input bar (Play, Step, Reset, <Strong>Batch…</Strong>).<br />
+              • <Strong>Theme</Strong> — Toggle from <Strong>View</Strong> or the theme icon on the tab bar.
             </P>
           </>
         ),
       },
       {
         id: 'automata-designer',
-        title: 'Automata Designer',
+        title: 'Machine Studio',
         category: 'Workspaces',
         icon: Cpu,
         keywords: ['automata', 'dfa', 'nfa', 'enfa', 'mealy', 'moore', 'dpda', 'npda', 'tm', 'lba', 'turing', 'canvas', 'states', 'transitions'],
         content: (
           <>
-            <H2>Automata Designer & Simulation</H2>
+            <H2>Machine Studio</H2>
             <P>
-              The Automata workspace provides an infinite, interactive canvas for constructing and executing state machines across the entire Chomsky hierarchy.
+              Infinite canvas editor and simulator for finite automata, pushdown machines, Turing machines, and linear bounded automata.
             </P>
 
             <H3>Supported Machine Formalisms</H3>
@@ -277,8 +279,9 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
                 ['Moore', 'input', 'Emits the destination state output; the initial state output is emitted first.'],
                 ['DPDA / NPDA', 'read, pop → push', 'Pushdown automata with stack operations. Use eps for empty.'],
                 ['Single-Tape TM', 'read → write, dir', 'Turing Machine with directions L (left), R (right), S (stay). Blank is _.'],
-                ['Multi-Tape TM', 't1_r → t1_w, d1 | t2_r → t2_w, d2', 'Synchronized multi-tape transitions with configurable tape count (1-9).'],
-                ['LBA', 'read → write, dir', 'Linear Bounded Automaton bounded between endmarkers ⊢ and ⊣.'],
+                ['Multi-Tape TM / MTM', 't1_r → t1_w, d1 | t2_r → t2_w, d2', 'Synchronized multi-tape or multi-track transitions; set tape count in the toolbar.'],
+                ['LBA / NLBA', 'read → write, dir', 'Linear bounded automata; NLBA uses a branching computation tree like NPDA.'],
+                ['Grammar-derived', 'varies', 'Recognizers built from Grammar Lab (Type 3/2/1/0) with bounded search for unrestricted cases.'],
               ]}
             />
 
@@ -299,7 +302,7 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
 
             <H3>Batch Test Suite Runner</H3>
             <P>
-              Click <Strong>Batch…</Strong> in the input bar or <Strong>Simulate ▸ Batch test…</Strong> to run test inputs at once. The shared suite format accepts <C>accept:</C>/<C>reject:</C>, optional <C>input =&gt; output</C> expectations, and <C>visible</C>, <C>hidden</C>, <C>random</C>, or <C>boundary</C> categories. Load <C>.txt</C>, validated <C>.csv</C>, or <C>.json</C> suites with <Strong>Load suite</Strong>; parser batches run on fresh adapters and do not overwrite the interactive session. Reports are available as CSV, JSON, Markdown, or LaTeX, with the first counterexample identified.
+              Click <Strong>Batch…</Strong> in the input bar to run test inputs at once. The shared suite format accepts <C>accept:</C>/<C>reject:</C>, optional <C>input =&gt; output</C> expectations, and <C>visible</C>, <C>hidden</C>, <C>random</C>, or <C>boundary</C> categories. Load <C>.txt</C>, validated <C>.csv</C>, or <C>.json</C> suites with <Strong>Load suite</Strong>; parser batches run on fresh adapters and do not overwrite the interactive session. Reports are available as CSV, JSON, Markdown, or LaTeX, with the first counterexample identified.
             </P>
           </>
         ),
@@ -329,6 +332,8 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
                 ['Subset Construction', 'NFA → DFA', 'Constructs power-set states. Hover over any generated state in AutomataLab to view its source subset!'],
                 ['DFA Minimization', 'DFA → Minimal DFA', 'Hopcroft & Myhill-Nerode table filling algorithm with unreachable state elimination.'],
                 ['CFG to PDA', 'Context-Free Grammar → PDA', 'Constructs the standard top-down single-state PDA simulating leftmost derivations.'],
+                ['FA → Regex (extract)', 'DFA / NFA / ε-NFA → regex text', 'GNFA state elimination; use <Strong>Extract to text</Strong> in the Convert dialog.'],
+                ['PDA → CFG (extract)', 'DPDA / NPDA → grammar text', 'Triplet construction after automatic normalization; CFG-origin PDAs may return embedded grammar text (see handbook).'],
               ]}
             />
 
@@ -338,9 +343,9 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
             </P>
             <P>
               • <Strong>Reachability &amp; Dead States</Strong> — Identifies unreachable states from the start state and dead states that cannot reach an accept state.<br />
-              • <Strong>Emptiness Check</Strong> — Determines if \(L(M) = \emptyset\). If not empty, generates the shortest accepting witness string.<br />
-              • <Strong>DFA Equivalence</Strong> — Verifies if \(L(M_1) = L(M_2)\) using synchronous product automaton search.<br />
-              • <Strong>Language Inclusion</Strong> — Checks whether \(L(M_1) \subseteq L(M_2)\) via complementation and intersection.
+              • <Strong>Emptiness check</Strong> — whether <C>L(M) = ∅</C>; if not empty, returns a shortest accepting witness.<br />
+              • <Strong>DFA equivalence</Strong> — whether <C>L(M₁) = L(M₂)</C> via product construction.<br />
+              • <Strong>Language inclusion</Strong> — whether <C>L(M₁) ⊆ L(M₂)</C> using complement and intersection.
             </P>
           </>
         ),
@@ -353,68 +358,40 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
         keywords: ['grammar', 'cfg', 'csg', 'chomsky', 'first', 'follow', 'cnf', 'gnf', 'left recursion', 'left factoring', 'ambiguity'],
         content: (
           <>
-            <H2>Grammar Laboratory</H2>
+            <H2>Grammar Lab</H2>
             <P>
-              The Grammar Laboratory lets you author, analyze, transform, and debug Context-Free (CFG) and Context-Sensitive (CSG) grammars in real time.
+              Author regex or Chomsky grammars (Types 0–3). The toolbar format controls which tabs are available; <Strong>Properties</Strong> summarizes validity and class. Toggle the editor <Strong>syntax guide</Strong> (book icon) for production rules.
             </P>
 
-            <H3>Production Syntax Rules</H3>
-            <P>
-              • <Strong>Production Arrow</Strong> — Written as <C>-&gt;</C>, <C>::=</C>, <C>→</C>, or <C>:</C>.<br />
-              • <Strong>Nonterminals</Strong> — Must start with an uppercase letter: <C>S</C>, <C>Expr</C>, <C>Term_1</C>, <C>T'</C>.<br />
-              • <Strong>Terminals</Strong> — Lowercase identifiers or punctuation: <C>id</C>, <C>num</C>, <C>a</C>, <C>b</C>, <C>+</C>, <C>*</C>.<br />
-              • <Strong>Quoted Terminals</Strong> — Use double or single quotes for multi-word or operator symbols: <C>"if"</C>, <C>"=="</C>, <C>";"</C>.<br />
-              • <Strong>Epsilon (Empty String)</Strong> — Use <C>ε</C>, <C>eps</C>, <C>epsilon</C>, <C>\epsilon</C>, or <C>λ</C>.<br />
-              • <Strong>Start Symbol</Strong> — The left-hand side of the first declared production rule.
-            </P>
-
-            <H3>Token Boundaries &amp; Terminal Distinction (Crucial)</H3>
-            <P>
-              Grammar symbols are tokenized deterministically according to strict lexical rules:
-            </P>
+            <H3>Formats at a glance</H3>
             <Table
-              headers={['Grammar Rule Example', 'Parsed Symbols', 'Tokenization Rule']}
+              headers={['Format', 'Use when', 'Main tabs']}
               rows={[
-                [
-                  'S -> num + num',
-                  'NT: {S}, T: {num, +}',
-                  'A contiguous unquoted word like "num" is parsed as ONE terminal token, not separate n, u, m.',
-                ],
-                [
-                  'S -> n u m',
-                  'NT: {S}, T: {n, u, m}',
-                  'Whitespace acts as a hard symbol delimiter, producing THREE individual single-char terminals.',
-                ],
-                [
-                  'S -> "num" | \'num\'',
-                  'NT: {S}, T: {num}',
-                  'Quotes explicitly treat the enclosed text as a single terminal symbol.',
-                ],
-                [
-                  'S -> "==" | "<=" | "if"',
-                  'NT: {S}, T: {==, <=, if}',
-                  'Quoting guarantees multi-character and operator tokens are preserved cleanly.',
-                ],
-                [
-                  'E -> Expr + Term',
-                  'NT: {E, Expr, Term}, T: {+}',
-                  'Words starting with an uppercase letter (A–Z) are always recognized as nonterminals.',
-                ],
-                [
-                  'S -> eps | ε',
-                  'NT: {S}, Epsilon',
-                  'Recognized epsilon keywords represent the empty string (no terminal generated).',
-                ],
+                ['Regex', 'Regular languages, Thompson → NFA path', 'Properties, Sampler'],
+                ['Type 3', 'Right/left-linear grammars', 'Properties, Sampler, Derivations'],
+                ['Type 2', 'Programming-language syntax (CFG)', 'FULL: FIRST/FOLLOW, CNF, ambiguity, CFG → PDA'],
+                ['Type 1', 'Context-sensitive rules', 'Properties, bounded Derivations, Problems'],
+                ['Type 0', 'Unrestricted experiments', 'Properties, bounded Derivations (semi-decision)'],
               ]}
             />
-            <CodeBlock code={`# Classic Expression Grammar with 'id' and 'num'\nE -> E + T | T\nT -> T * F | F\nF -> ( E ) | id | num`} />
 
-            <H3>Analysis & Properties</H3>
+            <H3>Production and token rules</H3>
             <P>
-              • <Strong>FIRST &amp; FOLLOW Sets</Strong> — Real-time computation of FIRST, FOLLOW, and Nullable sets for every nonterminal.<br />
-              • <Strong>Transformations</Strong> — One-click transformations into Chomsky Normal Form (CNF) and Greibach Normal Form (GNF), direct &amp; indirect left-recursion elimination, and left-factoring.<br />
-              • <Strong>Derivations &amp; Syntax Tree</Strong> — Test input strings to generate leftmost and rightmost derivation step traces using the built-in Earley recognizer.<br />
-              • <Strong>Ambiguity Detector</Strong> — Bounded breadth-first exploration to search for counterexample strings that produce multiple valid parse trees.
+              Arrows: <C>-&gt;</C>, <C>→</C>, <C>::=</C>, or <C>:</C>. Start symbol = left-hand side of the first rule. Epsilon on the right: <C>ε</C>, <C>eps</C>, <C>λ</C>, or <C>""</C>.
+            </P>
+            <Table
+              headers={['Example rule', 'Rule']}
+              rows={GRAMMAR_TOKEN_ROWS.map((r) => [r.example, r.rule])}
+            />
+            <CodeBlock code={`# Expression grammar\nE -> E + T | T\nT -> T * F | F\nF -> ( E ) | id | num`} />
+
+            <H3>Analysis tools</H3>
+            <P>
+              • <Strong>FIRST / FOLLOW</Strong> — live sets for LL and SLR (Type 2/3).<br />
+              • <Strong>Transformations</Strong> — CNF, GNF, remove left recursion, left-factor.<br />
+              • <Strong>Derivations</Strong> — Type 2 parse trees; Types 0–1 bounded search (click Find derivation).<br />
+              • <Strong>Ambiguity</Strong> — search for two parse trees (Type 2).<br />
+              • <Strong>Sampler</Strong> — short strings in the language.
             </P>
           </>
         ),
@@ -447,18 +424,15 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
               ]}
             />
 
-            <H3>Grammar Format &amp; Tokenization Rules</H3>
+            <H3>Grammar syntax</H3>
             <P>
-              • <Strong>Distinguishing Tokens (<C>num</C> vs <C>n u m</C>)</Strong> — An unquoted sequence like <C>num</C> is parsed as <Strong>ONE terminal token</Strong> (<C>num</C>). If you want three separate single-character terminals, separate them with spaces: <C>n u m</C>.<br />
-              • <Strong>Quoted Literals</Strong> — Enclose in quotes (<C>"num"</C>, <C>'if'</C>, <C>"=="</C>) to explicitly treat symbols as a single terminal token.<br />
-              • <Strong>Nonterminals</Strong> — Must start with an uppercase letter (<C>S</C>, <C>Expr</C>, <C>Term</C>, <C>T2</C>).<br />
-              • <Strong>Input Buffer Longest-Match Scanning</Strong> — When parsing a test string in the input buffer, tokens are matched greedily against the grammar’s declared terminal alphabet. If <C>id</C> and <C>num</C> are terminals, <C>id+num</C> is scanned as <C>id</C>, <C>+</C>, <C>num</C>.
+              Identical tokenization to Grammar Lab — see the Grammar Lab chapter for the <C>num</C> vs <C>n u m</C> table. The input buffer uses <Strong>longest match</Strong> over declared terminals (<C>id+num</C> → <C>id</C>, <C>+</C>, <C>num</C> when those symbols exist).
             </P>
 
             <H3>Visualization &amp; Debugging Tools</H3>
             <P>
               • <Strong>Interactive Parse Table</Strong> — Inspect generated Action &amp; Goto tables with highlighted conflict cells (Shift/Reduce and Reduce/Reduce).<br />
-              • <Strong>LR Automaton Graph</Strong> — Interactive graph showing LR state nodes, item-set closures, and GOTO transitions.<br />
+              • <Strong>LR Automaton Graph</Strong> — Interactive graph showing LR state nodes, item-set closures, and GOTO transitions. Layout simplifies automatically for large grammars (truncated item lists up to about 1500 states; use the parse table beyond that).<br />
               • <Strong>Conflict Inspector</Strong> — Click on any conflicting table cell to inspect the competing production items and lookaheads.<br />
               • <Strong>Transport Timeline</Strong> — Step forward, step backward, seek to start, or seek to end. Click any past step on the timeline to preview past parse stack states.
             </P>
@@ -529,7 +503,7 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
             <H3>5. Graphical &amp; LaTeX Exports</H3>
             <P>
               • <Strong>PNG / SVG</Strong> — High-resolution raster and vector graphics with transparent or theme background.<br />
-              • <Strong>LaTeX Table (.tex)</Strong> — Ready-to-compile LaTeX tabular code exporting state transition (\(\delta\)) tables for problem sets and academic papers.<br />
+              • <Strong>LaTeX table (.tex)</Strong> — transition table (δ) ready for problem sets.<br />
               • <Strong>Configuration Matrix</Strong> — CSV, Markdown, and LaTeX exports of step, state, input position, consumed/remaining input, and only the applicable stack, independent tape, output, and status columns.<br />
               • <Strong>Export Bundle (.zip)</Strong> — One-click download containing the JSON definition, diagram exports, grammar text, and analysis tables.
             </P>
@@ -551,12 +525,14 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
             <Table
               headers={['Shortcut', 'Action']}
               rows={[
-                ['F1', 'Open User Manual & Quick Help'],
+                ['F1', 'Open this user manual'],
+                ['F2', 'Open theory handbook'],
+                ['Help menu', 'Quick help and shortcuts (no accelerator)'],
                 ['Ctrl+N', 'Create a new machine / tab'],
                 ['Ctrl+O', 'Open a file (.autolab.json, .jff, .txt)'],
                 ['Ctrl+S', 'Save current machine / grammar'],
                 ['Ctrl+Shift+S', 'Save As…'],
-                ['Ctrl+E', 'Open Export Bundle modal'],
+                ['Toolbar Export', 'Open Export modal (δ-table, trace, tree, ZIP bundle)'],
                 ['Ctrl+T', 'Open new workspace tab'],
                 ['Ctrl+W', 'Close active tab'],
                 ['Ctrl+Z / Ctrl+Y', 'Global Undo / Redo'],
@@ -626,7 +602,7 @@ export default function ManualModal({ onClose, initialSection = 'getting-started
 
             <H3>Why did LL(1) reject my expression grammar?</H3>
             <P>
-              LL(1) top-down parsers cannot parse grammars with <Strong>left recursion</Strong> (e.g., \(E \to E + T\)) or grammars requiring <Strong>left factoring</Strong>. Use Grammar Lab's one-click transformations to eliminate left recursion and left-factor the rules into \(E \to T E'\).
+              LL(1) parsers cannot handle <Strong>left recursion</Strong> (e.g. <C>E -&gt; E + T</C>) or grammars that need <Strong>left factoring</Strong>. Use Grammar Lab <Strong>Transformations</Strong> to remove left recursion and left-factor before rebuilding the LL table.
             </P>
 
             <H3>Why did my Turing machine simulation get stuck?</H3>

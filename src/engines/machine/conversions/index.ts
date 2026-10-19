@@ -14,8 +14,11 @@ import { minimizeDfa } from './minimizeDfa'
 import { regexToNfa } from './regexToNfa'
 import { regularGrammarToMachine, regularGrammarToNfa, regexToRegularGrammar } from './regularGrammar'
 import { grammarToRecognizer } from './grammarRecognizer'
+import { convertGrammarToMachine, isGrammarToMachineTargetAvailable } from './grammarToMachine'
 import { cfgToPda } from './cfgToPda'
 import { mealyToMoore, mooreToMealy } from './transducers'
+import { dfaToRegex } from './dfaToRegex'
+import { pdaToCfg } from './pdaToCfg'
 
 export type { ConversionKind, ConversionMeta, ConversionResult, ConversionStep, ConversionMode } from './types'
 export {
@@ -27,7 +30,11 @@ export {
   regularGrammarToNfa,
   regularGrammarToMachine,
   grammarToRecognizer,
+  convertGrammarToMachine,
+  isGrammarToMachineTargetAvailable,
   cfgToPda,
+  dfaToRegex,
+  pdaToCfg,
   mealyToMoore,
   mooreToMealy,
 }
@@ -89,6 +96,23 @@ export const CONVERSIONS: ConversionMeta[] = [
     inputKind: 'cfg',
     resultType: 'NPDA',
   },
+  {
+    kind: 'dfa-to-regex',
+    label: 'FA → Regex',
+    description: 'GNFA state elimination (JFLAP Convert FA to RE).',
+    mode: 'extract',
+    appliesTo: ['DFA', 'NFA', 'ENFA'],
+    resultType: 'ENFA',
+  },
+  {
+    kind: 'pda-to-cfg',
+    label: 'PDA → CFG',
+    description:
+      'Triplet construction (auto-normalize PDA, then JFLAP-style extract). CFG→PDA machines return embedded grammar text when present.',
+    mode: 'extract',
+    appliesTo: ['DPDA', 'NPDA'],
+    resultType: 'CFG',
+  },
 ]
 
 export function getConversionMeta(kind: ConversionKind): ConversionMeta {
@@ -105,6 +129,11 @@ export function transformsFor(type: MachineType): ConversionMeta[] {
 /** Construction conversions (always available — they build from text). */
 export function constructs(): ConversionMeta[] {
   return CONVERSIONS.filter((c) => c.mode === 'construct')
+}
+
+/** Extract conversions (machine → text) for the given type. */
+export function extractsFor(type: MachineType): ConversionMeta[] {
+  return CONVERSIONS.filter((c) => c.mode === 'extract' && c.appliesTo?.includes(type))
 }
 
 /** Run a machine-to-machine transform. */
@@ -134,5 +163,17 @@ export function runConstruct(kind: ConversionKind, text: string): ConversionResu
       return cfgToPda(text)
     default:
       throw new Error(`${kind} is not a construction conversion.`)
+  }
+}
+
+/** Run a machine-to-text extraction. */
+export function runExtract(kind: ConversionKind, machine: MachineDefinition): ConversionResult {
+  switch (kind) {
+    case 'dfa-to-regex':
+      return dfaToRegex(machine)
+    case 'pda-to-cfg':
+      return pdaToCfg(machine)
+    default:
+      throw new Error(`${kind} is not an extract conversion.`)
   }
 }

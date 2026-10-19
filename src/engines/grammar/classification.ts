@@ -32,7 +32,8 @@ function isContextSensitive(grammar: GeneralGrammar): boolean {
  * right-linear Type 3 grammar, plus terminal-only productions. Mixing the two
  * directions is intentionally rejected because it need not remain regular.
  */
-function regularDirection(grammar: GeneralGrammar): 'left' | 'right' | null {
+/** Left- or right-linear direction for a Type 3 grammar, or null if not regular-linear. */
+export function regularDirection(grammar: GeneralGrammar): 'left' | 'right' | null {
   if (!isContextFree(grammar)) return null
   let direction: 'left' | 'right' | null = null
 

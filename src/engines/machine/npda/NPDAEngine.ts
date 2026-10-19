@@ -85,7 +85,7 @@ export class NPDAEngine implements Automaton, TreeProvider {
       inputChars: this.inputChars,
       inputIndex: 0,
       status: 'running',
-      stack: [],
+      stack: this.definition.initialStack?.length ? [...this.definition.initialStack] : [],
       parentId: null,
       id: this._nextId(),
     })

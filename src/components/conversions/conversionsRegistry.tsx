@@ -6,6 +6,8 @@ import {
   minimizeDfa,
   regexToNfa,
   cfgToPda,
+  dfaToRegex,
+  pdaToCfg,
   mealyToMoore,
   mooreToMealy,
   type ConversionResult,
@@ -260,6 +262,25 @@ export const CONVERSION_PLUGINS: ConversionPlugin[] = [
     inputComponent: CFGInput,
     execute: (text: string) => cfgToPda(text),
     animationBuilder: defaultAnimationBuilder,
+  },
+  {
+    kind: 'dfa-to-regex',
+    label: 'FA → Regex',
+    description: 'GNFA state elimination (JFLAP Convert FA to RE).',
+    mode: 'extract',
+    appliesTo: ['DFA', 'NFA', 'ENFA'],
+    resultType: 'ENFA',
+    execute: (machine: MachineDefinition) => dfaToRegex(machine),
+  },
+  {
+    kind: 'pda-to-cfg',
+    label: 'PDA → CFG',
+    description:
+      'Triplet construction (auto-normalize PDA, then JFLAP-style extract). CFG→PDA machines return embedded grammar text when present.',
+    mode: 'extract',
+    appliesTo: ['DPDA', 'NPDA'],
+    resultType: 'CFG',
+    execute: (machine: MachineDefinition) => pdaToCfg(machine),
   },
 ]
 

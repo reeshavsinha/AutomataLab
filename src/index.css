@@ -673,6 +673,57 @@ button.tb-select {
   white-space: nowrap;
 }
 
+/* Grammar → machine target menu (ported to document.body — toolbar uses overflow-y: hidden) */
+.grammar-target-picker {
+  position: fixed;
+  z-index: 2400;
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  background: var(--chrome-bg);
+  border: 1px solid var(--chrome-border);
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  overflow: hidden;
+  color: var(--text-primary);
+}
+.grammar-target-picker-head {
+  padding: 8px 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--chrome-border);
+  background: var(--chrome-bg-2, var(--bg-secondary));
+}
+.grammar-target-picker-list {
+  overflow-y: auto;
+  padding: 4px;
+}
+.grammar-target-picker-item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.grammar-target-picker-item:hover:not(:disabled) {
+  background: var(--chrome-hover-bg);
+}
+.grammar-target-picker-item:disabled,
+.grammar-target-picker-item[data-available="false"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+  color: var(--text-muted);
+}
+
 /* Load-Example picker (ported to document.body so workspace overflow cannot clip it) */
 .example-picker {
   position: fixed;

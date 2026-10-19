@@ -1,6 +1,6 @@
 // ============================================================
 // MenuBar — classic native-style application menu bar.
-// File / Edit / View / Machine / Simulate / Convert / Help, each a
+// File / Edit / View / Help, each a
 // click-to-open dropdown (and hover-to-switch while one is open), wired
 // to the stores + the command bus (canvas/sim) + shared file actions.
 // ============================================================
@@ -21,6 +21,7 @@ import WorkspaceSwitcher from './WorkspaceSwitcher'
 import type { MachineType, MachineDefinition } from '@/engines/machine/core/types'
 import { EXAMPLES, EXAMPLE_TYPES_BY_WORKSPACE, groupedExamples } from '@/utils/examples'
 import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
+import { navigateAppHash } from '@/utils/demoMode'
 import logoUrl from '@/assets/logo-transparent.svg'
 
 type Item =
@@ -109,6 +110,7 @@ export default function MenuBar() {
     route === '#/grammar' ? 'grammar' :
     route === '#/parser' ? 'parser' : 
     route === '#/regex' ? 'regex' : 'machine'
+  const canUseFileIo = !isHub && (workspaceType === 'machine' || workspaceType === 'grammar' || workspaceType === 'parser')
 
   const tabId = machine?.id ?? 'global'
 
@@ -223,7 +225,11 @@ export default function MenuBar() {
 
   const recentItems: Item[] = file.recentFiles.length > 0
     ? [
-        ...file.recentFiles.map((f) => ({ kind: 'action' as const, label: f.name, onClick: () => file.handleOpenRecent(f) })),
+        ...file.recentFiles.map((f) => ({
+          kind: 'action' as const,
+          label: f.kind === 'parser' ? `${f.name} (Parser)` : f.kind === 'grammar' ? `${f.name} (Grammar)` : f.name,
+          onClick: () => file.handleOpenRecent(f),
+        })),
         { kind: 'sep' as const },
         { kind: 'action' as const, label: 'Clear recent', onClick: file.handleClearRecent },
       ]
@@ -293,14 +299,19 @@ export default function MenuBar() {
     {
       id: 'file', label: 'File', items: [
         { kind: 'action', label: 'New', accel: 'Ctrl+N', onClick: file.handleNew, disabled: isHub },
-        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen, disabled: isHub || workspaceType !== 'machine' },
-        { kind: 'submenu', label: 'Open Recent', items: recentItems, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen, disabled: !canUseFileIo },
+        {
+          kind: 'submenu',
+          label: 'Open Recent',
+          items: recentItems,
+          disabled: !isTauri() || file.recentFiles.length === 0,
+        },
         { kind: 'submenu', label: 'Load Example', items: loadExampleItems, disabled: isHub },
         { kind: 'sep' },
-        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave, disabled: isHub || workspaceType !== 'machine' },
-        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave, disabled: !canUseFileIo },
+        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs, disabled: !canUseFileIo },
         { kind: 'sep' },
-        { kind: 'action', label: 'Go to Workspace Hub', onClick: () => { window.location.hash = '#/'; }, disabled: isHub },
+        { kind: 'action', label: 'Go to Workspace Hub', onClick: () => { navigateAppHash('#/'); }, disabled: isHub },
         ...(isTauri() ? [{ kind: 'sep' as const }, { kind: 'action' as const, label: 'Exit', onClick: handleExit }] : []),
       ],
     },
@@ -332,6 +343,7 @@ export default function MenuBar() {
       id: 'help', label: 'Help', items: [
         { kind: 'action', label: 'User Manual', accel: 'F1', onClick: () => openModal('manual') },
         { kind: 'action', label: 'Theory Handbook', accel: 'F2', onClick: () => openModal('theory') },
+        { kind: 'action', label: 'How the three workspaces relate', onClick: () => openModal('workspace-intro') },
         { kind: 'action', label: 'Help & Keyboard Shortcuts', onClick: () => openModal('help') },
         { kind: 'sep' },
         { kind: 'action', label: checkingUpdate ? 'Checking for updates…' : 'Check for Updates…', onClick: handleCheckUpdate, disabled: checkingUpdate },
@@ -395,7 +407,7 @@ export default function MenuBar() {
         <a
           className="menubar-brand"
           href="#/"
-          onClick={(e) => { e.preventDefault(); window.location.hash = '#/'; }}
+          onClick={(e) => { e.preventDefault(); navigateAppHash('#/'); }}
           title={`AutomataLab v${packageJson.version} (Go to Hub)`}
           rel="noopener noreferrer"
         >

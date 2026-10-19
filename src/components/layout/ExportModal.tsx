@@ -31,6 +31,8 @@ import {
   traceToCSV,
   traceToJSON,
   treeToJSON,
+  treeToMarkdown,
+  treeToSVG,
   downloadText,
   downloadBlob,
   fileStem,
@@ -45,7 +47,7 @@ import Dialog from '@/components/common/Dialog'
 
 export default function ExportModal({ onClose }: { onClose: () => void }) {
   const machine = useMachineStore((s) => s.machine)
-  const { history, treeNodes, inputString, stepCount } = useSimulationStore()
+  const { history, treeNodes, liveBranchIds, inputString, stepCount } = useSimulationStore()
   const grammarAnalysis = useGrammarStore(s => s.analysis)
   const parserModel = useParserStore(s => s.model)
   const parserAlg = useParserStore(s => s.algorithm)
@@ -80,7 +82,7 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
     ? (machine?.states?.some((s) => !s.isText) ?? false)
     : parserHasStates;
 
-  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'md' | 'tex' | 'jff' | 'txt') => {
+  const save = async (content: string, name: string, ext: 'csv' | 'json' | 'md' | 'tex' | 'jff' | 'txt' | 'svg') => {
     try {
       const out = await downloadText(name, content, ext)
       if (out) toast.success(`Exported ${name}`)
@@ -524,10 +526,12 @@ export default function ExportModal({ onClose }: { onClose: () => void }) {
                     ? hasTree
                       ? `${treeNodes.length} branch node(s).`
                       : 'Run a simulation first.'
-                    : 'Only NFA / ε-NFA / NPDA explore a tree.'
+                    : 'Only branching automata (NFA, ε-NFA, NPDA, NLBA) expose a tree.'
                 }
               >
                 <ExportButton label="JSON" disabled={!hasTree} onClick={() => save(treeToJSON(machine, treeNodes), `${stem}-tree.json`, 'json')} />
+                <ExportButton label="Markdown outline" disabled={!hasTree} onClick={() => save(treeToMarkdown(machine, treeNodes), `${stem}-tree.md`, 'md')} />
+                <ExportButton label="SVG outline" disabled={!hasTree} onClick={() => save(treeToSVG(machine, treeNodes, [...liveBranchIds]), `${stem}-tree.svg`, 'svg')} />
               </Section>
 
               <Section title="Machine definition" hint="The full diagram + δ as a reloadable file.">
