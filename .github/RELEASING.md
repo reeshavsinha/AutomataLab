@@ -19,6 +19,15 @@ Use this checklist for **v5.1.0** (and later). The desktop build is driven by a 
 
 **Note:** In this repo, `origin/main` and `wip/continue-later` may have **unrelated histories** (no common merge base). A normal PR merge can fail; use the publish script or merge with `--allow-unrelated-histories` and keep the release branch content (`-X theirs` when merging wip into main).
 
+**Corporate proxy (Zscaler):** `git push` may return **HTTP 403** with `Server: Zscaler` even when `gh auth status` is fine. Use a network that allows GitHub `git-receive-pack`, or create a bundle on this machine and push from elsewhere:
+
+```powershell
+git bundle create release-v5.1.0.bundle origin/wip/continue-later..wip/continue-later
+# On unrestricted machine: clone repo, then:
+# git fetch \path\to\release-v5.1.0.bundle wip/continue-later:wip/continue-later
+# git push origin wip/continue-later
+```
+
 **One-shot (PowerShell, after `gh auth login`):**
 
 ```powershell

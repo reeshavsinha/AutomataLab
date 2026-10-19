@@ -14,6 +14,14 @@ function Require-CleanTree {
   if ($dirty) { throw "Working tree is not clean:`n$dirty" }
 }
 
+function Invoke-Git {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
+  & git @Args
+  if ($LASTEXITCODE -ne 0) {
+    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE). If HTTP 403 shows Server: Zscaler, corporate proxy is blocking git push — use hotspot/VPN or git bundle (see RELEASING.md)."
+  }
+}
+
 Write-Host '==> Fetching origin'
 git fetch origin
 
@@ -29,7 +37,7 @@ if ($private) {
 
 Write-Host '==> Push wip/continue-later'
 git checkout wip/continue-later
-git push -u origin wip/continue-later
+Invoke-Git push -u origin wip/continue-later
 
 Write-Host '==> Publish main (unrelated histories: merge wip with wip winning)'
 $mergeBranch = 'release-merge-temp'
@@ -48,7 +56,7 @@ $mainPrivate = git log origin/main..HEAD -- internal-ref-files .ctx examples
 if ($mainPrivate) { throw 'Refusing to push main: commits would publish private paths.' }
 
 Write-Host '==> Push main'
-git push origin HEAD:main
+Invoke-Git push origin HEAD:main
 
 $ver = node -p "require('./package.json').version"
 $tag = "v$ver"
@@ -56,12 +64,12 @@ if ($tag -ne 'v5.1.0') { Write-Warning "package.json version is $ver (expected 5
 
 Write-Host "==> Tag and push $tag"
 git tag -a $tag -m "AutomataLab $tag" -f
-git push origin $tag -f
+Invoke-Git push origin $tag -f
 
 Write-Host '==> Push wiki'
 if (-not (Test-Path '.wiki-worktree')) { throw 'Missing .wiki-worktree clone.' }
 Push-Location .wiki-worktree
-git push origin master
+Invoke-Git push origin master
 Pop-Location
 
 Write-Host '==> Done. Watch GitHub Actions (Release workflow), then add SHA256 block to the release body per .github/RELEASING.md'

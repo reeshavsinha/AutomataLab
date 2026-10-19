@@ -53,3 +53,6 @@ media/
 
 # Local clone of GitHub Wiki (push from inside that folder only)
 .wiki-worktree/
+
+# Offline push bundles (local only)
+release-*.bundle
