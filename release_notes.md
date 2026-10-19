@@ -1,6 +1,6 @@
 # AutomataLab v5.1.0 — Documentation and landing refresh
 
-**Release date:** TBD (tag `v5.1.0` on GitHub)
+**Release date:** 2026-10-19 (tag `v5.1.0` on `main` after merge)
 
 ---
 

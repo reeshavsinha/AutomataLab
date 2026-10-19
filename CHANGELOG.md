@@ -17,6 +17,7 @@ Documentation and landing release on top of the v5.0.0 feature line. No engine o
 ### Notes
 
 - Vitest baseline unchanged: **65 files / 724 tests** (`npm test`).
+- Maintainers: tag + wiki + Vercel steps and optional SHA block for the landing page are in [`.github/RELEASING.md`](.github/RELEASING.md).
 
 ## v5.0.0
 

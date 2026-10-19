@@ -50,3 +50,6 @@ internal-docs/
 scratch/
 media/
 *.zip
+
+# Local clone of GitHub Wiki (push from inside that folder only)
+.wiki-worktree/

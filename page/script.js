@@ -111,18 +111,24 @@ document.addEventListener('DOMContentLoaded', () => {
             btn.setAttribute('href', url);
             btn.textContent = `Download .exe (${sizeMB} MB)`;
           }
+          const fn = document.getElementById('dl-win-fn');
+          if (fn) fn.textContent = asset.name;
         } else if (name.endsWith('.deb')) {
           const btn = document.getElementById('dl-deb-btn');
           if (btn) {
             btn.setAttribute('href', url);
             btn.textContent = `Download .deb (${sizeMB} MB)`;
           }
+          const fn = document.getElementById('dl-deb-fn');
+          if (fn) fn.textContent = asset.name;
         } else if (name.endsWith('.dmg')) {
           const btn = document.getElementById('dl-mac-btn');
           if (btn) {
             btn.setAttribute('href', url);
             btn.textContent = `Download .dmg (${sizeMB} MB)`;
           }
+          const fn = document.getElementById('dl-mac-fn');
+          if (fn) fn.textContent = asset.name;
         }
       });
 
