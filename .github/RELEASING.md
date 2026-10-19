@@ -17,7 +17,17 @@ Use this checklist for **v5.1.0** (and later). The desktop build is driven by a 
 
 ## 1. Main repository (public)
 
-1. Push your integration branch (e.g. `wip/continue-later`) and open a PR into **`main`**.
+**Note:** In this repo, `origin/main` and `wip/continue-later` may have **unrelated histories** (no common merge base). A normal PR merge can fail; use the publish script or merge with `--allow-unrelated-histories` and keep the release branch content (`-X theirs` when merging wip into main).
+
+**One-shot (PowerShell, after `gh auth login`):**
+
+```powershell
+.\scripts\publish-v5.1.0.ps1
+```
+
+**Manual:**
+
+1. Push your integration branch (e.g. `wip/continue-later`) and open a PR into **`main`** (or use the script above).
 2. Merge to **`main`** when CI is green.
 3. On **`main`**, create and push the tag (must match `package.json` version):
 
