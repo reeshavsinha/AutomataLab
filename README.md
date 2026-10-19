@@ -1,4 +1,4 @@
-<div align="center"> <img width="128" height="128" alt="image" src="https://github.com/user-attachments/assets/4e9f021f-ea8c-43f4-acac-38bac88dd67f" /> </div>
+<div align="center"> <img width="128" height="128" alt="image" src="https://github.com/reeshavsinha/AutomataLab/blob/main/src/assets/logo-transparent.svg" /> </div>
 
 
 <div align="center">
@@ -17,7 +17,7 @@
 
 <br/>
 
-![AutomataLab Screenshot](./media/screenshot.png)
+![AutomataLab Screenshot](https://github.com/reeshavsinha/AutomataLab/blob/main/page/docs/screenshot.png)
 
 <br/>
 
@@ -25,13 +25,11 @@
 
 **[Download AutomataLab v5.1.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
-Auto-updates are supported on desktop builds. A thinner **hosted simulator** is also available from the project landing page (`?demo=true`); it exposes a subset of machine types and examples compared to the full Tauri app.
+Auto-updates are supported on desktop builds. A thinner **hosted simulator** is also available from the project landing page; it exposes a subset of machine types and examples compared to the full Tauri app.
 
 ---
 
 ## Three workspaces
-
-Routes use the URL hash: `#/` (hub), `#/machine`, `#/grammar`, `#/parser`.
 
 | Workspace | What you do there |
 | :--- | :--- |
