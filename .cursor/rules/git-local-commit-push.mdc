@@ -16,12 +16,16 @@ Git pushes **commits**, not individual files. There is no “push everything exc
 
 ## How to keep that safe
 
-1. **Preferred:** Put gitignored backup commits on a **local-only branch** (e.g. `local/private-backup`). **Never push** that branch. Push/release only from branches whose history excludes those commits (e.g. `main`, `wip/*` after cherry-pick or rebase without private commits).
-2. **Before push or `v*` tag:** Confirm the commits being published do not touch gitignored trees:
+1. **Preferred:** Put gitignored backup commits on **`local/private-backup`**. **Never push** that branch. Push/release only from branches whose history excludes those commits (e.g. `main`, `wip/continue-later`).
+2. **After `git checkout wip/continue-later`:** Git may **delete** `internal-ref-files/` (and other paths absent from that branch’s tree) from disk even though they are gitignored. **Verify the folder exists**; if not, restore without staging on the public branch:
+   `git checkout local/private-backup -- internal-ref-files/`
+   `git restore --staged internal-ref-files/`
+   Do **not** use `git rm` on the public branch without re-checking disk immediately after commit and after any checkout.
+3. **Before push or `v*` tag:** Confirm the commits being published do not touch gitignored trees:
    - `git log origin/<branch>..HEAD -- .ctx internal-ref-files examples`
    - If anything lists, stop and fix (rebase, reset, or push a different branch).
-3. **Nested `.wiki-worktree/`:** Not part of the app repo; commit/push only inside that clone.
-4. **Still never commit** secrets, `*.key`, generated output, or lockfile edits per `AGENTS.md` / `.ctx/core.md` — not even for “local backup.”
+4. **Nested `.wiki-worktree/`:** Not part of the app repo; commit/push only inside that clone.
+5. **Still never commit** secrets, `*.key`, generated output, or lockfile edits per `AGENTS.md` / `.ctx/core.md` — not even for “local backup.”
 
 ## Push
 
