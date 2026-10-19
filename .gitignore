@@ -31,6 +31,7 @@ src-tauri/target/
 
 # Internal AI/dev context docs — never commit (cross-conversation handoff)
 internal-ref-files/
+.ctx/
 
 # Local sample machines (not part of the shipped app)
 examples/
@@ -41,9 +42,7 @@ rewrite.sh
 # Local UI screenshot/preview workspace (headless-Chrome shots + helper scripts)
 .preview/
 
-# Dev context and tests
-test-*.ts
-test_*.ts
+# Dev scratch scripts (Vitest lives under src/; manual scripts under tests/manual/)
 fix.cjs
 T
 fsm_format.md
@@ -51,3 +50,9 @@ internal-docs/
 scratch/
 media/
 *.zip
+
+# Local clone of GitHub Wiki (push from inside that folder only)
+.wiki-worktree/
+
+# Offline push bundles (local only)
+release-*.bundle

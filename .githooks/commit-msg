@@ -1,0 +1,5 @@
+#!/bin/sh
+# Drop Cursor's automatic co-author trailer so published history stays the repo author only.
+tmp="${1}.tmp"
+grep -v "Co-authored-by: Cursor <cursoragent@cursor.com>" "$1" > "$tmp" && mv "$tmp" "$1"
+exit 0

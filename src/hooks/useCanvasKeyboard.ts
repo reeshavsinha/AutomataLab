@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useUIStore } from '@/store/uiStore'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
 
 interface UseCanvasKeyboardProps {
   handleCopy: () => void
@@ -10,6 +11,10 @@ interface UseCanvasKeyboardProps {
   handleSelectAll: () => void
   handleDeleteSelected: () => void
   handleAddStateAtCenter: () => void
+  startTransition: () => void
+  completeTransition: () => void
+  cycleTransitionTarget: (direction: 1 | -1) => void
+  transitionModeActive: boolean
   cancelTransitionMode: () => void
 }
 
@@ -20,6 +25,10 @@ export function useCanvasKeyboard({
   handleSelectAll,
   handleDeleteSelected,
   handleAddStateAtCenter,
+  startTransition,
+  completeTransition,
+  cycleTransitionTarget,
+  transitionModeActive,
   cancelTransitionMode,
 }: UseCanvasKeyboardProps) {
   const status = useSimulationStore((s) => s.status)
@@ -29,16 +38,26 @@ export function useCanvasKeyboard({
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
       const hasSelection = window.getSelection()?.toString().length
-      if (isInput || hasSelection) return
+      if (shouldSuppressGlobalShortcut(target) || hasSelection) return
 
       const isMac = navigator.userAgent.toLowerCase().includes('mac')
       const isCtrl = isMac ? e.metaKey : e.ctrlKey
       const key = e.key.toLowerCase()
 
+      // App owns global edit shortcuts. Keeping a second canvas listener for
+      // these commands caused one keypress to undo/cut/paste multiple times.
+      if (isCtrl && ['z', 'y', 'c', 'x', 'v'].includes(key)) return
+
       if (e.key === 'Escape') {
         cancelTransitionMode()
+        return
+      }
+
+      if (transitionModeActive && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        cycleTransitionTarget(e.key === 'ArrowRight' ? 1 : -1)
         return
       }
 
@@ -63,6 +82,13 @@ export function useCanvasKeyboard({
       } else if (!isCtrl && key === 'n') {
         e.preventDefault()
         handleAddStateAtCenter()
+      } else if (!isCtrl && key === 't') {
+        e.preventDefault()
+        startTransition()
+      } else if (!isCtrl && transitionModeActive && (e.key === 'Enter' || key === 's')) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        completeTransition()
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
         handleDeleteSelected()
@@ -90,6 +116,10 @@ export function useCanvasKeyboard({
     handleSelectAll,
     handleDeleteSelected,
     handleAddStateAtCenter,
+    startTransition,
+    completeTransition,
+    cycleTransitionTarget,
+    transitionModeActive,
     cancelTransitionMode,
     undo,
     redo,

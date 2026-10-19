@@ -31,7 +31,7 @@ export function MachineWorkspace({ isDemoMode }: { isDemoMode?: boolean }) {
           <AutomataCanvas />
         </div>
       }
-      sidebarRight={<SidePanel />}
+      sidebarRight={<SidePanel isDemoMode={isDemoMode} />}
       sidebarRightCollapsed={panelCollapsed}
       onSidebarRightCollapseChange={(collapsed) => useUIStore.getState().setPanelCollapsed(collapsed)}
       statusBar={<SimulationControls />}

@@ -1,8 +1,32 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
+import { useMachineStore } from '@/store/machineStore';
 import { useTraceabilityStore } from '@/store/traceabilityStore';
 import { useParserStore, useActiveSimulationState } from '@/store/parserStore';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, HelpCircle } from 'lucide-react';
+import { GrammarSyntaxGuidePanel, RegexSyntaxGuidePanel } from '@/content/grammarSyntaxGuide';
+import type { GrammarFormat } from '@/engines/machine/core/types';
+import './GrammarEditorPanel.css';
+
+const FORMAT_OPTIONS: Array<{ value: GrammarFormat; label: string; shortLabel: string; placeholder: string }> = [
+  { value: 'REGEX', label: 'Regex', shortLabel: 'Regex', placeholder: '(a|b)*abb' },
+  { value: 'TYPE_0', label: 'Type 0 — Unrestricted', shortLabel: 'Type 0', placeholder: 'A B -> B A\nS -> a S | ε' },
+  { value: 'TYPE_1', label: 'Type 1 — Context-sensitive', shortLabel: 'Type 1', placeholder: 'A B -> B A\nS -> a S B | a B' },
+  { value: 'TYPE_2', label: 'Type 2 — Context-free', shortLabel: 'Type 2', placeholder: 'S -> a S b | ε' },
+  { value: 'TYPE_3', label: 'Type 3 — Regular', shortLabel: 'Type 3', placeholder: 'S -> a S | b A | ε\nA -> a S | b' },
+];
+
+const chromeButtonStyle: React.CSSProperties = {
+  padding: '1px 6px',
+  background: 'transparent',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: '3px',
+  cursor: 'pointer',
+  color: 'var(--text-secondary)',
+  fontSize: '0.68rem',
+  fontFamily: 'var(--font-mono)',
+  flexShrink: 0,
+};
 
 interface EditorContentProps {
   mode: 'grouped' | 'flat';
@@ -12,6 +36,7 @@ interface EditorContentProps {
   setLastEdited: (val: 'grouped' | 'flat') => void;
   setFocusedProduction: (val: number | null) => void;
   setFlatError: (err: string | null) => void;
+  grammarFormat: GrammarFormat;
 }
 
 const EditorContent = ({ 
@@ -21,7 +46,8 @@ const EditorContent = ({
   setRawText,
   setLastEdited,
   setFocusedProduction,
-  setFlatError
+  setFlatError,
+  grammarFormat,
 }: EditorContentProps) => {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const lineNumRef = useRef<HTMLDivElement>(null);
@@ -135,7 +161,7 @@ const EditorContent = ({
   };
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+    <div style={{ flex: 1, minHeight: 0, display: 'flex', overflow: 'hidden' }}>
       <div ref={lineNumRef} style={{
           width: '32px', flexShrink: 0, background: 'var(--bg-primary)',
           borderRight: '1px solid var(--border-subtle)', padding: '8px 0',
@@ -175,8 +201,12 @@ const EditorContent = ({
             let val = e.target.value;
             const start = e.target.selectionStart;
             let newStart = start;
+
+            // Normalize the Unicode DIVIDES separator '∣' (U+2223) to the
+            // canonical ASCII pipe. Length-preserving, so the caret is unaffected.
+            val = val.replace(/∣/g, '|');
             
-            if (mode === 'flat' && val.includes('|')) {
+            if (mode === 'flat' && grammarFormat !== 'TYPE_0' && grammarFormat !== 'TYPE_1' && val.includes('|')) {
               setFlatError("Illegal symbol '|' in Numbered Productions. Use a new line instead.");
               val = val.replace(/\|/g, (match, offset) => {
                 if (offset < start) newStart -= 1;
@@ -190,11 +220,10 @@ const EditorContent = ({
               if (offset < start) newStart -= (match.length - 1);
               return 'ε';
             });
-            // Capitalize starting non-terminals. Accounts for Flat mode missing prefix
-            val = val.replace(/(^|\n)([a-z])/g, (match, p1, p2, offset) => {
-              // length doesn't change, so newStart remains the same
-              return match.slice(0, -1) + p2.toUpperCase();
-            });
+            if (grammarFormat === 'TYPE_2' || grammarFormat === 'TYPE_3') {
+              // Capitalize starting non-terminals for the CFG-oriented formats.
+              val = val.replace(/(^|\n)([a-z])/g, (match, _p1, p2) => match.slice(0, -1) + p2.toUpperCase());
+            }
             
             setRawText(val);
             setLastEdited(mode);
@@ -244,7 +273,7 @@ const EditorContent = ({
           onKeyDown={handleKeyDown}
           spellCheck={false}
           readOnly={lastEdited !== mode}
-          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : (mode === 'flat' ? "Enter your CFG here...\nE.g.\nS -> a S b\nS -> ε" : "Enter your CFG here...\nE.g.\nS -> a S b | ε")}
+          placeholder={lastEdited !== mode ? (value.trim() === '' ? 'Click to edit...' : 'Read only (fix syntax error to switch view)') : FORMAT_OPTIONS.find((option) => option.value === grammarFormat)?.placeholder}
           style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
             padding: '8px 8px', fontFamily: 'var(--font-mono)', fontSize: '0.8rem',
@@ -270,6 +299,7 @@ const AccordionHeader = ({ isOpen, onToggle, label }: { isOpen: boolean, onToggl
         borderBottom: '1px solid var(--border-subtle)',
         color: isOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
         fontSize: '0.75rem', fontWeight: 600, letterSpacing: '0.02em',
+        flexShrink: 0,
         transition: 'background 0.15s, color 0.15s'
       }}
     >
@@ -281,13 +311,201 @@ const AccordionHeader = ({ isOpen, onToggle, label }: { isOpen: boolean, onToggl
   );
 };
 
+function GrammarFormatSelect({
+  value,
+  onChange,
+  parserOnly = false,
+}: {
+  value: GrammarFormat
+  onChange: (format: GrammarFormat) => void
+  parserOnly?: boolean
+}) {
+  const options = FORMAT_OPTIONS.filter(
+    (option) => !parserOnly || option.value === 'TYPE_2' || option.value === 'TYPE_3',
+  );
+  const selected = options.find((option) => option.value === value);
+
+  return (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 5,
+        flex: '1 1 0',
+        minWidth: 0,
+        overflow: 'hidden',
+        fontSize: '0.7rem',
+        color: 'var(--text-secondary)',
+        fontWeight: 600,
+        letterSpacing: '0.04em',
+      }}
+    >
+      <span className="grammar-format-label">FORMAT</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value as GrammarFormat)}
+        title={selected?.label ?? 'Grammar format'}
+        style={{
+          flex: '1 1 auto',
+          minWidth: 0,
+          maxWidth: '100%',
+          background: 'var(--bg-primary)',
+          border: '1px solid var(--border-default)',
+          borderRadius: '3px',
+          color: 'var(--text-primary)',
+          fontFamily: 'var(--font-mono)',
+          fontSize: '0.68rem',
+          padding: '2px 4px',
+        }}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value} title={option.label}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function grammarPanelClassName(parserOnly: boolean) {
+  return `grammar-editor-panel ${parserOnly ? 'grammar-editor-panel--parser' : 'grammar-editor-panel--lab'}`;
+}
+
+function GrammarEditorToolbar({
+  parserOnly,
+  format,
+  onFormatChange,
+  syntaxActive,
+  onToggleSyntax,
+  syntaxTitle,
+  onInsertEpsilon,
+  onCollapse,
+}: {
+  parserOnly: boolean
+  format: GrammarFormat
+  onFormatChange: (format: GrammarFormat) => void
+  syntaxActive: boolean
+  onToggleSyntax: () => void
+  syntaxTitle: string
+  onInsertEpsilon: () => void
+  onCollapse?: () => void
+}) {
+  const toolbarClass = `grammar-editor-toolbar${parserOnly ? ' grammar-editor-toolbar--parser' : ''}`;
+
+  return (
+    <div className={toolbarClass}>
+      <div className="grammar-toolbar-primary">
+        <GrammarFormatSelect value={format} onChange={onFormatChange} parserOnly={parserOnly} />
+      </div>
+      <div className="grammar-toolbar-actions">
+        <button
+          type="button"
+          onClick={onToggleSyntax}
+          title={syntaxTitle}
+          style={{
+            ...chromeButtonStyle,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 3,
+            background: syntaxActive ? 'var(--chrome-active-bg, rgba(59,130,246,0.2))' : 'transparent',
+            color: syntaxActive ? 'var(--chrome-active-border, #3b82f6)' : 'var(--text-secondary)',
+            fontWeight: syntaxActive ? 600 : 400,
+          }}
+        >
+          <HelpCircle size={11} />
+          <span className="grammar-btn-text">Syntax</span>
+        </button>
+        <button
+          type="button"
+          className="grammar-epsilon-btn"
+          onClick={onInsertEpsilon}
+          title="Insert epsilon"
+          style={chromeButtonStyle}
+        >
+          <span className="grammar-btn-text">Insert ε</span>
+          <span className="grammar-btn-compact-label">ε</span>
+        </button>
+        {onCollapse && (
+          <button
+            type="button"
+            onClick={onCollapse}
+            title="Collapse Panel"
+            style={{
+              ...chromeButtonStyle,
+              color: 'var(--text-muted)',
+              fontSize: '14px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1px 4px',
+            }}
+          >
+            ‹
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RegexEditor({
+  value,
+  setValue,
+  format,
+  setFormat,
+  parserOnly,
+}: {
+  value: string
+  setValue: (value: string) => void
+  format: GrammarFormat
+  setFormat: (format: GrammarFormat) => void
+  parserOnly: boolean
+}) {
+  const diagnostics = useGrammarStore((state) => state.diagnostics)
+  const error = diagnostics[0]?.message
+  const [showHelp, setShowHelp] = useState(false)
+  return (
+    <div className={grammarPanelClassName(parserOnly)} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0, width: '100%', maxWidth: '100%', background: 'var(--bg-primary)', borderRight: '1px solid var(--border-subtle)', overflow: 'hidden', fontFamily: 'var(--font-mono)' }}>
+      <GrammarEditorToolbar
+        parserOnly={parserOnly}
+        format={format}
+        onFormatChange={setFormat}
+        syntaxActive={showHelp}
+        onToggleSyntax={() => setShowHelp(!showHelp)}
+        syntaxTitle="Toggle regular-expression syntax guide"
+        onInsertEpsilon={() => setValue(`${value}ε`)}
+      />
+      {showHelp && <RegexSyntaxGuidePanel />}
+      <textarea
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        spellCheck={false}
+        placeholder={FORMAT_OPTIONS[0].placeholder}
+        aria-label="Regular expression"
+        style={{ flex: 1, minHeight: 0, resize: 'none', border: 'none', outline: 'none', padding: '12px', background: 'transparent', color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.9rem', lineHeight: 1.5 }}
+      />
+      <div style={{ padding: '3px 8px', borderTop: '1px solid var(--border-subtle)', color: error ? 'var(--status-reject)' : 'var(--status-accept)', background: error ? 'var(--status-reject-soft)' : 'var(--status-accept-soft)', fontSize: '0.68rem' }}>
+        {error ? `✗ ${error}` : '✓ Valid regular expression'}
+      </div>
+    </div>
+  )
+}
+
 export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) {
-  const { rawText, setRawText, cfg } = useGrammarStore();
+  const { rawText, setRawText, cfg, grammar, classification, grammarFormat, setGrammarFormat, updateSession } = useGrammarStore();
+  const machineId = useMachineStore((state) => state.machine?.id);
+  const parserOnly = useMachineStore((state) => state.machine?.type === 'CFG_PARSER');
   const { setFocusedProduction } = useTraceabilityStore();
-  
-  const [openGrouped, setOpenGrouped] = useState(true);
-  const [openFlat, setOpenFlat] = useState(false);
-  
+
+  const openGrouped = useGrammarStore((s) => (machineId ? s.sessions[machineId]?.openGrouped : undefined) ?? true);
+  const openFlat = useGrammarStore((s) => (machineId ? s.sessions[machineId]?.openFlat : undefined) ?? false);
+  const showHelp = useGrammarStore((s) => (machineId ? s.sessions[machineId]?.showGrammarSyntaxHelp : undefined) ?? false);
+
+  const patchSession = (patch: { openGrouped?: boolean; openFlat?: boolean; showGrammarSyntaxHelp?: boolean }) => {
+    if (machineId) updateSession(machineId, patch);
+  };
+
   const [lastEdited, setLastEdited] = useState<'grouped' | 'flat'>('grouped');
   const [flatError, setFlatError] = useState<string | null>(null);
 
@@ -326,90 +544,104 @@ export function GrammarEditorPanel({ onCollapse }: { onCollapse?: () => void }) 
   const groupedValue = lastEdited === 'grouped' ? rawText : syncedGrouped;
   const flatValue = lastEdited === 'flat' ? rawText : syncedFlat;
 
+  if (grammarFormat === 'REGEX') {
+    return <RegexEditor value={rawText} setValue={setRawText} format={grammarFormat} setFormat={setGrammarFormat} parserOnly={parserOnly} />
+  }
+
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', height: '100%',
+    <div
+      className={grammarPanelClassName(parserOnly)}
+      style={{
+      display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, minWidth: 0,
+      width: '100%', maxWidth: '100%',
       background: 'var(--bg-primary)', borderRight: '1px solid var(--border-subtle)',
       overflow: 'hidden', fontFamily: 'var(--font-mono)'
     }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 8px', height: '28px', background: 'var(--bg-secondary)',
-        borderBottom: '1px solid var(--border-subtle)', flexShrink: 0
-      }}>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '0.04em' }}>
-          Set Grammar:
-        </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <button
-            onClick={() => setRawText(rawText + 'ε')}
-            style={{
-              padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
-              borderRadius: '3px', cursor: 'pointer', color: 'var(--text-secondary)',
-              fontSize: '0.68rem', fontFamily: 'var(--font-mono)'
-            }}
-          >
-            Insert ε
-          </button>
-          {onCollapse && (
-            <button
-              onClick={onCollapse}
-              title="Collapse Panel"
-              style={{
-                padding: '1px 6px', background: 'transparent', border: '1px solid var(--border-subtle)',
-                borderRadius: '3px', cursor: 'pointer', color: 'var(--text-muted)',
-                fontSize: '14px', fontFamily: 'var(--font-mono)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}
-            >
-              ‹
-            </button>
-          )}
-        </div>
-      </div>
+      <GrammarEditorToolbar
+        parserOnly={parserOnly}
+        format={grammarFormat}
+        onFormatChange={setGrammarFormat}
+        syntaxActive={showHelp}
+        onToggleSyntax={() => patchSession({ showGrammarSyntaxHelp: !showHelp })}
+        syntaxTitle="Toggle production syntax guide"
+        onInsertEpsilon={() => setRawText(rawText + 'ε')}
+        onCollapse={onCollapse}
+      />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <AccordionHeader isOpen={openGrouped} onToggle={() => setOpenGrouped(!openGrouped)} label="Grouped Productions" />
+      {showHelp && (
+        <GrammarSyntaxGuidePanel onClose={() => patchSession({ showGrammarSyntaxHelp: false })} />
+      )}
+
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <AccordionHeader
+          isOpen={openGrouped}
+          onToggle={() => patchSession({ openGrouped: !openGrouped })}
+          label="Grouped Productions"
+        />
         {openGrouped && (
-          <EditorContent 
-            mode="grouped" 
-            value={groupedValue} 
-            lastEdited={lastEdited}
-            setRawText={setRawText}
-            setLastEdited={setLastEdited}
-            setFocusedProduction={setFocusedProduction}
-            setFlatError={setFlatError}
-          />
+          <div style={{
+            flex: openFlat ? '1 1 50%' : '1 1 auto',
+            minHeight: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <EditorContent
+              mode="grouped"
+              value={groupedValue}
+              lastEdited={lastEdited}
+              setRawText={setRawText}
+              setLastEdited={setLastEdited}
+              setFocusedProduction={setFocusedProduction}
+              setFlatError={setFlatError}
+              grammarFormat={grammarFormat}
+            />
+          </div>
         )}
 
-        <AccordionHeader isOpen={openFlat} onToggle={() => {
-          setOpenFlat(!openFlat);
-          if (openFlat) setFlatError(null); // Clear error when collapsing
-        }} label="Numbered Productions" />
+        <AccordionHeader
+          isOpen={openFlat}
+          onToggle={() => {
+            const next = !openFlat;
+            patchSession({ openFlat: next });
+            if (!next) setFlatError(null);
+          }}
+          label="Numbered Productions"
+        />
         {openFlat && (
-          <EditorContent 
-            mode="flat" 
-            value={flatValue} 
-            lastEdited={lastEdited}
-            setRawText={setRawText}
-            setLastEdited={setLastEdited}
-            setFocusedProduction={setFocusedProduction}
-            setFlatError={setFlatError}
-          />
+          <div style={{
+            flex: openGrouped ? '1 1 50%' : '1 1 auto',
+            minHeight: 0,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}>
+            <EditorContent
+              mode="flat"
+              value={flatValue}
+              lastEdited={lastEdited}
+              setRawText={setRawText}
+              setLastEdited={setLastEdited}
+              setFocusedProduction={setFocusedProduction}
+              setFlatError={setFlatError}
+              grammarFormat={grammarFormat}
+            />
+          </div>
         )}
       </div>
 
       <div style={{
         padding: '3px 8px',
-        background: flatError ? 'var(--status-reject-soft)' : (cfg ? 'var(--status-accept-soft)' : (rawText.trim() ? 'var(--status-reject-soft)' : 'transparent')),
-        color: flatError ? 'var(--status-reject)' : (cfg ? 'var(--status-accept)' : (rawText.trim() ? 'var(--status-reject)' : 'var(--text-muted)')),
+        background: flatError ? 'var(--status-reject-soft)' : (grammar ? 'var(--status-accept-soft)' : (rawText.trim() ? 'var(--status-reject-soft)' : 'transparent')),
+        color: flatError ? 'var(--status-reject)' : (grammar ? 'var(--status-accept)' : (rawText.trim() ? 'var(--status-reject)' : 'var(--text-muted)')),
         fontSize: '0.68rem', fontWeight: 600, borderTop: '1px solid var(--border-subtle)',
         flexShrink: 0, fontFamily: 'var(--font-mono)'
       }}>
         {flatError 
           ? `✗ ${flatError}` 
-          : (cfg ? (
-            <>✓ Valid | <span title="Production(s)">{cfg.productions.length} Prod</span> | <span title="Non-Terminal(s)">{cfg.nonterminals.size} NT</span> | <span title="Terminal(s)">{cfg.terminals.size} T</span></>
-          ) : (rawText.trim() ? `✗ Invalid CFG: ${useGrammarStore.getState().diagnostics[0]?.message || ''}` : ''))}
+          : (grammar ? (
+            <>✓ Valid {classification ? `(${classification.inferredType.replace('_', ' ')})` : ''} | <span title="Production(s)">{grammar.productions.length} Prod</span> | <span title="Non-Terminal(s)">{grammar.nonterminals.size} NT</span> | <span title="Terminal(s)">{grammar.terminals.size} T</span></>
+          ) : (rawText.trim() ? `✗ Invalid ${FORMAT_OPTIONS.find((option) => option.value === grammarFormat)?.label}: ${useGrammarStore.getState().diagnostics[0]?.message || ''}` : ''))}
       </div>
     </div>
   );

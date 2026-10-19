@@ -3,6 +3,7 @@
 import { CFG, EPSILON, EOF_SYMBOL, GrammarAnalysisResult } from '../grammar/types';
 import { ActionEntry, LR0Table } from './lr0';
 import { LR1Item, LR1ItemSet } from './lr1_types';
+import { assertLRCollectionBudget, assertParserGrammarBudget } from './limits';
 
 // Helper to generate a deterministic string signature for a set of lookaheads
 const getLookaheadSignature = (lookaheads: Set<string>): string => {
@@ -56,6 +57,7 @@ const getFirstSequence = (
 };
 
 export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
+  assertParserGrammarBudget(cfg.productions.length);
   // 1. Augment Grammar: START -> S
   const startPrime = 'START';
   const augmentedProds = [
@@ -194,6 +196,8 @@ export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
   const states: LR1ItemSet[] = [
     { id: 0, items: initialStateItems }
   ];
+  let totalStateItems = initialStateItems.length;
+  assertLRCollectionBudget(states.length, totalStateItems);
 
   const stateSignatureMap = new Map<string, number>();
   stateSignatureMap.set(getStateSignature(initialStateItems), 0);
@@ -215,6 +219,8 @@ export function buildCLR1States(cfg: CFG, analysis: GrammarAnalysisResult) {
         if (existingId === undefined) {
           existingId = states.length;
           states.push({ id: existingId, items: nextSet });
+          totalStateItems += nextSet.length;
+          assertLRCollectionBudget(states.length, totalStateItems);
           stateSignatureMap.set(sig, existingId);
         }
 

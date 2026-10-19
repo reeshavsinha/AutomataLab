@@ -27,6 +27,7 @@ interface SimulationStore {
   consumedInput: string
   remainingInput: string
   currentSymbol: string
+  outputTrace: string[]
   status: SimulationStatus
   history: HistoryEntry[]
   stepCount: number
@@ -60,6 +61,7 @@ interface SimulationStore {
     consumedInput: string
     remainingInput: string
     currentSymbol: string
+    outputTrace?: string[]
     status: SimulationStatus
     historyEntry: HistoryEntry
     configurations: Configuration[]
@@ -80,6 +82,7 @@ interface SimulationStore {
     consumedInput: string
     remainingInput: string
     currentSymbol: string
+    outputTrace: string[]
     status: SimulationStatus
     history: HistoryEntry[]
     stepCount: number
@@ -91,6 +94,8 @@ interface SimulationStore {
   }) => void
   resetSimulation: () => void
   setStatus: (status: SimulationStatus) => void
+  /** Publish an initialized engine configuration without recording a step. */
+  setPreStepConfigurations: (configurations: Configuration[]) => void
 }
 
 export const useSimulationStore = create<SimulationStore>((set) => ({
@@ -100,6 +105,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
   consumedInput: '',
   remainingInput: '',
   currentSymbol: '',
+  outputTrace: [],
   status: 'idle',
   history: [],
   stepCount: 0,
@@ -123,6 +129,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: result.consumedInput,
       remainingInput: result.remainingInput,
       currentSymbol: result.currentSymbol,
+      outputTrace: result.outputTrace ?? s.outputTrace,
       status: result.status,
       // Bounded ring: keep only the most recent MAX_HISTORY entries so the array
       // copy (and the History panel's DOM) stay constant-cost on long runs.
@@ -147,6 +154,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: full.consumedInput,
       remainingInput: full.remainingInput,
       currentSymbol: full.currentSymbol,
+      outputTrace: full.outputTrace,
       status: full.status,
       history: full.history.length > MAX_HISTORY ? full.history.slice(-MAX_HISTORY) : full.history,
       stepCount: full.stepCount,
@@ -166,6 +174,7 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
       consumedInput: '',
       remainingInput: '',
       currentSymbol: '',
+      outputTrace: [],
       status: 'idle',
       history: [],
       stepCount: 0,
@@ -179,4 +188,21 @@ export const useSimulationStore = create<SimulationStore>((set) => ({
     }),
 
   setStatus: (status) => set({ status }),
+  setPreStepConfigurations: (configurations) => {
+    const primary = configurations[0]
+    const tapes = primary?.tapes ?? []
+    set({
+      activeStateIds: Array.from(new Set(configurations.map((configuration) => configuration.stateId))),
+      activeTransitionIds: [],
+      consumedInput: primary?.consumedInput ?? '',
+      remainingInput: primary?.remainingInput ?? '',
+      currentSymbol: tapes[0] ? tapes[0].cells[tapes[0].head] ?? '' : '',
+      configurations,
+      activeStack: primary?.stack ?? [],
+      activeTapes: tapes,
+      treeNodes: [],
+      liveBranchIds: configurations.filter((configuration) => configuration.status === 'running').map((configuration) => configuration.id),
+      status: 'running',
+    })
+  },
 }))

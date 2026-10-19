@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { useUIStore } from '@/store/uiStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useSimulationStore } from '@/store/simulationStore'
-import { isPDAType, isTMType, supportsComputationTree } from '@/engines/machine/core/utils'
+import { isPDAType, isTMType, isTransducerType, supportsComputationTree } from '@/engines/machine/core/utils'
 import { validateMachine } from '@/utils/validator'
 import HistoryLog from './HistoryLog'
 import ValidationPanel from './ValidationPanel'
@@ -16,8 +16,11 @@ import StackPanel from './StackPanel'
 import ComputationTreePanel from './ComputationTreePanel'
 import TapePanel from './TapePanel'
 import DeltaTablePanel from './DeltaTablePanel'
+import OutputTracePanel from './OutputTracePanel'
+import WatchersPanel from './WatchersPanel'
+import SubmachinesPanel from './SubmachinesPanel'
 
-type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'delta'
+type Tab = 'history' | 'validation' | 'info' | 'stack' | 'tree' | 'tape' | 'watchers' | 'submachines' | 'delta' | 'output'
 
 const WIDTH_KEY = 'automatalab-panel-width'
 const MIN_WIDTH = 220
@@ -56,7 +59,7 @@ function InfoPanel() {
   )
 }
 
-export default function SidePanel() {
+export default function SidePanel({ isDemoMode = false }: { isDemoMode?: boolean }) {
   const activePanel = useUIStore((s) => s.activePanel)
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const panelCollapsed = useUIStore((s) => s.panelCollapsed)
@@ -65,6 +68,8 @@ export default function SidePanel() {
   const machineType = machine.type
   const isPDA = isPDAType(machineType)
   const isTM = isTMType(machineType)
+  const supportsSubmachines = machineType === 'TM'
+  const isTransducer = isTransducerType(machineType)
   const hasTree = supportsComputationTree(machineType)
 
   const [isCompressed, setIsCompressed] = useState(false)
@@ -80,14 +85,17 @@ export default function SidePanel() {
     }
   }, [machine])
 
-  const tabs: { id: Tab; label: string; title?: string }[] = [
-    { id: 'delta',      label: 'δ',        title: 'Transition table (δ) — every move, grouped by state' },
-    { id: 'history',    label: 'History',  title: 'Run history — each step of the last simulation' },
-    { id: 'validation', label: 'Validate', title: 'Validation — errors and warnings (click to locate)' },
-    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack', title: 'PDA stack + instantaneous description' }] : []),
-    ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape', title: 'Turing tape, head, and instantaneous description' }] : []),
-    ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', title: 'Computation tree / trellis of branches' }] : []),
-    { id: 'info',       label: 'Info',     title: 'Machine summary and simulation status' },
+  const tabs: { id: Tab; label: string; shortLabel: string; title?: string }[] = [
+    { id: 'delta',      label: 'δ',        shortLabel: 'δ',  title: 'Transition table (δ) — every move, grouped by state' },
+    { id: 'history',    label: 'History',  shortLabel: 'H',  title: 'Run history — each step of the last simulation' },
+    { id: 'validation', label: 'Validate', shortLabel: 'V',  title: 'Validation — errors and warnings (click to locate)' },
+    ...(isPDA ? [{ id: 'stack' as Tab, label: 'Stack', shortLabel: 'S', title: 'PDA stack + instantaneous description' }] : []),
+    ...(isTM ? [{ id: 'tape' as Tab, label: 'Tape', shortLabel: 'Tp', title: 'Turing tape, head, and instantaneous description' }] : []),
+    ...(!isDemoMode && isTM ? [{ id: 'watchers' as Tab, label: 'Watch', shortLabel: 'W', title: 'Conditional pause watchers for TM execution' }] : []),
+    ...(!isDemoMode && supportsSubmachines ? [{ id: 'submachines' as Tab, label: 'Calls', shortLabel: 'C', title: 'Embedded TM submachine snapshots and call repair' }] : []),
+    ...(isTransducer ? [{ id: 'output' as Tab, label: 'Output', shortLabel: 'O', title: 'Transducer output trace' }] : []),
+    ...(hasTree ? [{ id: 'tree' as Tab, label: 'Tree', shortLabel: 'Tr', title: 'Computation tree / trellis of branches' }] : []),
+    { id: 'info',       label: 'Info',     shortLabel: 'I',  title: 'Machine summary and simulation status' },
   ]
 
   useEffect(() => {
@@ -110,8 +118,14 @@ export default function SidePanel() {
       setActivePanel('delta')
     } else if (activePanel === 'tape' && !isTM) {
       setActivePanel('delta')
+    } else if (activePanel === 'watchers' && (isDemoMode || !isTM)) {
+      setActivePanel('delta')
+    } else if (activePanel === 'submachines' && (isDemoMode || !supportsSubmachines)) {
+      setActivePanel('delta')
+    } else if (activePanel === 'output' && !isTransducer) {
+      setActivePanel('delta')
     }
-  }, [activePanel, isPDA, isTM, hasTree, setActivePanel])
+  }, [activePanel, isPDA, isTM, isTransducer, hasTree, supportsSubmachines, isDemoMode, setActivePanel])
 
   // Collapsed → a thin reopen strip so the canvas can use the full width
   // (UX audit NAV-1).
@@ -211,7 +225,7 @@ export default function SidePanel() {
         {tabs.map((tab, idx) => {
           const selected = activePanel === tab.id
           const showBadge = tab.id === 'validation' && (issues.errors > 0 || issues.warnings > 0)
-          const displayLabel = isCompressed && tab.label !== 'δ' ? tab.label.charAt(0) : tab.label
+          const displayLabel = isCompressed ? tab.shortLabel : tab.label
           
           return [
             idx > 0 && (
@@ -248,7 +262,7 @@ export default function SidePanel() {
                 cursor: 'pointer',
                 fontFamily: 'var(--font-mono)',
                 letterSpacing: '0.03em',
-                minWidth: isCompressed ? '32px' : '48px', // Ensure tabs do not retract completely
+                minWidth: isCompressed ? '36px' : '48px', // Ensure tabs do not retract completely
               }}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -286,7 +300,10 @@ export default function SidePanel() {
         {activePanel === 'validation' && <ValidationPanel />}
         {activePanel === 'stack'      && <StackPanel />}
         {activePanel === 'tape'       && <TapePanel />}
+        {activePanel === 'watchers'   && <WatchersPanel />}
+        {activePanel === 'submachines' && <SubmachinesPanel />}
         {activePanel === 'tree'       && <ComputationTreePanel />}
+        {activePanel === 'output'     && <OutputTracePanel />}
         {activePanel === 'info'       && <InfoPanel />}
       </div>
     </aside>

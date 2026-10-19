@@ -3,19 +3,22 @@
 // No animations, plain black & white.
 // ============================================================
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSimulation } from '@/hooks/useSimulation'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useCommandStore } from '@/store/commandStore'
+import { useTMDebugStore } from '@/store/tmDebugStore'
 import { isTMType } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
 
 const DEFAULT_STEP_LIMIT = 10_000
 
 const STATUS_LABELS: Record<string, string> = {
   idle:     'Idle',
   running:  'Running',
+  completed: 'Complete',
   accepted: 'Accepted',
   rejected: 'Rejected',
   stuck:    'Stuck',
@@ -29,6 +32,7 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_TITLES: Record<string, string> = {
   idle:     'Not started.',
   running:  'Running…',
+  completed: 'Complete: the full input was consumed and the output sequence was produced.',
   accepted: 'Accepted: halted in an accepting configuration with the input consumed.',
   rejected: 'Rejected: the run halted without accepting — either no transition applied (a trap / dead configuration) or the input was consumed in a non-accepting state.',
   stuck:    'Stuck: the run hit the step limit before it could accept or reject (often a non-halting computation), so it was halted as a guard — not an explicit reject.',
@@ -57,10 +61,14 @@ export default function SimulationControls() {
   const { step, stepBack, seekTo, play, pause, reset } = useSimulation()
   const { status, speed, setSpeed, stepCount } = useSimulationStore()
   const machineType = useMachineStore((s) => s.machine.type)
+  const machineId = useMachineStore((s) => s.machine.id)
   const stepLimit = useMachineStore((s) => s.machine.stepLimit)
+  const transitionModeActive = useCommandStore((s) => s.canvas?.transitionModeActive ?? false)
   const [isPlaying, setIsPlaying] = useState(false)
+  const latestStepRef = useRef(0)
+  const watcherHit = useTMDebugStore((s) => s.getSession(machineId).lastHit)
 
-  const isDone = status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
+  const isDone = status === 'completed' || status === 'accepted' || status === 'rejected' || status === 'stuck' || status === 'error'
   const isIdle = status === 'idle'
 
   const handlePlay = useCallback(() => {
@@ -99,7 +107,7 @@ export default function SimulationControls() {
   }, [isPlaying, pause, seekTo])
 
   const handleSeekToEnd = useCallback(() => {
-    handleSeekTo(10000)
+    handleSeekTo(latestStepRef.current)
   }, [handleSeekTo])
 
   const handleReset = useCallback(() => {
@@ -112,7 +120,13 @@ export default function SimulationControls() {
   // (e.g. switching tabs resets the simulation to idle via useSimulation).
   useEffect(() => {
     if (isDone || isIdle) setIsPlaying(false)
-  }, [isDone, isIdle])
+    if (isIdle) latestStepRef.current = 0
+    else latestStepRef.current = Math.max(latestStepRef.current, stepCount)
+  }, [isDone, isIdle, stepCount])
+
+  useEffect(() => {
+    if (watcherHit) setIsPlaying(false)
+  }, [watcherHit])
 
   // Infinite-loop guard feedback (NFR-8): when a TM/LBA halts as `stuck` it hit
   // the step limit. Surface it as a toast so the cause isn't mistaken for a
@@ -131,13 +145,14 @@ export default function SimulationControls() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const isInput = ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable
-      if (isInput) return
+      if (shouldSuppressGlobalShortcut(target)) return
       // Let Ctrl/Cmd combos (e.g. Ctrl+S = Save) through to their own handlers —
       // the single-letter sim shortcuts below are bare-key only.
       if (e.ctrlKey || e.metaKey) return
 
       const keyLower = e.key.toLowerCase()
+      // A drawing command owns the keyboard until it is completed or cancelled.
+      if (transitionModeActive) return
 
       if (e.key === ' ' || keyLower === 'p' || (e.altKey && keyLower === 'p')) {
         if (e.key === ' ') {
@@ -166,7 +181,7 @@ export default function SimulationControls() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount])
+  }, [handlePlay, handleStep, handleStepBack, handleReset, isDone, isIdle, isPlaying, stepCount, transitionModeActive])
 
   // Publish the transport controls to the command bus so the classic top
   // toolbar / Simulate menu can drive the same (single) engine instance.
@@ -176,14 +191,14 @@ export default function SimulationControls() {
     return () => setSimApi(null)
   }, [setSimApi, handlePlay, handleStep, handleStepBack, handleSeekTo, handleReset, isPlaying])
 
-  const statusLabel = STATUS_LABELS[status] ?? 'Idle'
+  const statusLabel = watcherHit ? 'Paused by watcher' : STATUS_LABELS[status] ?? 'Idle'
 
   const statusColor =
-    status === 'accepted' ? '#4ade80' :
+    status === 'completed' || status === 'accepted' ? '#4ade80' :
     status === 'error' || status === 'rejected' ? '#f87171' :
     '#fb923c';
 
-  const displayStatusLabel = status === 'idle' ? 'Idle' : statusLabel;
+  const displayStatusLabel = status === 'idle' && !watcherHit ? 'Idle' : statusLabel;
 
   const clampSpeed = (v: number) => Math.min(8, Math.max(0.25, v))
 
@@ -205,7 +220,7 @@ export default function SimulationControls() {
         onClick={handlePlay}
         style={{
           ...BTN_BASE,
-          background: isPlaying ? '#21262d' : 'transparent',
+          background: isPlaying ? 'var(--trace-ring)' : 'transparent',
           color: 'var(--text-primary)',
           minWidth: '28px',
         }}
@@ -214,7 +229,7 @@ export default function SimulationControls() {
         {isPlaying ? '⏸' : '▶'}
       </button>
       <button onClick={handleStep} style={BTN_BASE} title="One step forward">&gt;</button>
-      <button onClick={handleSeekToEnd} style={BTN_BASE} title="Go to latest step">&gt;&gt;|</button>
+      <button onClick={handleSeekToEnd} style={BTN_BASE} title="Go to latest visited step">&gt;&gt;|</button>
       <button onClick={handleReset} style={BTN_BASE} title="Reset">↺</button>
 
       {/* Divider */}
@@ -282,7 +297,7 @@ export default function SimulationControls() {
 
         {/* Status */}
         <span
-          title={STATUS_TITLES[status] ?? ''}
+          title={watcherHit ? `Paused before step ${watcherHit.stepCount}: ${watcherHit.summary}` : STATUS_TITLES[status] ?? ''}
           style={{
             padding: '1px 8px',
             background: status === 'idle' ? 'var(--bg-elevated)' : `${statusColor}18`,

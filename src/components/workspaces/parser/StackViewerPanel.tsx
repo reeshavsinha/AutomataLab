@@ -12,7 +12,7 @@ export function StackViewerPanel() {
   if (stack.length === 0) {
     return (
       <PanelGroup orientation="vertical" style={{ height: '100%', flex: 1 }}>
-        <Panel id="stack-top" minSize={20} defaultSize={50} style={{
+        <Panel id="stack-top" minSize={32} defaultSize={50} style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -28,7 +28,7 @@ export function StackViewerPanel() {
           <div className="workspace-resize-handle-inner" />
         </PanelResizeHandle>
         
-        <Panel id="stack-bottom" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+        <Panel id="stack-bottom" minSize={32} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
           <TimelineHistory />
         </Panel>
       </PanelGroup>
@@ -120,7 +120,7 @@ export function StackViewerPanel() {
 
   return (
     <PanelGroup orientation="vertical" style={{ height: '100%', flex: 1 }}>
-      <Panel id="stack-content" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+      <Panel id="stack-content" minSize={32} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Header */}
         <div style={{
           padding: '4px 8px',
@@ -181,7 +181,7 @@ export function StackViewerPanel() {
         <div className="workspace-resize-handle-inner" />
       </PanelResizeHandle>
       
-      <Panel id="timeline-history" minSize={20} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
+      <Panel id="timeline-history" minSize={32} defaultSize={50} style={{ display: 'flex', flexDirection: 'column' }}>
         <TimelineHistory />
       </Panel>
     </PanelGroup>

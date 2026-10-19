@@ -6,6 +6,7 @@ import { useEffect, useRef } from 'react'
 import { useSimulationStore } from '@/store/simulationStore'
 import { useMachineStore } from '@/store/machineStore'
 import { useCommandStore } from '@/store/commandStore'
+import { isTransducerType } from '@/engines/machine/core/utils'
 
 /** Cap on rendered rows — keeps the DOM small during long runs. */
 const MAX_VISIBLE = 500
@@ -14,6 +15,7 @@ export default function HistoryLog() {
   const { history } = useSimulationStore()
   const { machine } = useMachineStore()
   const sim = useCommandStore((s) => s.sim)
+  const isTransducer = isTransducerType(machine.type)
 
   const endRef = useRef<HTMLDivElement>(null)
 
@@ -124,20 +126,38 @@ export default function HistoryLog() {
                   <span style={{ color: 'var(--text-primary)' }}>{to || '∅'}</span>
                 </>
               )}
+              {entry.activeSubmachinePath && entry.activeSubmachinePath.length > 0 && (
+                <span style={{ color: 'var(--text-muted)', marginLeft: '6px', fontSize: '10px' }}>
+                  [{entry.activeSubmachinePath.join(' › ')}]
+                </span>
+              )}
             </span>
 
             {/* Status on last step */}
             {isLast && (
-              <span style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                color: isAccepted ? 'var(--text-primary)' : 'var(--text-muted)',
-                border: '1px solid var(--border-default)',
-                padding: '1px 6px',
-                borderRadius: 'var(--radius-sm)',
-              }}>
-                {entry.status.toUpperCase()}
-              </span>
+              <>
+                {isTransducer && (
+                  <span style={{
+                    fontSize: '10px',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-default)',
+                    padding: '1px 6px',
+                    borderRadius: 'var(--radius-sm)',
+                  }}>
+                    out: {entry.output || '∅'}
+                  </span>
+                )}
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: isAccepted ? 'var(--text-primary)' : 'var(--text-muted)',
+                  border: '1px solid var(--border-default)',
+                  padding: '1px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                }}>
+                  {entry.status.toUpperCase()}
+                </span>
+              </>
             )}
           </div>
         )

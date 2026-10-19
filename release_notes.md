@@ -1,32 +1,20 @@
-# AutomataLab v5.0.0 — The Grammar & Parser Update
+# AutomataLab v5.1.0 — Documentation and landing refresh
 
-We are incredibly excited to announce AutomataLab **v5.0.0**, our largest and most ambitious update ever! 
+**Release date:** 2026-10-19 (tag `v5.1.0` on `main` after merge)
 
-With this release, AutomataLab evolves from a pure Finite State Machine visualizer into a **Unified Formal Languages Integrated Environment**. We are introducing two entirely new core workspaces: the **Grammar Lab** and the **Parser Studio**.
+---
 
-### 🌟 New Workspaces
+AutomataLab **v5.1.0** is a polish release on the **v5.0** platform: same three workspaces, engines, and `.autolab.json` format — with **documentation and the public landing page brought in line with the shipping app**.
 
-#### 1. The Grammar Lab
-A dedicated playground for Context-Free Grammars (CFGs).
-- **Mathematical Diagnostics**: Instantly calculate exact `Nullability`, `FIRST`, and `FOLLOW` sets for every non-terminal in real-time.
-- **Ambiguity & Recursion**: Automatically detect Left-Recursion and un-factored ambiguity rules in your grammar that would break predictive parsers.
-- **Grammar Transformations**: Convert any Context-Free Grammar directly into strictly formatted **Chomsky Normal Form (CNF)** or **Greibach Normal Form (GNF)** with a single click.
+## Highlights
 
-#### 2. The Parser Studio
-A massive new visual environment for compiler design and parser generation.
-- **Top-Down Parsing**: Automatically construct exact predictive **LL(1)** parse tables and watch step-by-step AST derivation.
-- **Bottom-Up Parsing**: Explore deterministic Shift/Reduce mechanics with four distinct LR algorithms: **LR(0)**, **SLR(1)**, **LALR(1)**, and **CLR(1)**.
-- **State Machine Generation**: Generate and visualize the massive underlying Deterministic Finite Automaton (DFA) of LR Item Sets. Click on conflict cells (Shift/Reduce or Reduce/Reduce) to see the exact rules colliding!
-- **General Parsing Algorithms**: Parse *any* ambiguous grammar directly using the $O(n^3)$ **CYK Dynamic Programming Matrix**, or the incredibly robust **Earley Chart Parser**.
+- **GitHub Wiki** updated end-to-end for 5.x (hosted demo limits, conversions, parser LR graph scale, grammar derivations, file I/O).
+- **Landing page** layout and copy fixes (hub-centric quickstart, demo vs desktop boundaries, gallery/pipeline).
+- **F1 User Manual** and **Help → keyboard shortcuts** corrected for the current menu bar (no legacy Simulate/Convert menus; export from toolbar).
+- **App icon and menu logo** — new gradient mark (chevron + rings) in the taskbar/window icon and top menu bar. If you updated from **v5.0.0**, restart the app after the updater finishes; on Windows, a pinned taskbar entry might still show the old icon until you unpin and pin again.
 
-### 🎨 Architecture & UI
-- **Unified 3-Pillar UI**: The application interface has been completely redesigned into three distinct modes (Machine Workspace, Grammar Lab, Parser Studio). 
-- **Landing Page Overhaul**: Our documentation website has received a stunning visual update reflecting the entire formal computation lifecycle, powered by Vercel.
-- **Massive Wiki Rewrite**: The entire GitHub Wiki has been restructured into an academic textbook-style hierarchy to match the new engine capabilities.
+## Still the v5.0 feature set
 
-### 🐛 Improvements & Fixes
-- **Tauri Core Bump**: Upgraded to Tauri v2.11.2 for faster window rendering and seamless over-the-air auto-updates.
-- **Performance**: Abstract Syntax Tree rendering optimizations ensuring 60FPS UI performance even for massive deep-recursion derivations.
-- **Security**: Updated the internal sandbox policy to ensure all `.autolab.json` files are parsed purely as declarative ASTs, mitigating prototype-pollution risks.
+Machine Studio (including MTM, NLBA, extracts), Grammar Lab (Types 0–3), and Parser Studio (LL/LR/CYK/Earley) are unchanged in scope from **v5.0.0**. See [`CHANGELOG.md`](./CHANGELOG.md) § v5.0.0 for the major feature list.
 
-*(Note: v5.0.0 maintains 100% backward compatibility with all `.autolab.json` machine files exported from v4.x.x)*
+Full technical list for this release: [`CHANGELOG.md`](./CHANGELOG.md) § v5.1.0.

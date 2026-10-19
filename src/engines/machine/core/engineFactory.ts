@@ -12,18 +12,30 @@ import { ENFAEngine } from '../enfa/ENFAEngine'
 import { DPDAEngine } from '../dpda/DPDAEngine'
 import { NPDAEngine } from '../npda/NPDAEngine'
 import { TMEngine } from '../tm/TMEngine'
+import { MultiTrackTMEngine } from '../multitrack/MultiTrackTMEngine'
+import { HierarchicalTMEngine } from '../hierarchical/HierarchicalTMEngine'
 import { LBAEngine } from '../lba/LBAEngine'
+import { NLBAEngine } from '../nlba/NLBAEngine'
+import { GrammarRecognizerEngine } from '../grammarRecognizer/GrammarRecognizerEngine'
+import { TransducerEngine } from '../transducer/TransducerEngine'
 import type { Automaton, MachineDefinition, SimulationStatus } from './types'
 
 /** Construct the engine for a machine definition's type (defaults to DFA). */
 export function createEngine(definition: MachineDefinition): Automaton {
+  if (definition.compiledGrammarRecognizer) return new GrammarRecognizerEngine(definition)
   switch (definition.type) {
     case 'NFA':  return new NFAEngine(definition)
     case 'ENFA': return new ENFAEngine(definition)
     case 'DPDA': return new DPDAEngine(definition)
     case 'NPDA': return new NPDAEngine(definition)
-    case 'TM':   return new TMEngine(definition)
+    case 'TM':   return definition.transitions.some((transition) => transition.submachineId)
+      ? new HierarchicalTMEngine(definition)
+      : new TMEngine(definition)
+    case 'MTM':  return new MultiTrackTMEngine(definition)
     case 'LBA':  return new LBAEngine(definition)
+    case 'NLBA': return new NLBAEngine(definition)
+    case 'MEALY':
+    case 'MOORE': return new TransducerEngine(definition)
     default:     return new DFAEngine(definition)
   }
 }
@@ -31,9 +43,13 @@ export function createEngine(definition: MachineDefinition): Automaton {
 export interface RunOutcome {
   input: string
   status: SimulationStatus
-  /** true = accepted, false = rejected/stuck, null = could not run (error). */
+  /** Recognizer verdict; null for transducers and runs that could not start. */
   accepted: boolean | null
   steps: number
+  outputTrace?: string[]
+  tapes?: import('./types').TapeSnapshot[]
+  trace?: string[]
+  limited?: boolean
 }
 
 /**
@@ -44,7 +60,8 @@ export interface RunOutcome {
 export function runToCompletion(
   definition: MachineDefinition,
   input: string,
-  maxSteps = 100_000
+  maxSteps = 100_000,
+  options: { captureTrace?: boolean; captureTapes?: boolean } = {}
 ): RunOutcome {
   const engine = createEngine(definition)
   engine.initialize(input)
@@ -59,5 +76,19 @@ export function runToCompletion(
   }
 
   const status = engine.getStatus()
-  return { input, status, accepted: engine.isAccepted(), steps }
+  const outputTrace = engine.getOutputTrace?.()
+  const tapes = options.captureTapes ? engine.getCurrentConfigurations()[0]?.tapes : undefined
+  const trace = options.captureTrace
+    ? engine.getExecutionHistory().map((entry) => `${entry.status}:${entry.symbol}`)
+    : undefined
+  return {
+    input,
+    status,
+    accepted: engine.isAccepted(),
+    steps,
+    ...(outputTrace ? { outputTrace } : {}),
+    ...(tapes ? { tapes } : {}),
+    ...(trace ? { trace } : {}),
+    ...(status === 'stuck' || (status === 'running' && steps >= maxSteps) ? { limited: true } : {}),
+  }
 }

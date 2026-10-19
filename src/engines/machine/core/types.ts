@@ -4,9 +4,28 @@
 // NO React imports in this file or any engine file.
 // ============================================================
 
-export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'DPDA' | 'NPDA' | 'TM' | 'LBA' | 'CFG' | 'CSG' | 'CFG_PARSER'
+export type MachineType = 'DFA' | 'NFA' | 'ENFA' | 'MEALY' | 'MOORE' | 'DPDA' | 'NPDA' | 'TM' | 'MTM' | 'LBA' | 'NLBA' | 'CFG' | 'CSG' | 'UG' | 'CFG_PARSER'
+
+/** The grammar notation currently being edited in Grammar Lab. */
+export type GrammarFormat = 'REGEX' | 'TYPE_0' | 'TYPE_1' | 'TYPE_2' | 'TYPE_3'
+
+/** Source retained by generated high-power grammar recognizers. */
+export interface CompiledGrammarRecognizer {
+  sourceText: string
+  sourceFormat: Exclude<GrammarFormat, 'REGEX'>
+  strategy: 'bounded-derivation'
+}
 
 // ─── Machine definition types ────────────────────────────────
+
+/** A call frame exposed in configuration/history snapshots. The first frame is
+ * the outermost caller; `submachineId` is scoped to its owning definition. */
+export interface SubmachineCallFrame {
+  submachineId: string
+  machineName: string
+  returnStateId: string
+  callerTransitionId: string
+}
 
 export interface AutomataState {
   id: string
@@ -24,6 +43,8 @@ export interface AutomataState {
   description?: string
   /** TM/LBA only — halt-and-reject state. */
   isReject?: boolean
+  /** Moore only — output emitted while the machine occupies this state. */
+  output?: string
   /** Text annotation node type */
   isText?: boolean
   /** Explicit box size (text annotation nodes only) */
@@ -49,12 +70,24 @@ export interface Transition {
   write?: string
   /** TM/LBA only — head move direction after writing. */
   direction?: 'L' | 'R' | 'S'
+  /** Mealy only — output emitted when this transition consumes an input symbol. */
+  output?: string
   /** Multi-tape TM only — per-tape symbols read (index = tape). Tape 0 falls back to `read`. */
   reads?: string[]
   /** Multi-tape TM only — per-tape symbols written. Tape 0 falls back to `write`. */
   writes?: string[]
   /** Multi-tape TM only — per-tape head directions. Tape 0 falls back to `direction`. */
   directions?: ('L' | 'R' | 'S')[]
+  /** Multi-track TM only — symbols read from the one head's vector cell. */
+  trackReads?: string[]
+  /** Multi-track TM only — symbols written to the one head's vector cell. */
+  trackWrites?: string[]
+  /**
+   * Hierarchical TM only — invokes an embedded submachine after this ordinary
+   * TM move fires. The transition's `to` state is the return target after the
+   * child accepts.
+   */
+  submachineId?: string
 }
 
 export interface MachineDefinition {
@@ -68,12 +101,18 @@ export interface MachineDefinition {
   transitions: Transition[]
   /** Input alphabet Σ. */
   alphabet: string[]
+  /** Mealy/Moore only — output alphabet Γ. */
+  outputAlphabet?: string[]
+  /** Optional output emitted before the first input symbol (used for conversions). */
+  initialOutput?: string
   /**
    * PDA only — declared stack alphabet Γ. Optional and declarative: when set, the
    * validator warns if a pop/push uses a symbol outside it. The engine itself does
    * not constrain stack symbols (UX audit #7).
    */
   stackAlphabet?: string[]
+  /** PDA only — stack contents before the first step (e.g. CFG→PDA bottom marker). */
+  initialStack?: string[]
   /**
    * TM/LBA only — declared tape alphabet Γ (should include the blank and all of Σ).
    * Optional and declarative: when set, the validator warns if a read/write uses a
@@ -86,8 +125,25 @@ export interface MachineDefinition {
   stepLimit?: number
   /** TM only — number of tapes (≥ 1). Defaults to 1 (single-tape). */
   tapeCount?: number
+  /** Multi-track TM only — number of logical tracks on one physical tape (≥ 2). */
+  trackCount?: number
+  /** Multi-track TM only — declared alphabet for each track, in track order. */
+  trackAlphabets?: string[][]
+  /** Multi-track TM only — blank symbol for each track, in track order. */
+  trackBlanks?: string[]
+  /**
+   * Hierarchical TM only — child snapshots owned by this definition. Child ids
+   * are local to this owning machine; no tab or external-file references exist.
+   */
+  submachines?: Record<string, MachineDefinition>
+  /** Hierarchical TM only — maximum nested child calls. Defaults to 16. */
+  submachineDepthLimit?: number
   /** Grammar/Parser Workspaces — The raw grammar text. */
   grammarText?: string
+  /** Grammar Lab only — formalism of `grammarText`; older CFG tabs default to Type 2. */
+  grammarFormat?: GrammarFormat
+  /** Present only on generated TM/NLBA grammar recognizers. */
+  compiledGrammarRecognizer?: CompiledGrammarRecognizer
   /** Parser Workspace — The selected parser algorithm. */
   parserAlgorithm?: string
   /** Parser Workspace — The raw input string to parse. */
@@ -105,7 +161,7 @@ export interface MachineDefinition {
 
 // ─── Simulation types ────────────────────────────────────────
 
-export type SimulationStatus = 'idle' | 'running' | 'accepted' | 'rejected' | 'stuck' | 'error'
+export type SimulationStatus = 'idle' | 'running' | 'completed' | 'accepted' | 'rejected' | 'stuck' | 'error'
 
 /**
  * A windowed snapshot of one Turing-machine tape for rendering. The engine
@@ -126,6 +182,8 @@ export interface TapeSnapshot {
   rightBound?: number
   /** Direction the head moved on the transition that produced this snapshot (history cue). Omitted before the first move. */
   lastMove?: 'L' | 'R' | 'S'
+  /** Multi-track TM only — track-major cell rows aligned to `cells`. */
+  tracks?: string[][]
 }
 
 /**
@@ -155,6 +213,12 @@ export interface Configuration {
   remainingInput: string
   /** TM/LBA tapes for this branch (length 1 single-tape, N multi-tape). Undefined for FA/PDA. */
   tapes?: TapeSnapshot[]
+  /** Latest output and accumulated output trace for a transducer branch. */
+  output?: string
+  outputTrace?: string[]
+  /** Hierarchical TM only — active embedded-child path and return frames. */
+  activeSubmachinePath?: string[]
+  callStack?: SubmachineCallFrame[]
   /**
    * Number of *additional* parent branches that reached this same configuration
    * this step and were merged into it (per-level dedup, first-parent-wins). 0/undefined
@@ -171,6 +235,19 @@ export interface HistoryEntry {
   symbol: string
   transitionIds: string[]
   status: SimulationStatus
+  /** Configuration data captured for academic trace exports. */
+  inputIndex?: number
+  consumedInput?: string
+  remainingInput?: string
+  stack?: string[]
+  tapes?: TapeSnapshot[]
+  /** Output emitted by this step, when running a transducer. */
+  output?: string
+  /** Outputs emitted since initialization, including Moore's initial state output. */
+  outputTrace?: string[]
+  /** Hierarchical TM only — scope active when this event was recorded. */
+  activeSubmachinePath?: string[]
+  callStack?: SubmachineCallFrame[]
 }
 
 export interface StepResult {
@@ -179,6 +256,10 @@ export interface StepResult {
   consumedInput: string
   remainingInput: string
   symbol: string
+  /** Output emitted by this step, if any. */
+  output?: string
+  /** Complete output trace after this step, if this is a transducer. */
+  outputTrace?: string[]
   transitionIds: string[]
   historyEntry: HistoryEntry
   /** Per-branch configurations after this step (computation tree / PDA branches). */
@@ -200,10 +281,12 @@ export interface Automaton {
   // Introspection
   getCurrentConfigurations(): Configuration[]
   getExecutionHistory(): HistoryEntry[]
-  isAccepted(): boolean | null // null = still running/idle
+  isAccepted(): boolean | null // null = still running/idle or transducer (no verdict)
 
   // State
   getStatus(): SimulationStatus
+  /** Output trace for Mealy/Moore engines; absent for recognizer machines. */
+  getOutputTrace?: () => string[]
 }
 
 // ─── Validation types ────────────────────────────────────────

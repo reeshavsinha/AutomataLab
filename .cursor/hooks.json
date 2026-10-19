@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "hooks": {
+    "stop": [
+      {
+        "command": "node .ctx/hooks/handoff-gate.mjs",
+        "timeout": 10
+      },
+      {
+        "command": "node .ctx/hooks/sync-index.mjs --hook",
+        "timeout": 10
+      }
+    ]
+  }
+}

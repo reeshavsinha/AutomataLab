@@ -15,6 +15,8 @@ import { getRecentFiles, removeRecentFile, clearRecentFiles, type RecentFile } f
 import { isTauri } from '@tauri-apps/api/core'
 import { toast } from '@/store/toastStore'
 import type { MachineType } from '@/engines/machine/core/types'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
+import { navigateAppHash } from '@/utils/demoMode'
 
 export function useFileActions(opts?: { bindKeys?: boolean }) {
   const { machine, activeTabIndex, dirtyTabs, tabPaths, addTab, openMachine, markTabSaved } = useMachineStore()
@@ -47,9 +49,9 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
       bumpRecent()
       
       const type = def.type;
-      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
-      else window.location.hash = '#/machine';
+      if (type === 'CFG_PARSER') navigateAppHash('#/parser');
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') navigateAppHash('#/grammar');
+      else navigateAppHash('#/machine');
     } catch (err) {
       if (err instanceof Error && err.message !== 'No file selected') toast.error(err.message)
     }
@@ -57,16 +59,16 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
 
   const handleOpenRecent = useCallback(async (file: RecentFile) => {
     try {
-      const def = await loadMachineFromPath(file.path)
+      const def = await loadMachineFromPath(file.path, { kind: file.kind })
       openMachine(def, file.path)
       setTimeout(requestFitView, 50)
       toast.success(`Opened "${def.name}".`)
       bumpRecent()
 
       const type = def.type;
-      if (type === 'CFG_PARSER') window.location.hash = '#/parser';
-      else if (type === 'CFG' || type === 'CSG') window.location.hash = '#/grammar';
-      else window.location.hash = '#/machine';
+      if (type === 'CFG_PARSER') navigateAppHash('#/parser');
+      else if (type === 'CFG' || type === 'CSG' || type === 'UG') navigateAppHash('#/grammar');
+      else navigateAppHash('#/machine');
     } catch {
       removeRecentFile(file.path)
       bumpRecent()
@@ -82,6 +84,10 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
 
   // Save in place if the path is known; otherwise behave like Save As.
   const handleSave = useCallback(async () => {
+    if (!machine) {
+      toast.error('There is no open document to save.')
+      return
+    }
     const knownPath = tabPaths[machine.id]
     try {
       if (isTauri() && knownPath) {
@@ -106,6 +112,10 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
   }, [machine, activeTabIndex, tabPaths, markTabSaved])
 
   const handleSaveAs = useCallback(async () => {
+    if (!machine) {
+      toast.error('There is no open document to save.')
+      return
+    }
     try {
       const hash = window.location.hash;
       const isGrammarWorkspace = hash.startsWith('#/grammar') || hash.startsWith('#/parser');
@@ -124,6 +134,7 @@ export function useFileActions(opts?: { bindKeys?: boolean }) {
   useEffect(() => {
     if (!opts?.bindKeys) return
     const onKey = (e: KeyboardEvent) => {
+      if (shouldSuppressGlobalShortcut(e.target)) return
       // Do not handle file shortcuts if we are on the Launchpad (Hub)
       if (window.location.hash === '#/' || window.location.hash === '') return;
 

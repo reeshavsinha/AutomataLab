@@ -21,6 +21,8 @@ import { buildConfig, consumedWindow, getStartState, isEpsilon, remainingWindow 
 
 /** Safety cap: guards against non-terminating ε-input/ε-pop push loops. */
 const DEFAULT_MAX_STEPS = 10_000
+/** Keep deterministic ε-push loops from exhausting renderer memory. */
+const MAX_STACK_DEPTH = 10_000
 
 export class DPDAEngine implements Automaton {
   private definition: MachineDefinition
@@ -47,7 +49,7 @@ export class DPDAEngine implements Automaton {
       return
     }
     this.currentStateId = startState.id
-    this.stack = []
+    this.stack = this.definition.initialStack?.length ? [...this.definition.initialStack] : []
     this.inputChars = input === '' ? [] : Array.from(input)
     this.inputIndex = 0
     this.status = 'running'
@@ -57,7 +59,7 @@ export class DPDAEngine implements Automaton {
 
   step(): StepResult {
     if (this.status !== 'running' || this.currentStateId === null) {
-      return this._makeResult('stuck')
+      return this._makeResult(this.status === 'idle' ? 'stuck' : this.status)
     }
 
     // Guard against infinite ε-loops (e.g. a self-loop that only pushes).
@@ -87,12 +89,9 @@ export class DPDAEngine implements Automaton {
     const pop = t.pop ?? ''
     const push = t.push ?? ''
 
-    if (!isEpsilon(pop)) {
-      this.stack.pop()
-    }
+    let pushSymbols: string[] = []
     if (!isEpsilon(push)) {
       const gamma = this.definition.stackAlphabet ?? []
-      let pushSymbols: string[]
       if (push.includes(',')) {
         pushSymbols = push.split(',')
       } else if (gamma.includes(push)) {
@@ -100,11 +99,20 @@ export class DPDAEngine implements Automaton {
       } else {
         pushSymbols = Array.from(push)
       }
-      // Push so the FIRST symbol of `push` ends up on top of the stack.
-      for (let i = pushSymbols.length - 1; i >= 0; i--) {
-        if (pushSymbols[i]) {
-          this.stack.push(pushSymbols[i])
-        }
+    }
+    const popCount = isEpsilon(pop) ? 0 : 1
+    const nonEmptyPushCount = pushSymbols.reduce((count, symbol) => count + (symbol ? 1 : 0), 0)
+    if (this.stack.length - popCount + nonEmptyPushCount > MAX_STACK_DEPTH) {
+      this.status = 'stuck'
+      return this._makeResult('stuck')
+    }
+    if (!isEpsilon(pop)) {
+      this.stack.pop()
+    }
+    // Push so the FIRST symbol of `push` ends up on top of the stack.
+    for (let i = pushSymbols.length - 1; i >= 0; i--) {
+      if (pushSymbols[i]) {
+        this.stack.push(pushSymbols[i])
       }
     }
 

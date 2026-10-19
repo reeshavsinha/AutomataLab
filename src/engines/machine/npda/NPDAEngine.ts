@@ -77,18 +77,20 @@ export class NPDAEngine implements Automaton, TreeProvider {
       this.status = 'error'
       return
     }
-    this.inputChars = input === '' ? [] : input.split('')
+    this.inputChars = input === '' ? [] : Array.from(input)
     this.branchSeq = 0
+    this.visitedConfigs.clear()
     const root = buildConfig({
       stateId: startState.id,
       inputChars: this.inputChars,
       inputIndex: 0,
       status: 'running',
-      stack: [],
+      stack: this.definition.initialStack?.length ? [...this.definition.initialStack] : [],
       parentId: null,
       id: this._nextId(),
     })
     this.frontier = [root]
+    this.visitedConfigs.add(this._key(root))
     this.treeNodes = [root]
     this.status = 'running'
     this.history = []

@@ -13,9 +13,13 @@ export type ConversionKind =
   | 'nfa-to-dfa'
   | 'minimize-dfa'
   | 'regex-to-nfa'
+  | 'regular-grammar-to-nfa'
+  | 'grammar-to-recognizer'
   | 'cfg-to-pda'
   | 'dfa-to-regex'
   | 'pda-to-cfg'
+  | 'moore-to-mealy'
+  | 'mealy-to-moore'
 
 /**
  * One construction step. Steps reference ids on the FINAL `result` machine;

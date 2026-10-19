@@ -1,6 +1,6 @@
 // ============================================================
 // MenuBar — classic native-style application menu bar.
-// File / Edit / View / Machine / Simulate / Convert / Help, each a
+// File / Edit / View / Help, each a
 // click-to-open dropdown (and hover-to-switch while one is open), wired
 // to the stores + the command bus (canvas/sim) + shared file actions.
 // ============================================================
@@ -16,10 +16,13 @@ import { useFileActions } from '@/hooks/useFileActions'
 import { useHistoryStore } from '@/store/historyStore'
 import { applyAutoLayout } from '@/utils/layout'
 import { toast } from '@/store/toastStore'
-import { isPDAType, isTMType } from '@/engines/machine/core/utils'
+import { isPDAType, isTMType, generateId } from '@/engines/machine/core/utils'
 import WorkspaceSwitcher from './WorkspaceSwitcher'
-import type { MachineType } from '@/engines/machine/core/types'
-import logoUrl from '@/assets/logo.png'
+import type { MachineType, MachineDefinition } from '@/engines/machine/core/types'
+import { EXAMPLES, EXAMPLE_TYPES_BY_WORKSPACE, groupedExamples } from '@/utils/examples'
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts'
+import { navigateAppHash } from '@/utils/demoMode'
+import logoUrl from '@/assets/logo-transparent.svg'
 
 type Item =
   | { kind: 'sep' }
@@ -107,34 +110,24 @@ export default function MenuBar() {
     route === '#/grammar' ? 'grammar' :
     route === '#/parser' ? 'parser' : 
     route === '#/regex' ? 'regex' : 'machine'
+  const canUseFileIo = !isHub && (workspaceType === 'machine' || workspaceType === 'grammar' || workspaceType === 'parser')
 
-  const tabId = workspaceType === 'machine' ? (machine?.id ?? 'global') : 'global'
+  const tabId = machine?.id ?? 'global'
 
-  // Subscribe to history stacks for active workspace/tab
-  const historyStack = useHistoryStore(s => s.stacks[`${workspaceType}:${tabId}`])
+  // Grammar and parser edits are stored as snapshots of the active machine tab,
+  // using the same history namespace as canvas edits.
+  const historyStack = useHistoryStore(s => s.stacks[`machine:${tabId}`])
   const canUndo = (historyStack?.past.length ?? 0) > 0
   const canRedo = (historyStack?.future.length ?? 0) > 0
 
   const handleGlobalUndo = () => {
     clearSelection();
-    if (workspaceType === 'machine') {
-      useMachineStore.getState().undo();
-    } else if (workspaceType === 'grammar') {
-      // TODO
-    } else if (workspaceType === 'parser') {
-      // TODO
-    }
+    if (machine) useMachineStore.getState().undo();
   }
 
   const handleGlobalRedo = () => {
     clearSelection();
-    if (workspaceType === 'machine') {
-      useMachineStore.getState().redo();
-    } else if (workspaceType === 'grammar') {
-      // TODO
-    } else if (workspaceType === 'parser') {
-      // TODO
-    }
+    if (machine) useMachineStore.getState().redo();
   }
   const status = useSimulationStore((s) => s.status)
   const stepCount = useSimulationStore((s) => s.stepCount)
@@ -232,7 +225,11 @@ export default function MenuBar() {
 
   const recentItems: Item[] = file.recentFiles.length > 0
     ? [
-        ...file.recentFiles.map((f) => ({ kind: 'action' as const, label: f.name, onClick: () => file.handleOpenRecent(f) })),
+        ...file.recentFiles.map((f) => ({
+          kind: 'action' as const,
+          label: f.kind === 'parser' ? `${f.name} (Parser)` : f.kind === 'grammar' ? `${f.name} (Grammar)` : f.name,
+          onClick: () => file.handleOpenRecent(f),
+        })),
         { kind: 'sep' as const },
         { kind: 'action' as const, label: 'Clear recent', onClick: file.handleClearRecent },
       ]
@@ -279,17 +276,42 @@ export default function MenuBar() {
     }
   };
 
+  const exampleWorkspace: 'machine' | 'grammar' | 'parser' =
+    workspaceType === 'grammar' ? 'grammar' :
+    workspaceType === 'parser' ? 'parser' :
+    'machine'
+
+  const loadExampleItems: Item[] = groupedExamples(EXAMPLE_TYPES_BY_WORKSPACE[exampleWorkspace]).map((g) => ({
+    kind: 'submenu',
+    label: `${g.type} (${g.items.length})`,
+    items: g.items.map(([key, ex]) => ({
+      kind: 'action' as const,
+      label: ex.name,
+      onClick: () => {
+        loadMachine({ ...EXAMPLES[key], id: generateId('machine') } as MachineDefinition, true)
+        setTimeout(requestFitView, 50)
+        toast.success(`Loaded example: ${ex.name}`)
+      },
+    })),
+  }))
+
   const menus: { id: string; label: string; items: Item[] }[] = [
     {
       id: 'file', label: 'File', items: [
         { kind: 'action', label: 'New', accel: 'Ctrl+N', onClick: file.handleNew, disabled: isHub },
-        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen, disabled: isHub || workspaceType !== 'machine' },
-        { kind: 'submenu', label: 'Open Recent', items: recentItems, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'action', label: 'Open…', accel: 'Ctrl+O', onClick: file.handleOpen, disabled: !canUseFileIo },
+        {
+          kind: 'submenu',
+          label: 'Open Recent',
+          items: recentItems,
+          disabled: !isTauri() || file.recentFiles.length === 0,
+        },
+        { kind: 'submenu', label: 'Load Example', items: loadExampleItems, disabled: isHub },
         { kind: 'sep' },
-        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave, disabled: isHub || workspaceType !== 'machine' },
-        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs, disabled: isHub || workspaceType !== 'machine' },
+        { kind: 'action', label: 'Save', accel: 'Ctrl+S', onClick: file.handleSave, disabled: !canUseFileIo },
+        { kind: 'action', label: 'Save As…', accel: 'Ctrl+Shift+S', onClick: file.handleSaveAs, disabled: !canUseFileIo },
         { kind: 'sep' },
-        { kind: 'action', label: 'Go to Workspace Hub', onClick: () => { window.location.hash = '#/'; }, disabled: isHub },
+        { kind: 'action', label: 'Go to Workspace Hub', onClick: () => { navigateAppHash('#/'); }, disabled: isHub },
         ...(isTauri() ? [{ kind: 'sep' as const }, { kind: 'action' as const, label: 'Exit', onClick: handleExit }] : []),
       ],
     },
@@ -319,7 +341,10 @@ export default function MenuBar() {
     },
     {
       id: 'help', label: 'Help', items: [
-        { kind: 'action', label: 'Help & Keyboard Shortcuts', accel: 'F1', onClick: () => openModal('help') },
+        { kind: 'action', label: 'User Manual', accel: 'F1', onClick: () => openModal('manual') },
+        { kind: 'action', label: 'Theory Handbook', accel: 'F2', onClick: () => openModal('theory') },
+        { kind: 'action', label: 'How the three workspaces relate', onClick: () => openModal('workspace-intro') },
+        { kind: 'action', label: 'Help & Keyboard Shortcuts', onClick: () => openModal('help') },
         { kind: 'sep' },
         { kind: 'action', label: checkingUpdate ? 'Checking for updates…' : 'Check for Updates…', onClick: handleCheckUpdate, disabled: checkingUpdate },
         { kind: 'action', label: 'View on GitHub', onClick: openGitHub },
@@ -332,24 +357,13 @@ export default function MenuBar() {
   // Global Shortcuts
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { 
-      if (e.key === 'F1') { e.preventDefault(); openModal('help') }
-      if (e.ctrlKey || e.metaKey) {
-        if (e.key.toLowerCase() === 'z') {
-          e.preventDefault()
-          if (e.shiftKey) {
-            if (canRedo && canEdit) handleGlobalRedo()
-          } else {
-            if (canUndo && canEdit) handleGlobalUndo()
-          }
-        } else if (e.key.toLowerCase() === 'y') {
-          e.preventDefault()
-          if (canRedo && canEdit) handleGlobalRedo()
-        }
-      }
+      if (shouldSuppressGlobalShortcut(e.target)) return
+      if (e.key === 'F1') { e.preventDefault(); openModal('manual') }
+      if (e.key === 'F2') { e.preventDefault(); openModal('theory') }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [openModal, canUndo, canRedo, canEdit, handleGlobalUndo, handleGlobalRedo])
+  }, [openModal])
 
   const handleMinimize = async () => {
     if (!isTauri()) return
@@ -393,7 +407,7 @@ export default function MenuBar() {
         <a
           className="menubar-brand"
           href="#/"
-          onClick={(e) => { e.preventDefault(); window.location.hash = '#/'; }}
+          onClick={(e) => { e.preventDefault(); navigateAppHash('#/'); }}
           title={`AutomataLab v${packageJson.version} (Go to Hub)`}
           rel="noopener noreferrer"
         >
@@ -401,9 +415,10 @@ export default function MenuBar() {
             src={logoUrl}
             alt="AutomataLab Logo"
             style={{
-              width: '14px',
-              height: '14px',
-              objectFit: 'contain'
+              width: '16px',
+              height: '16px',
+              objectFit: 'contain',
+              transform: 'translateY(-1.5px)'
             }}
           />
           AutomataLab

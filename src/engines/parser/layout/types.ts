@@ -14,6 +14,15 @@ export interface LayoutConfig {
   showExtended: boolean;
 }
 
+/** Full item list + spacing up to this many LR states. */
+export const LR_AUTOMATON_LAYOUT_FULL = 200
+/** Compact spacing and shortened extended edges. */
+export const LR_AUTOMATON_LAYOUT_COMPACT = 500
+/** Truncated item rows per state (LOD). */
+export const LR_AUTOMATON_LAYOUT_LOD = 1200
+/** Hard cap — use parse table / export instead of the graph. */
+export const LR_AUTOMATON_LAYOUT_MAX = 1500
+
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   horizontalSpacing: 210,
   verticalSpacing: 110,
@@ -22,7 +31,7 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   laneSpacing: 8,
   labelMargin: 5,
   cornerRadius: 8,
-  showExtended: true,
+  showExtended: false,
 };
 
 // --------------------------------------------------------

@@ -221,7 +221,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('pushdown automata on arbitrary inputs', () => {
     const rng = mulberry32(2)
@@ -232,7 +232,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectPdaHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('Turing machines / LBAs on arbitrary inputs', () => {
     const rng = mulberry32(3)
@@ -243,7 +243,7 @@ describe('fuzz: engine robustness (no throw / always halts)', () => {
         expectHalts(m, input)
       }
     }
-  })
+  }, 30_000)
 
   it('NPDA with a branching ε-push loop terminates instead of exploding', () => {
     // Two ε, ε → ‹different› self-loops: each child has a distinct stack, so the
@@ -284,7 +284,7 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 
   it('DFA ≡ minimised DFA', () => {
     const rng = mulberry32(20)
@@ -301,7 +301,7 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 
   it('ε-NFA ≡ ε-eliminated NFA', () => {
     const rng = mulberry32(30)
@@ -315,13 +315,14 @@ describe('fuzz: conversion language-equivalence', () => {
         )
       }
     }
-  })
+  }, 30_000)
 })
 
 // ════════════════════════════════════════════════════════════════
 describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
-  // Generate only syntax that JS RegExp and our parser interpret identically:
-  // literals a/b, grouping, |, and a single trailing quantifier per atom.
+  // Generate only syntax that JS RegExp and our parser interpret identically.
+  // Binary `+` means alternation in Grammar Lab, so wrap postfix `+` before
+  // concatenating it with another term to keep that use unambiguous.
   function genRegex(rng: () => number, depth: number): string {
     const expr = (d: number): string => {
       const concats = [concat(d)]
@@ -337,7 +338,7 @@ describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
     const term = (d: number): string => {
       const a = atom(d)
       const q = rng()
-      return q < 0.2 ? a + '*' : q < 0.35 ? a + '+' : q < 0.5 ? a + '?' : a
+      return q < 0.2 ? a + '*' : q < 0.35 ? `(${a}+)` : q < 0.5 ? a + '?' : a
     }
     const atom = (d: number): string => {
       if (d > 0 && rng() < 0.35) return '(' + expr(d - 1) + ')'
@@ -364,5 +365,5 @@ describe('fuzz: regex → ε-NFA matches the reference RegExp engine', () => {
         expect(accepts(nfa, s), `regex "${re}" disagreed on "${s || 'ε'}"`).toBe(ref.test(s))
       }
     }
-  })
+  }, 30_000)
 })

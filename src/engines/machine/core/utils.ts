@@ -3,6 +3,7 @@
 // Pure functions with no side effects. Used by all engines.
 // ============================================================
 
+import { getMachineCapabilities, isMachineType } from './capabilities'
 import type {
   AutomataState,
   Configuration,
@@ -15,7 +16,13 @@ import type {
 export const EPSILON = 'ε'
 
 export function isEpsilon(symbol: string | undefined): boolean {
-  return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'λ' || symbol === 'lambda'
+  return symbol === undefined || symbol === '' || symbol === EPSILON || symbol === 'eps' || symbol === 'epsilon' || symbol === 'λ' || symbol === 'lambda'
+}
+
+/** Canonical transducer output: every epsilon/lambda spelling means no output. */
+export function normalizeTransducerOutput(value: string | null | undefined): string {
+  const output = value?.trim() ?? ''
+  return isEpsilon(output) ? '' : output
 }
 
 /** The default Turing-machine blank tape symbol. */
@@ -35,6 +42,32 @@ export function isFAType(type: string): boolean {
   return (FA_TYPES as readonly string[]).includes(type)
 }
 
+export const TRANSDUCER_TYPES = ['MEALY', 'MOORE'] as const
+
+export function isTransducerType(type: string): boolean {
+  return (TRANSDUCER_TYPES as readonly string[]).includes(type)
+}
+
+/**
+ * Parse the compact Mealy edge notation used on the canvas. Each comma
+ * separated entry is an input/output pair, for example `0 / 1, 1 / 0`.
+ * Keeping this parser here prevents the slash from being treated as another
+ * input symbol by generic FA label parsing.
+ */
+export function parseMealyLabel(value: string): Array<{ input: string; output: string }> | null {
+  const pairs = value
+    .split(',')
+    .map((part) => {
+      const separator = part.indexOf('/')
+      if (separator < 0) return null
+      const input = part.slice(0, separator).trim()
+      const output = part.slice(separator + 1).trim()
+      return input && output ? { input, output } : null
+    })
+  if (pairs.length === 0 || pairs.some((pair) => pair === null)) return null
+  return pairs as Array<{ input: string; output: string }>
+}
+
 /**
  * Machine types backed by a stack. `'NPDA'` is listed ahead of its engine so
  * the PDA-aware UI/validator branches light up the moment the type is added.
@@ -47,21 +80,19 @@ export function isPDAType(type: string): boolean {
 }
 
 /**
- * Machine types that explore multiple branches and therefore have a
- * computation tree to visualise. Single source of truth gating the tree tab /
- * panel, mirroring `PDA_TYPES`/`isPDAType`.
+ * Whether the machine type exposes a computation tree in the UI. Delegates to
+ * `capabilities.ts` so tree gating stays aligned with the capability registry.
  */
-export const NONDETERMINISTIC_TYPES = ['NFA', 'ENFA', 'NPDA'] as const
-
 export function supportsComputationTree(type: string): boolean {
-  return (NONDETERMINISTIC_TYPES as readonly string[]).includes(type)
+  if (!isMachineType(type)) return false
+  return getMachineCapabilities(type).supportsComputationTree
 }
 
 /**
  * Tape-backed machine types. `'LBA'` is a bounded TM. Single source of truth
  * gating the tape UI / TM validator branches, mirroring `PDA_TYPES`/`isPDAType`.
  */
-export const TM_TYPES = ['TM', 'LBA'] as const
+export const TM_TYPES = ['TM', 'MTM', 'LBA', 'NLBA'] as const
 
 export function isTMType(type: string): boolean {
   return (TM_TYPES as readonly string[]).includes(type)
@@ -129,12 +160,38 @@ export function tmTapeOps(
  * multi-tape → per-tape segments joined with ` | ` (e.g. `a → b, R | _ → c, L`).
  */
 export function formatTmTransition(
-  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions'>,
+  t: Pick<Transition, 'read' | 'write' | 'direction' | 'reads' | 'writes' | 'directions' | 'submachineId'>,
   tapeCount: number,
   blank: string = BLANK
 ): string {
   const { reads, writes, directions } = tmTapeOps(t, tapeCount)
-  return reads.map((r, i) => formatTmLabel(r, writes[i], directions[i], blank)).join(' | ')
+  const move = reads.map((r, i) => formatTmLabel(r, writes[i], directions[i], blank)).join(' | ')
+  return t.submachineId ? `${move} · call ${t.submachineId}` : move
+}
+
+/** Resolve one multi-track move. Vector components are tracks at a single
+ * physical head, so direction remains scalar and never uses `directions[]`. */
+export function tmTrackOps(
+  transition: Pick<Transition, 'trackReads' | 'trackWrites' | 'direction'>,
+  trackCount: number,
+  blanks: string[],
+): { reads: string[]; writes: string[]; direction: TapeDir } {
+  const count = Math.max(2, Math.floor(trackCount) || 2)
+  return {
+    reads: Array.from({ length: count }, (_, index) => transition.trackReads?.[index] ?? blanks[index] ?? BLANK),
+    writes: Array.from({ length: count }, (_, index) => transition.trackWrites?.[index] ?? blanks[index] ?? BLANK),
+    direction: normalizeDir(transition.direction),
+  }
+}
+
+/** Format a multi-track vector move distinctly from independent multi-tape moves. */
+export function formatMultiTrackTransition(
+  transition: Pick<Transition, 'trackReads' | 'trackWrites' | 'direction'>,
+  trackCount: number,
+  blanks: string[],
+): string {
+  const { reads, writes, direction } = tmTrackOps(transition, trackCount, blanks)
+  return `⟨${reads.join(', ')}⟩ → ⟨${writes.join(', ')}⟩, ${direction}`
 }
 
 /** Get all transitions leaving a given state */

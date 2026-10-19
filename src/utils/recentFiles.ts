@@ -6,9 +6,13 @@
 const STORAGE_KEY = 'automatalab-recent-files'
 const MAX_RECENT = 8
 
+export type RecentFileKind = 'machine' | 'grammar' | 'parser'
+
 export interface RecentFile {
   path: string
   name: string
+  /** When omitted, inferred from the file extension on open. */
+  kind?: RecentFileKind
 }
 
 export function getRecentFiles(): RecentFile[] {
@@ -20,7 +24,11 @@ export function getRecentFiles(): RecentFile[] {
     if (!Array.isArray(parsed)) return []
     return parsed
       .filter((f) => f && typeof f.path === 'string')
-      .map((f) => ({ path: String(f.path), name: String(f.name ?? f.path) }))
+      .map((f) => ({
+        path: String(f.path),
+        name: String(f.name ?? f.path),
+        ...(f.kind === 'grammar' || f.kind === 'parser' || f.kind === 'machine' ? { kind: f.kind as RecentFileKind } : {}),
+      }))
       .slice(0, MAX_RECENT)
   } catch {
     return []
@@ -37,10 +45,10 @@ function save(files: RecentFile[]) {
 }
 
 /** Add (or move to front) a recently used file. Most-recent first, de-duplicated by path. */
-export function addRecentFile(path: string, name: string): void {
+export function addRecentFile(path: string, name: string, kind?: RecentFileKind): void {
   if (!path) return
   const existing = getRecentFiles().filter((f) => f.path !== path)
-  save([{ path, name }, ...existing])
+  save([{ path, name, ...(kind ? { kind } : {}) }, ...existing])
 }
 
 export function removeRecentFile(path: string): void {

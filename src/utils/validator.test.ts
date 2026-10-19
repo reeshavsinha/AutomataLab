@@ -48,6 +48,70 @@ describe('validateMachine — start/accept rules', () => {
   })
 })
 
+describe('validateMachine — Mealy/Moore output rules', () => {
+  it('requires Mealy transition outputs', () => {
+    const m = machine({
+      type: 'MEALY',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'] }],
+    })
+    expect(codes(m)).toContain('MEALY_MISSING_OUTPUT')
+  })
+
+  it('requires output on every Moore state', () => {
+    const m = machine({
+      type: 'MOORE',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+    })
+    expect(codes(m)).toContain('MOORE_MISSING_OUTPUT')
+  })
+
+  it.each(['', 'ε', 'eps', 'epsilon', 'λ', 'lambda'])(
+    'accepts Mealy epsilon/lambda output "%s" as no output',
+    (output) => {
+      const m = machine({
+        type: 'MEALY',
+        alphabet: ['a'],
+        outputAlphabet: ['0'],
+        states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+        transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'], output }],
+      })
+      expect(codes(m)).not.toContain('MEALY_MISSING_OUTPUT')
+      expect(hasBlockingErrors(validateMachine(m))).toBe(false)
+    },
+  )
+
+  it.each(['', 'ε', 'eps', 'epsilon', 'λ', 'lambda'])(
+    'accepts Moore epsilon/lambda state output "%s" as no output',
+    (output) => {
+      const m = machine({
+        type: 'MOORE',
+        alphabet: ['a'],
+        outputAlphabet: ['0'],
+        states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false, output }],
+        transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'] }],
+      })
+      expect(codes(m)).not.toContain('MOORE_MISSING_OUTPUT')
+      expect(hasBlockingErrors(validateMachine(m))).toBe(false)
+    },
+  )
+
+  it('does not require final states for transducers', () => {
+    const m = machine({
+      type: 'MEALY',
+      alphabet: ['a'],
+      outputAlphabet: ['0'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+      transitions: [{ id: 't0', from: 'q0', to: 'q0', symbols: ['a'], output: '0' }],
+    })
+    expect(codes(m)).not.toContain('NO_ACCEPT_STATE')
+  })
+})
+
 describe('validateMachine — DFA rules', () => {
   it('flags nondeterminism (two transitions on one symbol)', () => {
     const m = machine({
@@ -110,6 +174,12 @@ describe('validateMachine — PDA rules', () => {
   it('flags a multi-character pop', () => {
     const m = base([{ id: 't', from: 'q0', to: 'q1', symbols: [], read: 'a', pop: 'AB', push: '' }])
     expect(codes(m)).toContain('PDA_BAD_POP')
+  })
+
+  it('treats one non-BMP Unicode code point as one PDA symbol', () => {
+    const m = base([{ id: 't', from: 'q0', to: 'q1', symbols: [], read: '😀', pop: '🧱', push: '' }])
+    expect(codes(m)).not.toContain('PDA_BAD_READ')
+    expect(codes(m)).not.toContain('PDA_BAD_POP')
   })
 
   it('flags conflicting deterministic moves (same read + pop)', () => {
@@ -200,6 +270,19 @@ describe('validateMachine — TM/LBA rules', () => {
     expect(codes(m)).toContain('TM_BAD_WRITE')
   })
 
+  it('treats one non-BMP Unicode code point as one TM symbol', () => {
+    const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: '😀', write: '🧱', direction: 'S' }])
+    expect(codes(m)).not.toContain('TM_BAD_READ')
+    expect(codes(m)).not.toContain('TM_BAD_WRITE')
+    expect(codes(m)).not.toContain('TM_BAD_DIRECTION')
+  })
+
+  it('requires the configured blank to be exactly one tape symbol', () => {
+    const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'a', direction: 'S' }])
+    m.blankSymbol = 'blank'
+    expect(codes(m)).toContain('TM_BAD_BLANK')
+  })
+
   it('flags a missing head direction', () => {
     const m = tmBase([{ id: 't', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'b' }])
     expect(codes(m)).toContain('TM_BAD_DIRECTION')
@@ -211,6 +294,19 @@ describe('validateMachine — TM/LBA rules', () => {
       { id: 't1', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'a', direction: 'R' },
     ])
     expect(codes(m)).toContain('TM_NONDETERMINISTIC')
+  })
+
+  it('allows competing moves for an NLBA while retaining all TM tape checks', () => {
+    const m = tmBase([
+      { id: 't0', from: 'q0', to: 'q0', symbols: [], read: 'a', write: 'a', direction: 'S' },
+      { id: 't1', from: 'q0', to: 'acc', symbols: [], read: 'a', write: 'b', direction: 'R' },
+    ])
+    m.type = 'NLBA'
+
+    const c = codes(m)
+    expect(c).not.toContain('TM_NONDETERMINISTIC')
+    expect(c).not.toContain('TM_BAD_READ')
+    expect(c).not.toContain('TM_BAD_DIRECTION')
   })
 
   it('flags a state marked both accept and reject', () => {

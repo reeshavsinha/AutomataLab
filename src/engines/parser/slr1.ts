@@ -2,6 +2,7 @@
 
 import { CFG, EPSILON, EOF_SYMBOL, GrammarAnalysisResult } from '../grammar/types';
 import { LR0Item, LR0ItemSet, ActionEntry, LR0Table, formatItem } from './lr0';
+import { assertLRCollectionBudget, assertParserGrammarBudget } from './limits';
 
 // Helper to check if two items are equal
 const itemsEqual = (a: LR0Item, b: LR0Item) => a.prodIndex === b.prodIndex && a.dot === b.dot;
@@ -10,6 +11,7 @@ const itemsEqual = (a: LR0Item, b: LR0Item) => a.prodIndex === b.prodIndex && a.
 const setContains = (set: LR0Item[], item: LR0Item) => set.some(i => itemsEqual(i, item));
 
 export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR0Table {
+  assertParserGrammarBudget(cfg.productions.length);
   // 1. Augment Grammar: START -> S
   const startPrime = 'START';
   const augmentedProds = [
@@ -101,6 +103,8 @@ export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR
   const states: LR0ItemSet[] = [
     { id: 0, items: initialStateItems }
   ];
+  let totalStateItems = initialStateItems.length;
+  assertLRCollectionBudget(states.length, totalStateItems);
 
   const stateSignatureMap = new Map<string, number>();
   stateSignatureMap.set(getStateSignature(initialStateItems), 0);
@@ -122,6 +126,8 @@ export function generateSLR1Table(cfg: CFG, analysis: GrammarAnalysisResult): LR
         if (existingId === undefined) {
           existingId = states.length;
           states.push({ id: existingId, items: nextSet });
+          totalStateItems += nextSet.length;
+          assertLRCollectionBudget(states.length, totalStateItems);
           stateSignatureMap.set(sig, existingId);
         }
 

@@ -14,29 +14,17 @@ export interface GrammarDiagnostic {
 export function runDiagnostics(cfg: CFG): GrammarDiagnostic[] {
   const diagnostics: GrammarDiagnostic[] = [];
 
-  // 0. Undefined Nonterminals & Suspicious Terminals
+  // 0. Undefined Nonterminals
+  // Symbol boundaries are resolved deterministically in the grammar front-end
+  // (whitespace/quotes), so multi-character nonterminals are legitimate and we
+  // do NOT speculate that the user "forgot spaces".
   const lhsSet = new Set(cfg.productions.map(p => p.lhs));
   for (const nt of cfg.nonterminals) {
     if (!lhsSet.has(nt)) {
-      let msg = 'Undefined nonterminal ' + nt;
-      if (nt.length > 1) {
-        msg += `. Did you forget spaces? (e.g., '${nt.split('').join(' ')}')`;
-      }
       diagnostics.push({
         type: 'error',
         nonterminal: nt,
-        message: msg,
-        productions: []
-      });
-    }
-  }
-
-  for (const t of cfg.terminals) {
-    if (t.length > 1 && /[A-Z]/.test(t)) {
-      diagnostics.push({
-        type: 'error',
-        nonterminal: '',
-        message: `Suspicious terminal '${t}' contains uppercase letters. Did you forget spaces? (e.g., '${t.split('').join(' ')}')`,
+        message: 'Undefined nonterminal ' + nt,
         productions: []
       });
     }

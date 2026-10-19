@@ -32,6 +32,10 @@ export async function copyDiagramSVG(machine: MachineDefinition, dark = false): 
 }
 
 /** Rasterise the SVG to a PNG blob at `scale`× the natural size (DOM required). */
+export async function diagramPngBlob(machine: MachineDefinition, dark = false, scale = 2): Promise<Blob> {
+  return svgToPngBlob(renderFullSvg(machine, dark), scale)
+}
+
 async function svgToPngBlob(result: DiagramSvgResult, scale: number): Promise<Blob> {
   const { svg, width, height } = result
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
@@ -58,8 +62,7 @@ async function svgToPngBlob(result: DiagramSvgResult, scale: number): Promise<Bl
 
 /** Export the diagram as a .png file at `scale`× resolution. Returns path/filename or null. */
 export async function exportDiagramPNG(machine: MachineDefinition, dark = false, scale = 2): Promise<string | null> {
-  const result = renderFullSvg(machine, dark)
-  const blob = await svgToPngBlob(result, scale)
+  const blob = await diagramPngBlob(machine, dark, scale)
   const filename = `${fileStem(machine)}.png`
 
   try {
@@ -88,8 +91,7 @@ export async function exportDiagramPNG(machine: MachineDefinition, dark = false,
 
 /** Copy the diagram as a PNG image to the clipboard. */
 export async function copyDiagramPNG(machine: MachineDefinition, dark = false, scale = 2): Promise<void> {
-  const result = renderFullSvg(machine, dark)
-  const blob = await svgToPngBlob(result, scale)
+  const blob = await diagramPngBlob(machine, dark, scale)
   if (navigator.clipboard && window.ClipboardItem) {
     await navigator.clipboard.write([
       new ClipboardItem({ 'image/png': blob })

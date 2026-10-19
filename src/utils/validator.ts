@@ -5,7 +5,9 @@
 // ============================================================
 
 import type { MachineDefinition, ValidationError } from '@/engines/machine/core/types'
-import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, tmTapeOps } from '@/engines/machine/core/utils'
+import { BLANK, isBlank, isEpsilon, isPDAType, isTMType, isTransducerType, tmTapeOps, tmTrackOps } from '@/engines/machine/core/utils'
+
+const symbolLength = (symbol: string): number => Array.from(symbol).length
 
 export function validateMachine(machine: MachineDefinition): ValidationError[] {
   const errors: ValidationError[] = []
@@ -30,7 +32,9 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
 
   // ── FR-8.2: At least one accept state ─────────────────────
   const acceptStates = machine.states.filter((s) => s.isAccept && !s.isText)
-  if (acceptStates.length === 0) {
+  // Mealy/Moore machines are transducers, not recognizers. Their result is an
+  // output sequence, so final-state acceptance is neither required nor used.
+  if (acceptStates.length === 0 && !isTransducerType(machine.type)) {
     errors.push({
       severity: 'warning',
       code: 'NO_ACCEPT_STATE',
@@ -38,8 +42,8 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
     })
   }
 
-  // ── FR-8.3: DFA determinism check ─────────────────────────
-  if (machine.type === 'DFA') {
+  // ── FR-8.3: deterministic transition check ────────────────
+  if (machine.type === 'DFA' || machine.type === 'MEALY' || machine.type === 'MOORE') {
     for (const state of machine.states.filter((s) => !s.isText)) {
       const symbolCount = new Map<string, number>()
       for (const t of machine.transitions) {
@@ -53,8 +57,12 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
         if (count > 1) {
           errors.push({
             severity: 'error',
-            code: 'DFA_NONDETERMINISTIC',
-            message: `State "${state.label}" has ${count} transitions on symbol "${sym}". DFA must be deterministic.`,
+            code: machine.type === 'MEALY'
+              ? 'MEALY_NONDETERMINISTIC'
+              : machine.type === 'MOORE'
+                ? 'MOORE_NONDETERMINISTIC'
+                : 'DFA_NONDETERMINISTIC',
+            message: `State "${state.label}" has ${count} transitions on symbol "${sym}". ${machine.type} must be deterministic.`,
             stateId: state.id,
           })
         }
@@ -68,8 +76,12 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
           if (!symbolCount.has(sym)) {
             errors.push({
               severity: 'warning',
-              code: 'DFA_MISSING_TRANSITION',
-              message: `State "${state.label}" has no move on "${sym}". A partial DFA rejects here (as if going to a trap state). Use "Complete DFA" to add an explicit trap.`,
+              code: machine.type === 'MEALY'
+                ? 'MEALY_MISSING_TRANSITION'
+                : machine.type === 'MOORE'
+                  ? 'MOORE_MISSING_TRANSITION'
+                  : 'DFA_MISSING_TRANSITION',
+              message: `State "${state.label}" has no move on "${sym}". A partial ${machine.type} stops with no output here.`,
               stateId: state.id,
             })
           }
@@ -134,7 +146,64 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
     validateTM(machine, errors)
   }
 
+  if (isTransducerType(machine.type)) {
+    validateTransducer(machine, errors)
+  }
+
   return errors
+}
+
+function validateTransducer(machine: MachineDefinition, errors: ValidationError[]): void {
+  const outputAlphabet = new Set(machine.outputAlphabet ?? [])
+  if (!machine.outputAlphabet || machine.outputAlphabet.length === 0) {
+    errors.push({
+      severity: 'warning',
+      code: 'TRANSDUCER_NO_OUTPUT_ALPHABET',
+      message: 'No output alphabet declared. Add Γ so output symbols can be checked.',
+    })
+  }
+
+  if (machine.type === 'MEALY') {
+    for (const transition of machine.transitions) {
+      // An explicit empty/epsilon/lambda output is valid: it means this
+      // transition emits no symbol. `undefined` still means the field is
+      // missing altogether.
+      if (transition.output === undefined) {
+        errors.push({
+          severity: 'error',
+          code: 'MEALY_MISSING_OUTPUT',
+          message: 'Every Mealy transition must define an output symbol or ε/λ for no output.',
+          transitionId: transition.id,
+        })
+      } else if (outputAlphabet.size > 0 && !isEpsilon(transition.output.trim()) && !outputAlphabet.has(transition.output)) {
+        errors.push({
+          severity: 'warning',
+          code: 'TRANSDUCER_OUTPUT_NOT_IN_GAMMA',
+          message: `Output "${transition.output}" is not in the declared output alphabet Γ.`,
+          transitionId: transition.id,
+        })
+      }
+    }
+  } else {
+    for (const state of machine.states.filter((s) => !s.isText)) {
+      // An explicit empty/epsilon/lambda output is valid for Moore states.
+      if (state.output === undefined) {
+        errors.push({
+          severity: 'error',
+          code: 'MOORE_MISSING_OUTPUT',
+          message: 'Every Moore state must define an output symbol or ε/λ for no output, including the initial state.',
+          stateId: state.id,
+        })
+      } else if (outputAlphabet.size > 0 && !isEpsilon(state.output.trim()) && !outputAlphabet.has(state.output)) {
+        errors.push({
+          severity: 'warning',
+          code: 'TRANSDUCER_OUTPUT_NOT_IN_GAMMA',
+          message: `Output "${state.output}" is not in the declared output alphabet Γ.`,
+          stateId: state.id,
+        })
+      }
+    }
+  }
 }
 
 // ─── PDA validation ──────────────────────────────────────────
@@ -142,7 +211,26 @@ export function validateMachine(machine: MachineDefinition): ValidationError[] {
 function validatePDA(machine: MachineDefinition, errors: ValidationError[]): void {
   const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
 
-  // Well-formed read/pop: handled dynamically by the engine now.
+  for (const t of machine.transitions) {
+    const read = t.read ?? ''
+    if (symbolLength(read) > 1 && !isEpsilon(read)) {
+      errors.push({
+        severity: 'error',
+        code: 'PDA_BAD_READ',
+        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} has a multi-character read "${read}". A PDA can only read 1 character per step.`,
+        transitionId: t.id,
+      })
+    }
+    const pop = t.pop ?? ''
+    if (symbolLength(pop) > 1 && !isEpsilon(pop)) {
+      errors.push({
+        severity: 'error',
+        code: 'PDA_BAD_POP',
+        message: `Transition ${labelFor(t.from)} → ${labelFor(t.to)} pops multiple characters "${pop}". A PDA can only pop 1 character per step.`,
+        transitionId: t.id,
+      })
+    }
+  }
 
   // Stack alphabet Γ (when declared): pops/pushes should stay within it. These are
   // warnings — Γ is declarative and the engine doesn't constrain symbols (UX #7).
@@ -230,10 +318,22 @@ function validatePDA(machine: MachineDefinition, errors: ValidationError[]): voi
 // ─── TM / LBA validation ─────────────────────────────────────
 
 function validateTM(machine: MachineDefinition, errors: ValidationError[]): void {
+  if (machine.type === 'MTM') {
+    validateMultiTrackTM(machine, errors)
+    return
+  }
   const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
   const blank = machine.blankSymbol || BLANK
   const tapeCount = Math.max(1, Math.floor(machine.tapeCount ?? 1) || 1)
   const multi = tapeCount > 1
+
+  if (symbolLength(blank) !== 1) {
+    errors.push({
+      severity: 'error',
+      code: 'TM_BAD_BLANK',
+      message: `The blank "${blank}" must be exactly one tape symbol.`,
+    })
+  }
 
   // Σ ∌ blank: the blank is a tape symbol, not an input symbol (UX audit #7).
   if ((machine.alphabet ?? []).some((s) => s === blank)) {
@@ -304,7 +404,7 @@ function validateTM(machine: MachineDefinition, errors: ValidationError[]): void
     const onEach = multi ? ' on each tape' : ''
 
     for (const read of reads) {
-      if (!isBlank(read, blank) && read.length > 1) {
+      if (!isBlank(read, blank) && symbolLength(read) > 1) {
         errors.push({
           severity: 'error',
           code: 'TM_BAD_READ',
@@ -314,7 +414,7 @@ function validateTM(machine: MachineDefinition, errors: ValidationError[]): void
       }
     }
     for (const write of writes) {
-      if (!isBlank(write, blank) && write.length > 1) {
+      if (!isBlank(write, blank) && symbolLength(write) > 1) {
         errors.push({
           severity: 'error',
           code: 'TM_BAD_WRITE',
@@ -356,31 +456,161 @@ function validateTM(machine: MachineDefinition, errors: ValidationError[]): void
     })
   }
 
-  // Determinism: at most one move per (state, read-tuple). Our TM/LBA are
-  // deterministic (NTM is deferred — it would reuse the computation-tree path).
-  const byState = new Map<string, typeof machine.transitions>()
-  for (const t of machine.transitions) {
-    if (!byState.has(t.from)) byState.set(t.from, [])
-    byState.get(t.from)!.push(t)
-  }
-  for (const [stateId, transitions] of byState) {
-    const seen = new Map<string, number>()
-    for (const t of transitions) {
-      const { reads } = tmTapeOps(t, tapeCount)
-      const key = reads.map((r) => (isBlank(r, blank) ? blank : r)).join('\u0001')
-      seen.set(key, (seen.get(key) ?? 0) + 1)
+  // TM/LBA are deterministic; NLBA deliberately branches when several moves
+  // match the same read tuple.
+  if (machine.type !== 'NLBA') {
+    const byState = new Map<string, typeof machine.transitions>()
+    for (const t of machine.transitions) {
+      if (!byState.has(t.from)) byState.set(t.from, [])
+      byState.get(t.from)!.push(t)
     }
-    for (const [key, count] of seen) {
-      if (count > 1) {
-        const display = key.split('\u0001').join(', ')
-        errors.push({
-          severity: 'error',
-          code: 'TM_NONDETERMINISTIC',
-          message: `State "${labelFor(stateId)}" has ${count} moves reading "${display}". A deterministic TM allows only one move per tape-symbol${multi ? ' combination' : ''}.`,
-          stateId,
-        })
-        break
+    for (const [stateId, transitions] of byState) {
+      const seen = new Map<string, number>()
+      for (const t of transitions) {
+        const { reads } = tmTapeOps(t, tapeCount)
+        const key = reads.map((r) => (isBlank(r, blank) ? blank : r)).join('\u0001')
+        seen.set(key, (seen.get(key) ?? 0) + 1)
       }
+      for (const [key, count] of seen) {
+        if (count > 1) {
+          const display = key.split('\u0001').join(', ')
+          errors.push({
+            severity: 'error',
+            code: 'TM_NONDETERMINISTIC',
+            message: `State "${labelFor(stateId)}" has ${count} moves reading "${display}". A deterministic TM allows only one move per tape-symbol${multi ? ' combination' : ''}.`,
+            stateId,
+          })
+          break
+        }
+      }
+    }
+  }
+
+  if (machine.type === 'TM') validateSubmachineContracts(machine, errors)
+}
+
+function validateSubmachineContracts(
+  machine: MachineDefinition,
+  errors: ValidationError[],
+  path = machine.name || 'Root TM',
+  ancestors = new Set<MachineDefinition>(),
+  depth = 0,
+): void {
+  const children = machine.submachines ?? {}
+  const depthLimit = Math.max(1, Math.min(16, machine.submachineDepthLimit ?? 16))
+  if (depth > depthLimit) {
+    errors.push({ severity: 'error', code: 'SUBMACHINE_DEPTH_LIMIT', message: `${path} exceeds its submachine depth limit of ${depthLimit}.` })
+    return
+  }
+  if (ancestors.has(machine)) {
+    errors.push({ severity: 'error', code: 'SUBMACHINE_CYCLE', message: `${path} contains a recursive embedded submachine reference.` })
+    return
+  }
+  const nextAncestors = new Set(ancestors).add(machine)
+  const parentTapeCount = Math.max(1, machine.tapeCount ?? 1)
+  const parentBlank = machine.blankSymbol || BLANK
+
+  for (const transition of machine.transitions) {
+    if (!transition.submachineId) continue
+    const child = children[transition.submachineId]
+    if (!child) {
+      errors.push({
+        severity: 'error',
+        code: 'SUBMACHINE_MISSING',
+        message: `${path}: transition ${labelFor(machine, transition.from)} → ${labelFor(machine, transition.to)} calls missing child "${transition.submachineId}". Repair or remove the call.`,
+        transitionId: transition.id,
+      })
+      continue
+    }
+    if (child.type !== 'TM') {
+      errors.push({ severity: 'error', code: 'SUBMACHINE_UNSUPPORTED_TYPE', message: `${path}: child "${transition.submachineId}" must be a deterministic TM.`, transitionId: transition.id })
+    }
+    if (Math.max(1, child.tapeCount ?? 1) !== parentTapeCount || (child.blankSymbol || BLANK) !== parentBlank) {
+      errors.push({ severity: 'error', code: 'SUBMACHINE_TAPE_CONTRACT', message: `${path}: child "${transition.submachineId}" must use the caller's ${parentTapeCount} tape(s) and blank "${parentBlank}".`, transitionId: transition.id })
+    }
+    const starts = child.states.filter((state) => state.isStart && !state.isText)
+    if (starts.length !== 1) {
+      errors.push({ severity: 'error', code: 'SUBMACHINE_START_STATE', message: `${path}: child "${transition.submachineId}" must define exactly one start state.`, transitionId: transition.id })
+    }
+    if (!child.states.some((state) => state.isAccept && !state.isText)) {
+      errors.push({ severity: 'error', code: 'SUBMACHINE_NO_ACCEPT', message: `${path}: child "${transition.submachineId}" needs an accept state to return to its caller.`, transitionId: transition.id })
+    }
+  }
+
+  for (const [id, child] of Object.entries(children)) {
+    validateSubmachineContracts(child, errors, `${path} › ${id}`, nextAncestors, depth + 1)
+  }
+}
+
+function labelFor(machine: MachineDefinition, id: string): string {
+  return machine.states.find((state) => state.id === id)?.label ?? id
+}
+
+/** MTM validation deliberately does not reuse multi-tape validation: its vector
+ * is one cell under one head, with a single movement direction. */
+function validateMultiTrackTM(machine: MachineDefinition, errors: ValidationError[]): void {
+  const labelFor = (id: string) => machine.states.find((s) => s.id === id)?.label ?? id
+  const trackCount = Math.max(2, Math.floor(machine.trackCount ?? 2) || 2)
+  const blanks = Array.from({ length: trackCount }, (_, index) => machine.trackBlanks?.[index] || machine.blankSymbol || BLANK)
+  const alphabets = machine.trackAlphabets ?? []
+
+  if (machine.tapeCount !== undefined && machine.tapeCount > 1) {
+    errors.push({ severity: 'error', code: 'MTM_MULTIPLE_TAPES', message: 'A multi-track TM has one physical tape and one head; use a multi-tape TM for independent tapes.' })
+  }
+  for (let index = 0; index < trackCount; index++) {
+    const blank = blanks[index]
+    if (symbolLength(blank) !== 1) {
+      errors.push({ severity: 'error', code: 'MTM_BAD_BLANK', message: `Track ${index + 1} blank "${blank}" must be one symbol.` })
+    }
+    const alphabet = alphabets[index]
+    if (alphabet?.length && !alphabet.includes(blank)) {
+      errors.push({ severity: 'warning', code: 'MTM_BLANK_NOT_IN_GAMMA', message: `Track ${index + 1} alphabet should include its blank "${blank}".` })
+    }
+  }
+  const firstAlphabet = alphabets[0]
+  if (firstAlphabet?.length) {
+    for (const symbol of machine.alphabet ?? []) {
+      if (!firstAlphabet.includes(symbol)) {
+        errors.push({ severity: 'warning', code: 'MTM_INPUT_NOT_ON_TRACK_1', message: `Input symbol "${symbol}" isn't in track 1's alphabet.` })
+      }
+    }
+  }
+
+  const seenByState = new Map<string, Set<string>>()
+  for (const transition of machine.transitions) {
+    if (!Array.isArray(transition.trackReads) || transition.trackReads.length !== trackCount ||
+        !Array.isArray(transition.trackWrites) || transition.trackWrites.length !== trackCount) {
+      errors.push({
+        severity: 'error',
+        code: 'MTM_TRACK_COUNT_MISMATCH',
+        message: `Transition ${labelFor(transition.from)} → ${labelFor(transition.to)} must specify ${trackCount} read and write symbols — one vector component per track.`,
+        transitionId: transition.id,
+      })
+      continue
+    }
+    const { reads, writes, direction } = tmTrackOps(transition, trackCount, blanks)
+    for (const [index, symbol] of [...reads, ...writes].entries()) {
+      const track = index % trackCount
+      if (symbolLength(symbol) !== 1) {
+        errors.push({ severity: 'error', code: 'MTM_BAD_SYMBOL', message: `Transition ${labelFor(transition.from)} → ${labelFor(transition.to)} uses "${symbol}" on track ${track + 1}; each vector component must be one symbol.`, transitionId: transition.id })
+      } else if (alphabets[track]?.length && !alphabets[track].includes(symbol)) {
+        errors.push({ severity: 'warning', code: 'MTM_SYMBOL_NOT_IN_TRACK_ALPHABET', message: `Transition ${labelFor(transition.from)} → ${labelFor(transition.to)} uses "${symbol}", not declared for track ${track + 1}.`, transitionId: transition.id })
+      }
+    }
+    if (!['L', 'R', 'S'].includes(transition.direction ?? '')) {
+      errors.push({ severity: 'error', code: 'MTM_BAD_DIRECTION', message: `Transition ${labelFor(transition.from)} → ${labelFor(transition.to)} must select one shared head direction (L, R, or S).`, transitionId: transition.id })
+    }
+    const key = reads.join('\u0001')
+    const seen = seenByState.get(transition.from) ?? new Set<string>()
+    if (seen.has(key)) {
+      errors.push({ severity: 'error', code: 'MTM_NONDETERMINISTIC', message: `State "${labelFor(transition.from)}" has multiple moves reading vector ⟨${reads.join(', ')}⟩.`, stateId: transition.from })
+    }
+    seen.add(key)
+    seenByState.set(transition.from, seen)
+  }
+  for (const state of machine.states.filter((candidate) => !candidate.isText)) {
+    if (state.isAccept && state.isReject) {
+      errors.push({ severity: 'error', code: 'TM_ACCEPT_REJECT_CONFLICT', message: `State "${state.label}" is marked both accept and reject. Choose one.`, stateId: state.id })
     }
   }
 }

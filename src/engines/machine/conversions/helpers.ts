@@ -87,6 +87,7 @@ export class MachineBuilder {
     language?: string
     alphabet: string[]
     stackAlphabet?: string[]
+    initialStack?: string[]
     tapeAlphabet?: string[]
     blankSymbol?: string
   }): MachineDefinition {
@@ -101,6 +102,7 @@ export class MachineBuilder {
       alphabet: meta.alphabet,
     }
     if (meta.stackAlphabet && meta.stackAlphabet.length > 0) def.stackAlphabet = meta.stackAlphabet
+    if (meta.initialStack && meta.initialStack.length > 0) def.initialStack = meta.initialStack
     if (meta.tapeAlphabet && meta.tapeAlphabet.length > 0) def.tapeAlphabet = meta.tapeAlphabet
     if (meta.blankSymbol) def.blankSymbol = meta.blankSymbol
     return def

@@ -6,6 +6,7 @@ AutomataLab only provides security updates for the current major release. If you
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 5.1.x   | :white_check_mark: |
 | 5.0.x   | :white_check_mark: |
 | < 5.0.0 | :x:                |
 

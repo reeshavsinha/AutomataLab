@@ -7,9 +7,14 @@ import { describe, it, expect } from 'vitest'
 import {
   deltaTableToCSV,
   deltaTableToLatex,
+  configurationMatrix,
+  configurationMatrixToMarkdown,
+  configurationMatrixToLatex,
   traceToCSV,
   traceToJSON,
   treeToJSON,
+  treeToMarkdown,
+  treeToSVG,
 } from './exporters'
 import type { Configuration, HistoryEntry, MachineDefinition } from '@/engines/machine/core/types'
 
@@ -80,6 +85,51 @@ describe('traceToCSV / traceToJSON', () => {
   })
 })
 
+describe('configuration matrix exports', () => {
+  it('omits PDA/TM-only columns for finite automata', () => {
+    const matrix = configurationMatrix(dfa, [{
+      step: 0,
+      fromStateIds: ['q0'],
+      toStateIds: ['q1'],
+      symbol: 'b',
+      transitionIds: ['t1'],
+      status: 'accepted',
+      inputIndex: 1,
+      consumedInput: 'b',
+      remainingInput: '',
+    }])
+    expect(matrix.columns).toEqual(['Step', 'State', 'Input position', 'Consumed input', 'Remaining input', 'Status'])
+    expect(matrix.rows[0]).toEqual(['0', 'q1', '1', 'b', '', 'accepted'])
+  })
+
+  it('keeps independent multi-tape snapshots in separate columns', () => {
+    const tm: MachineDefinition = {
+      ...dfa,
+      type: 'TM',
+      tapeCount: 2,
+      tapeAlphabet: ['a', '_'],
+    }
+    const history: HistoryEntry[] = [{
+      step: 0,
+      fromStateIds: ['q0'],
+      toStateIds: ['q1'],
+      symbol: 'a',
+      transitionIds: ['t1'],
+      status: 'running',
+      tapes: [
+        { cells: ['a', '_'], head: 0, left: 0 },
+        { cells: ['_', 'a'], head: 1, left: 0 },
+      ],
+    }]
+    const matrix = configurationMatrix(tm, history)
+    expect(matrix.columns).toContain('Tape 1')
+    expect(matrix.columns).toContain('Tape 2')
+    expect(matrix.note).toContain('independent tapes')
+    expect(configurationMatrixToMarkdown(tm, history)).toContain('Tape 2')
+    expect(configurationMatrixToLatex(tm, history)).toContain('configuration matrix')
+  })
+})
+
 describe('treeToJSON', () => {
   it('serialises branch nodes with resolved state labels', () => {
     const nodes: Configuration[] = [
@@ -90,5 +140,57 @@ describe('treeToJSON', () => {
     expect(obj.nodes).toHaveLength(2)
     expect(obj.nodes[0]).toMatchObject({ id: 'n0', state: 'q0', parentId: null })
     expect(obj.nodes[1]).toMatchObject({ id: 'n1', state: 'q1', mergedParents: 1 })
+  })
+})
+
+describe('treeToMarkdown', () => {
+  it('includes tape snapshots for NLBA branches', () => {
+    const nlba: MachineDefinition = {
+      id: 'n',
+      name: 'NLBA',
+      type: 'NLBA',
+      language: '',
+      alphabet: ['a'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false }],
+      transitions: [],
+    }
+    const nodes: Configuration[] = [
+      {
+        id: 'n0',
+        parentId: null,
+        stateId: 'q0',
+        stack: [],
+        inputIndex: 0,
+        status: 'running',
+        consumedInput: '',
+        remainingInput: '',
+        tapes: [{ left: 0, head: 0, cells: ['a', 'b'] }],
+      },
+    ]
+    const md = treeToMarkdown(nlba, nodes)
+    expect(md).toContain('Computation tree')
+    expect(md).toContain('⟦a⟧')
+    expect(md).toContain('Tp:')
+  })
+})
+
+describe('treeToSVG', () => {
+  it('emits a minimal SVG document', () => {
+    const dfa: MachineDefinition = {
+      id: 'd',
+      name: 'Test',
+      type: 'NFA',
+      language: '',
+      alphabet: ['a'],
+      states: [{ id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: true }],
+      transitions: [],
+    }
+    const nodes: Configuration[] = [
+      { id: 'n0', parentId: null, stateId: 'q0', stack: [], inputIndex: 0, status: 'accepted', consumedInput: '', remainingInput: '' },
+    ]
+    const svg = treeToSVG(dfa, nodes)
+    expect(svg).toContain('<svg')
+    expect(svg).toContain('computation tree')
+    expect(svg).toContain('q0')
   })
 })

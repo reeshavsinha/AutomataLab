@@ -17,6 +17,7 @@ interface StateMenuProps {
   isAccept: boolean
   isStart: boolean
   isReject: boolean
+  showAccept: boolean             // recognizer types only
   showReject: boolean              // TM/LBA only — show the reject-state toggle
   onClose: () => void
   onToggleAccept: () => void
@@ -54,7 +55,7 @@ interface TextMenuProps {
 }
 
 export type ContextMenuConfig =
-  | { kind: 'state'; x: number; y: number; stateId: string; stateLabel: string; isAccept: boolean; isStart: boolean; isReject: boolean; showReject: boolean }
+  | { kind: 'state'; x: number; y: number; stateId: string; stateLabel: string; isAccept: boolean; isStart: boolean; isReject: boolean; showAccept: boolean; showReject: boolean }
   | { kind: 'text'; x: number; y: number; stateId: string; stateLabel: string }
   | { kind: 'canvas'; x: number; y: number; canvasX: number; canvasY: number }
   | { kind: 'transition'; x: number; y: number; transitionId: string }
@@ -238,18 +239,20 @@ function MenuItem({
 // ─── State context menu ────────────────────────────────────────
 
 function StateContextMenu(props: StateMenuProps) {
-  const { stateId, stateLabel, isAccept, isStart, isReject, showReject, onClose } = props
+  const { stateId, stateLabel, isAccept, isStart, isReject, showAccept, showReject, onClose } = props
 
   return (
     <MenuContainer x={props.x} y={props.y} onClose={onClose}>
       <MenuHeader label={`State: ${stateLabel}`} />
 
-      <MenuItem
-        label={isAccept ? 'Remove Final State' : 'Set as Final State'}
-        checked={isAccept}
-        description="Double ring marks accept/final state"
-        onClick={() => { props.onToggleAccept(); onClose() }}
-      />
+      {showAccept && (
+        <MenuItem
+          label={isAccept ? 'Remove Final State' : 'Set as Final State'}
+          checked={isAccept}
+          description="Double ring marks accept/final state"
+          onClick={() => { props.onToggleAccept(); onClose() }}
+        />
+      )}
 
       {showReject && (
         <MenuItem
@@ -415,6 +418,7 @@ export default function ContextMenu(props: ContextMenuProps) {
         isAccept={config.isAccept}
         isStart={config.isStart}
         isReject={config.isReject}
+        showAccept={config.showAccept}
         showReject={config.showReject}
         onClose={onClose}
         onToggleAccept={() => props.onToggleAccept(config.stateId)}

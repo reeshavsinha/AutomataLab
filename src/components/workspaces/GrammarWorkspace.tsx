@@ -26,11 +26,13 @@ export function GrammarWorkspace() {
       }
       content={
         <PanelGroup orientation="horizontal" onLayoutChange={onLayoutChange as any} defaultLayout={layout as any}>
-          <Panel id="editor" defaultSize={40} minSize={20}>
-            <GrammarEditorPanel />
+          <Panel id="editor" defaultSize={40} minSize={40}>
+            <div style={{ height: '100%', minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+              <GrammarEditorPanel />
+            </div>
           </Panel>
           <ResizeHandle />
-          <Panel id="tools" defaultSize={60} minSize={20}>
+          <Panel id="tools" defaultSize={60} minSize={40}>
             <GrammarToolsPanel />
           </Panel>
         </PanelGroup>

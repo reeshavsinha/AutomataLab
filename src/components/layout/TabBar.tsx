@@ -6,11 +6,12 @@ import { useFileActions } from '@/hooks/useFileActions'
 import { useUIStore } from '@/store/uiStore'
 import type { MachineDefinition, MachineType } from '@/engines/machine/core/types'
 import { ThemeIcon, HelpIcon } from '@/components/toolbar/icons'
+import { navigateAppHash } from '@/utils/demoMode'
 
 function tabLabel(tab: MachineDefinition): string {
   if (tab.name) return tab.name
   if (tab.type === 'CFG_PARSER') return 'Untitled Parser'
-  if (tab.type === 'CFG' || tab.type === 'CSG') return 'Untitled Grammar'
+  if (tab.type === 'CFG' || tab.type === 'CSG' || tab.type === 'UG') return 'Untitled Grammar'
   return 'Untitled Machine'
 }
 
@@ -18,6 +19,7 @@ function getWorkspaceName(type: MachineType | undefined): string {
   if (type === 'CFG_PARSER') return 'Parser'
   if (type === 'CFG') return 'CFG'
   if (type === 'CSG') return 'CSG'
+  if (type === 'UG') return 'Type 0'
   return 'Machine'
 }
 
@@ -174,7 +176,7 @@ export default function TabBar() {
                 switchTab(index);
                 const preferredRoute = useMachineStore.getState().tabRoutes[tab.id];
                 if (preferredRoute && preferredRoute !== window.location.hash) {
-                  window.location.hash = preferredRoute;
+                  navigateAppHash(preferredRoute);
                 }
               }
             }}
@@ -447,7 +449,7 @@ export default function TabBar() {
           <ThemeIcon />
         </button>
         <button 
-          title="Help & keyboard shortcuts (F1)" 
+          title="Help & keyboard shortcuts" 
           onClick={() => useUIStore.getState().openModal('help')}
           style={{
             background: 'transparent',

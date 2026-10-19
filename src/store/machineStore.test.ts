@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useMachineStore, isPristineTab } from './machineStore'
+import { useHistoryStore } from './historyStore'
 import type { MachineDefinition } from '@/engines/machine/core/types'
 
 let counter = 0
@@ -25,11 +26,13 @@ function makeDef(over: Partial<MachineDefinition> = {}): MachineDefinition {
 
 function resetStore() {
   const fresh = makeDef({ id: 'm_init', name: 'Untitled Machine', states: [], transitions: [] })
+  useHistoryStore.getState().clear('machine', fresh.id)
   useMachineStore.setState({
     tabs: [fresh],
     activeTabIndex: 0,
     dirtyTabs: {},
     tabPaths: {},
+    tabRoutes: {},
     machine: fresh,
   })
 }
@@ -43,6 +46,51 @@ describe('isPristineTab', () => {
     expect(
       isPristineTab(makeDef({ states: [], transitions: [{ id: 't', from: 'a', to: 'b', symbols: ['x'] }] }))
     ).toBe(false)
+  })
+})
+
+describe('tab and history integrity', () => {
+  it('keeps the active document when a background tab is closed', () => {
+    const a = makeDef({ name: 'A' })
+    const b = makeDef({ name: 'B' })
+    const c = makeDef({ name: 'C' })
+    useMachineStore.setState({
+      tabs: [a, b, c],
+      activeTabIndex: 0,
+      machine: a,
+      tabRoutes: { [a.id]: '#/machine', [b.id]: '#/machine', [c.id]: '#/machine' },
+    })
+
+    useMachineStore.getState().closeTab(1)
+    const state = useMachineStore.getState()
+
+    expect(state.machine.id).toBe(a.id)
+    expect(state.activeTabIndex).toBe(0)
+    expect(state.tabRoutes[b.id]).toBeUndefined()
+  })
+
+  it('does not crash when undo or redo is requested with no tabs', () => {
+    useMachineStore.getState().closeTab(0)
+    expect(() => useMachineStore.getState().undo()).not.toThrow()
+    expect(() => useMachineStore.getState().redo()).not.toThrow()
+  })
+
+  it('undoes start-state deletion without mutating the saved snapshot', () => {
+    const machine = makeDef({
+      id: 'start-history',
+      states: [
+        { id: 'q0', label: 'q0', x: 0, y: 0, isStart: true, isAccept: false },
+        { id: 'q1', label: 'q1', x: 100, y: 0, isStart: false, isAccept: false },
+      ],
+    })
+    useHistoryStore.getState().clear('machine', machine.id)
+    useMachineStore.setState({ tabs: [machine], activeTabIndex: 0, machine })
+
+    useMachineStore.getState().deleteState('q0')
+    useMachineStore.getState().undo()
+
+    const states = useMachineStore.getState().machine.states
+    expect(states.filter((state) => state.isStart).map((state) => state.id)).toEqual(['q0'])
   })
 })
 

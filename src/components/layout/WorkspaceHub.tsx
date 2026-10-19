@@ -2,6 +2,8 @@
 import React from "react";
 import { useMachineStore, isPristineTab } from "@/store/machineStore";
 import { useFileActions } from "@/hooks/useFileActions";
+import { isAutomatonType, isGrammarType, isParserType } from "@/engines/machine/core/capabilities";
+import { navigateAppHash } from "@/utils/demoMode";
 import "./WorkspaceHub.css";
 
 const cards = [
@@ -15,7 +17,7 @@ const cards = [
   },
   {
     title: "Grammar Laboratory",
-    description: "Write context-free grammars, compute FIRST/FOLLOW sets, and convert to CNF.",
+    description: "Edit regex and Types 0–3 grammars, run format-aware analysis, and send recognizers to Machine Studio.",
     hash: "#/grammar",
     type: "CFG",
     enabled: true,
@@ -58,23 +60,23 @@ export default function WorkspaceHub() {
     }
 
     if (card.hash === '#/machine') {
-      const isMachine = machine && ['DFA', 'NFA', 'ENFA', 'PDA', 'DPDA', 'NPDA', 'TM', 'LBA'].includes(machine.type);
+      const isMachine = machine && isAutomatonType(machine.type);
       if (!isMachine) {
         addTab('DFA');
       }
     } else if (card.hash === '#/grammar') {
-      const isGrammar = machine && ['CFG', 'CSG'].includes(machine.type);
+      const isGrammar = machine && isGrammarType(machine.type);
       if (!isGrammar) {
         addTab('CFG');
       }
     } else if (card.hash === '#/parser') {
-      const isParser = machine && machine.type === 'CFG_PARSER';
+      const isParser = machine && isParserType(machine.type);
       if (!isParser) {
         addTab('CFG_PARSER');
       }
     }
 
-    window.location.hash = card.hash;
+    navigateAppHash(card.hash);
   };
 
   return (
@@ -82,14 +84,18 @@ export default function WorkspaceHub() {
       <section className="workspace-hub">
         <header className="hub-header">
           <div className="hub-logo">
-            <svg width="40" height="40" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="20" cy="80" r="8" fill="var(--text-primary)" />
-              <circle cx="80" cy="80" r="8" fill="var(--text-primary)" />
-              <circle cx="50" cy="20" r="8" fill="var(--text-primary)" />
-              <circle cx="50" cy="50" r="8" fill="var(--text-primary)" />
-              <path d="M20 80 L50 20 L80 80" stroke="var(--text-primary)" strokeWidth="2" />
-              <path d="M20 80 L50 50 L80 80" stroke="var(--text-primary)" strokeWidth="2" />
-              <path d="M50 20 L50 50" stroke="var(--text-primary)" strokeWidth="2" />
+            <svg width="64" height="64" viewBox="12 12 76 76" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#00E5FF" />
+                  <stop offset="100%" stop-color="#7B2CBF" />
+                </linearGradient>
+              </defs>
+              <g transform="translate(3, 0)">
+                <circle cx="55" cy="50" r="16" fill="none" stroke="url(#logo-grad)" stroke-width="2" />
+                <circle cx="55" cy="50" r="26" fill="none" stroke="url(#logo-grad)" stroke-width="5" />
+                <path d="M 14 36 L 28 50 L 14 64" fill="none" stroke="url(#logo-grad)" stroke-width="6.5" stroke-linecap="round" stroke-linejoin="round" />
+              </g>
             </svg>
           </div>
           <div className="hub-title-group">

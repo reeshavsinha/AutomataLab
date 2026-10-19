@@ -5,7 +5,7 @@
 // ============================================================
 
 import { create } from 'zustand'
-import { generateId, EPSILON } from '@/engines/machine/core/utils'
+import { generateId, EPSILON, isTransducerType } from '@/engines/machine/core/utils'
 import type { AutomataState, MachineDefinition, MachineType, Transition } from '@/engines/machine/core/types'
 
 /** Max snapshots kept in the undo stack. */
@@ -50,6 +50,8 @@ interface MachineStore {
   updateTransition: (id: string, patch: Partial<Transition>) => void
   deleteTransition: (id: string) => void
   setAlphabet: (alphabet: string[]) => void
+  /** Mealy/Moore only — set the declared output alphabet Γ. */
+  setOutputAlphabet: (alphabet: string[]) => void
   /** PDA only — set the declared stack alphabet Γ (empty clears it). */
   setStackAlphabet: (alphabet: string[]) => void
   /** TM/LBA only — set the declared tape alphabet Γ (empty clears it). */
@@ -62,6 +64,14 @@ interface MachineStore {
   setBlankSymbol: (symbol: string) => void
   setStepLimit: (limit: number | undefined) => void
   setTapeCount: (count: number) => void
+  setTrackCount: (count: number) => void
+  setTrackAlphabets: (alphabets: string[][]) => void
+  setTrackBlanks: (blanks: string[]) => void
+  /** TM only — replace an embedded child snapshot under its local id. */
+  upsertSubmachine: (id: string, definition: MachineDefinition) => void
+  /** TM only — remove an embedded child; call transitions remain repairable. */
+  removeSubmachine: (id: string) => void
+  setSubmachineDepthLimit: (limit: number | undefined) => void
 
   // Actions — File
   loadMachine: (def: MachineDefinition, markClean?: boolean, path?: string | null) => void
@@ -76,7 +86,7 @@ interface MachineStore {
 
 /** A tab is "pristine" when it has no diagram content yet (safe to reuse on open). */
 export function isPristineTab(m: MachineDefinition): boolean {
-  if (m.type === 'CFG' || m.type === 'CSG') {
+  if (m.type === 'CFG' || m.type === 'CSG' || m.type === 'UG') {
     return !m.grammarText || m.grammarText.trim().length === 0
   }
   if (m.type === 'CFG_PARSER') {
@@ -88,7 +98,7 @@ export function isPristineTab(m: MachineDefinition): boolean {
 const createDefaultMachine = (type?: MachineType, tabs: MachineDefinition[] = []): MachineDefinition => {
   const actualType = type ?? 'DFA';
   const isParser = actualType === 'CFG_PARSER';
-  const isGrammar = actualType === 'CFG' || actualType === 'CSG';
+  const isGrammar = actualType === 'CFG' || actualType === 'CSG' || actualType === 'UG';
 
   const prefix = isParser ? 'Parser'
     : isGrammar ? 'Grammar'
@@ -140,6 +150,15 @@ const sync = (
   }
 }
 
+/** Transducers never carry recognizer-only final-state flags. */
+const normalizeMachineDefinition = (def: MachineDefinition): MachineDefinition =>
+  isTransducerType(def.type)
+    ? {
+      ...def,
+      states: def.states.map((state) => ({ ...state, isAccept: false, isReject: false })),
+    }
+    : def
+
 // Clears the undo/redo history (used when the editing context changes or tab closed).
 const clearHistory = (id: string) => {
   useHistoryStore.getState().clear('machine', id)
@@ -168,12 +187,13 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     insertTab: (def: MachineDefinition) => {
       useUIStore.getState().clearSelection();
+      const normalizedDef = normalizeMachineDefinition(def)
       set((s) => {
         return {
-          tabs: [...s.tabs, def],
+          tabs: [...s.tabs, normalizedDef],
           activeTabIndex: s.tabs.length,
-          machine: def,
-          dirtyTabs: { ...s.dirtyTabs, [def.id]: true }
+          machine: normalizedDef,
+          dirtyTabs: { ...s.dirtyTabs, [normalizedDef.id]: true }
         };
       });
     },
@@ -192,12 +212,15 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     closeTab: (index) => {
       useUIStore.getState().clearSelection();
       set((s) => {
+        if (index < 0 || index >= s.tabs.length) return {}
         const closedId = s.tabs[index]?.id
         const dirtyTabs = { ...s.dirtyTabs }
         const tabPaths = { ...s.tabPaths }
+        const tabRoutes = { ...s.tabRoutes }
         if (closedId) {
           delete dirtyTabs[closedId]
           delete tabPaths[closedId]
+          delete tabRoutes[closedId]
           useHistoryStore.getState().clear('machine', closedId)
         }
 
@@ -211,18 +234,25 @@ export const useMachineStore = create<MachineStore>((set, get) => {
             activeTabIndex: -1,
             machine: null as unknown as MachineDefinition,
             dirtyTabs: {},
-            tabPaths: {}
+            tabPaths: {},
+            tabRoutes: {}
           }
         }
 
-        // Adjust active index if necessary
-        const newActiveIndex = index >= newTabs.length ? newTabs.length - 1 : index
+        // Closing a background tab must not switch the user's active document.
+        const newActiveIndex =
+          index < s.activeTabIndex
+            ? s.activeTabIndex - 1
+            : index === s.activeTabIndex
+              ? Math.min(index, newTabs.length - 1)
+              : s.activeTabIndex
         return {
           tabs: newTabs,
           activeTabIndex: newActiveIndex,
           machine: newTabs[newActiveIndex],
           dirtyTabs,
-          tabPaths
+          tabPaths,
+          tabRoutes
         }
       })
     },
@@ -233,6 +263,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         const sortedIndices = [...indices].sort((a, b) => b - a); // descending
         const dirtyTabs = { ...s.dirtyTabs }
         const tabPaths = { ...s.tabPaths }
+        const tabRoutes = { ...s.tabRoutes }
         const newTabs = [...s.tabs]
         
         let newActive = s.activeTabIndex;
@@ -241,6 +272,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           const closedId = newTabs[index].id
           delete dirtyTabs[closedId]
           delete tabPaths[closedId]
+          delete tabRoutes[closedId]
           useHistoryStore.getState().clear('machine', closedId)
           newTabs.splice(index, 1)
           
@@ -254,7 +286,8 @@ export const useMachineStore = create<MachineStore>((set, get) => {
             activeTabIndex: -1,
             machine: null as unknown as MachineDefinition,
             dirtyTabs: {},
-            tabPaths: {}
+            tabPaths: {},
+            tabRoutes: {}
           }
         }
 
@@ -270,7 +303,8 @@ export const useMachineStore = create<MachineStore>((set, get) => {
           activeTabIndex: newActive,
           machine: newTabs[newActive],
           dirtyTabs,
-          tabPaths
+          tabPaths,
+          tabRoutes
         }
       })
     },
@@ -359,6 +393,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       useUIStore.getState().clearSelection();
       set((s) => {
       const current = s.machine
+      if (!current || s.activeTabIndex < 0 || s.activeTabIndex >= s.tabs.length) return {}
       const previous = useHistoryStore.getState().undo('machine', current.id, current)
       if (!previous) return {}
       
@@ -376,6 +411,7 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       useUIStore.getState().clearSelection();
       set((s) => {
       const current = s.machine
+      if (!current || s.activeTabIndex < 0 || s.activeTabIndex >= s.tabs.length) return {}
       const next = useHistoryStore.getState().redo('machine', current.id, current)
       if (!next) return {}
       
@@ -391,7 +427,17 @@ export const useMachineStore = create<MachineStore>((set, get) => {
 
     setMachineName: (name) => set((s) => sync(s, { name }, 'name')),
 
-    setMachineType: (type) => set((s) => sync(s, { type })),
+    setMachineType: (type) => set((s) => sync(s, {
+      type,
+      // Transducers do not have final states. Clear legacy accept/reject flags
+      // when switching an existing diagram to Mealy or Moore.
+      ...(isTransducerType(type)
+        ? { states: s.machine.states.map((state) => ({ ...state, isAccept: false, isReject: false })) }
+        : {}),
+      ...(type === 'MTM'
+        ? { tapeCount: undefined, trackCount: Math.max(2, s.machine.trackCount ?? 2) }
+        : {}),
+    })),
 
     addState: (x, y) => {
       const nonTextStatesCount = get().machine.states.filter((s) => !s.isText).length
@@ -435,11 +481,15 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       set((s) => {
         const deletingState = s.machine.states.find(st => st.id === id);
         const wasStart = deletingState?.isStart;
-        const newStates = s.machine.states.filter((st) => st.id !== id);
+        let newStates = s.machine.states.filter((st) => st.id !== id);
         
         if (wasStart && newStates.length > 0) {
           const firstReal = newStates.find(st => !st.isText);
-          if (firstReal) firstReal.isStart = true;
+          if (firstReal) {
+            newStates = newStates.map((state) =>
+              state.id === firstReal.id ? { ...state, isStart: true } : state
+            )
+          }
         }
 
         return sync(s, {
@@ -460,20 +510,26 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       })),
 
     toggleAcceptState: (id) =>
-      set((s) => sync(s, {
-        states: s.machine.states.map((st) =>
-          // Accept and reject (TM/LBA) are mutually exclusive: turning accept on clears reject.
-          st.id === id ? { ...st, isAccept: !st.isAccept, isReject: !st.isAccept ? false : st.isReject } : st
-        )
-      })),
+      set((s) => {
+        if (isTransducerType(s.machine.type)) return {}
+        return sync(s, {
+          states: s.machine.states.map((st) =>
+            // Accept and reject (TM/LBA) are mutually exclusive: turning accept on clears reject.
+            st.id === id ? { ...st, isAccept: !st.isAccept, isReject: !st.isAccept ? false : st.isReject } : st
+          )
+        })
+      }),
 
     toggleRejectState: (id) =>
-      set((s) => sync(s, {
-        states: s.machine.states.map((st) =>
-          // Turning reject on clears accept (a state can't be both).
-          st.id === id ? { ...st, isReject: !st.isReject, isAccept: !st.isReject ? false : st.isAccept } : st
-        )
-      })),
+      set((s) => {
+        if (isTransducerType(s.machine.type)) return {}
+        return sync(s, {
+          states: s.machine.states.map((st) =>
+            // Turning reject on clears accept (a state can't be both).
+            st.id === id ? { ...st, isReject: !st.isReject, isAccept: !st.isReject ? false : st.isAccept } : st
+          )
+        })
+      }),
 
     addTransition: (from, to, symbols) => {
       // Phase 2 Validation
@@ -517,6 +573,29 @@ export const useMachineStore = create<MachineStore>((set, get) => {
         }).filter(t => t.symbols.length > 0);
         
         return sync(s, { alphabet, transitions: newTransitions });
+      }),
+
+    setOutputAlphabet: (outputAlphabet) =>
+      set((s) => {
+        const validOutputs = new Set(outputAlphabet)
+        const machine = s.machine
+        const transitions = machine.type === 'MEALY'
+          ? machine.transitions.map((t) => ({
+              ...t,
+              output: t.output && validOutputs.has(t.output) ? t.output : undefined,
+            }))
+          : machine.transitions
+        const states = machine.type === 'MOORE'
+          ? machine.states.map((state) => ({
+              ...state,
+              output: state.output && validOutputs.has(state.output) ? state.output : undefined,
+            }))
+          : machine.states
+        return sync(s, {
+          outputAlphabet: outputAlphabet.length > 0 ? outputAlphabet : undefined,
+          transitions,
+          states,
+        })
       }),
 
     // Declared alphabets are stored as `undefined` when empty so old/cleared
@@ -581,42 +660,96 @@ export const useMachineStore = create<MachineStore>((set, get) => {
     // TM/LBA infinite-loop guard. `undefined` restores the engine default (10,000).
     setStepLimit: (limit) =>
       set((s) => sync(s, {
-        stepLimit: limit != null && Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : undefined,
+        stepLimit: limit != null && Number.isFinite(limit) && limit > 0
+          ? Math.min(100_000, Math.floor(limit))
+          : undefined,
       }, 'stepLimit')),
 
     // Multi-tape TM tape count. A count of 1 clears the field (single-tape default).
     setTapeCount: (count) =>
       set((s) => sync(s, {
-        tapeCount: Number.isFinite(count) && count > 1 ? Math.floor(count) : undefined,
+        tapeCount: s.machine.type === 'MTM'
+          ? undefined
+          : Number.isFinite(count) && count > 1
+          ? Math.min(9, Math.floor(count))
+          : undefined,
       }, 'tapeCount')),
 
+    setTrackCount: (count) =>
+      set((s) => sync(s, {
+        trackCount: s.machine.type === 'MTM' && Number.isFinite(count)
+          ? Math.min(9, Math.max(2, Math.floor(count)))
+          : undefined,
+      }, 'trackCount')),
+
+    setTrackAlphabets: (trackAlphabets) =>
+      set((s) => sync(s, {
+        trackAlphabets: s.machine.type === 'MTM'
+          ? trackAlphabets.map((alphabet) => alphabet.filter(Boolean))
+          : undefined,
+      }, 'trackAlphabets')),
+
+    setTrackBlanks: (trackBlanks) =>
+      set((s) => sync(s, {
+        trackBlanks: s.machine.type === 'MTM'
+          ? trackBlanks.map((blank) => blank.trim().slice(0, 1) || '_')
+          : undefined,
+      }, 'trackBlanks')),
+
+    upsertSubmachine: (id, definition) =>
+      set((s) => {
+        if (s.machine.type !== 'TM' || !id.trim()) return s
+        const submachines = { ...(s.machine.submachines ?? {}), [id.trim()]: definition }
+        return sync(s, { submachines }, 'submachines')
+      }),
+
+    removeSubmachine: (id) =>
+      set((s) => {
+        if (s.machine.type !== 'TM' || !s.machine.submachines?.[id]) return s
+        const submachines = { ...s.machine.submachines }
+        delete submachines[id]
+        return sync(s, { submachines: Object.keys(submachines).length ? submachines : undefined }, 'submachines')
+      }),
+
+    setSubmachineDepthLimit: (limit) =>
+      set((s) => sync(s, {
+        submachineDepthLimit: s.machine.type === 'TM' && limit != null && Number.isFinite(limit)
+          ? Math.min(16, Math.max(1, Math.floor(limit)))
+          : undefined,
+      }, 'submachineDepthLimit')),
+
     loadMachine: (def, markClean = true, path) => set((s) => {
+      const normalizedDef = normalizeMachineDefinition(def)
       // Overwrite current tab
       const prevId = s.tabs[s.activeTabIndex]?.id
       const newTabs = [...s.tabs]
-      newTabs[s.activeTabIndex] = def
+      newTabs[s.activeTabIndex] = normalizedDef
 
       const dirtyTabs = { ...s.dirtyTabs }
       const tabPaths = { ...s.tabPaths }
+      const tabRoutes = { ...s.tabRoutes }
       // Drop the replaced machine's bookkeeping when its id actually changes
       // (e.g. opening a file). In-place reloads (auto-layout) keep the same id.
-      if (prevId && prevId !== def.id) {
+      if (prevId && prevId !== normalizedDef.id) {
         delete dirtyTabs[prevId]
         delete tabPaths[prevId]
+        delete tabRoutes[prevId]
+        useHistoryStore.getState().clear('machine', prevId)
       }
-      dirtyTabs[def.id] = !markClean
+      dirtyTabs[normalizedDef.id] = !markClean
       // `path === undefined` means "leave the path untouched" (in-place reload);
       // `path === null` explicitly clears it (e.g. a brand-new untitled machine).
       if (path !== undefined) {
-        if (path) tabPaths[def.id] = path
-        else delete tabPaths[def.id]
+        if (path) tabPaths[normalizedDef.id] = path
+        else delete tabPaths[normalizedDef.id]
       }
 
       return {
-        machine: def,
+        machine: normalizedDef,
         tabs: newTabs,
         dirtyTabs,
-        tabPaths
+        tabPaths,
+        tabRoutes
       }
     }),
 
@@ -639,12 +772,20 @@ export const useMachineStore = create<MachineStore>((set, get) => {
       const newTabs = [...s.tabs]
       newTabs[s.activeTabIndex] = freshMachine
       const tabPaths = { ...s.tabPaths }
-      if (prevId) delete tabPaths[prevId]
+      const dirtyTabs = { ...s.dirtyTabs }
+      const tabRoutes = { ...s.tabRoutes }
+      if (prevId) {
+        delete tabPaths[prevId]
+        delete dirtyTabs[prevId]
+        delete tabRoutes[prevId]
+        useHistoryStore.getState().clear('machine', prevId)
+      }
       return {
         machine: freshMachine,
         tabs: newTabs,
-        dirtyTabs: { ...s.dirtyTabs, [freshMachine.id]: false },
-        tabPaths
+        dirtyTabs: { ...dirtyTabs, [freshMachine.id]: false },
+        tabPaths,
+        tabRoutes
       }
     }),
   }

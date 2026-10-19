@@ -1,0 +1,7 @@
+# Sample batch suite — load via Simulate → Batch → Load suite
+# Blank lines and # comments are ignored.
+
+accept: ε
+reject: a
+accept: 
+reject: aa

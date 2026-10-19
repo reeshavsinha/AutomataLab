@@ -1,4 +1,5 @@
-import { CFG, Production, EPSILON, GrammarSymbol } from './types';
+import { CFG, GeneralGrammar, GeneralProduction, Production, EPSILON, GrammarSymbol } from './types';
+import type { GrammarFormat } from '@/engines/machine/core/types';
 
 export function isNonterminal(sym: GrammarSymbol): boolean {
   return /^[A-Z][A-Za-z0-9_']*$/.test(sym);
@@ -9,95 +10,244 @@ export function isTerminal(sym: GrammarSymbol): boolean {
   return !isNonterminal(sym);
 }
 
-export function tokenizeGrammarString(str: string, declaredNonterminals: Set<string>, declaredTerminals?: Set<string>): GrammarSymbol[] {
+// Characters that make up a single unquoted grammar symbol (identifier run).
+const IDENT_CHAR = /[A-Za-z0-9_']/;
+// Multi-character terminal operators that should stay as one symbol.
+const OPERATOR_RE = /^(<=|>=|==|!=|&&|\|\|)/;
+// Bare-word epsilon spellings.
+const EPSILON_WORDS = new Set(['eps', 'epsilon', 'lambda']);
+
+/**
+ * Deterministic lexer for the RIGHT-HAND SIDE of a grammar production.
+ *
+ * Symbol boundaries are resolved purely from the source text — never by
+ * scanning which nonterminals/terminals happen to be declared elsewhere.
+ * The rules are:
+ *   1. Whitespace is a hard boundary between symbols.
+ *   2. A quoted string ("..." or '...') is exactly one symbol (its contents),
+ *      so multi-character or punctuation-bearing terminals can be written explicitly.
+ *   3. A maximal run of identifier characters ([A-Za-z0-9_']) is exactly one symbol.
+ *   4. Recognised epsilon spellings (ε, λ, \epsilon, \e, eps, epsilon, "", …) become EPSILON.
+ *   5. Known multi-character operators (<=, >=, ==, !=, &&, ||) stay one symbol.
+ *   6. Any other single non-space character is its own terminal symbol.
+ *
+ * Consequently:
+ *   "a a A b" -> ["a", "a", "A", "b"]      (whitespace splits)
+ *   "aa A b"  -> ["aa", "A", "b"]          ("aa" is one identifier run)
+ *   "id | num" callers split on '|' first; "id" -> ["id"], never ["i","d"]
+ *   '"aa" A b' -> ["aa", "A", "b"]         (quoted terminal)
+ */
+export function tokenizeGrammarString(str: string): GrammarSymbol[] {
   const tokens: GrammarSymbol[] = [];
-  const nts = Array.from(declaredNonterminals).sort((a, b) => b.length - a.length);
-  const ts = declaredTerminals ? Array.from(declaredTerminals).sort((a, b) => b.length - a.length) : [];
-  
   let i = 0;
+
   while (i < str.length) {
-    if (/^\s$/.test(str[i])) {
+    const ch = str[i];
+
+    // 1. Whitespace: hard symbol boundary.
+    if (/\s/.test(ch)) {
       i++;
       continue;
     }
-    
-    const epsMatch = str.slice(i).match(/^(\\epsilon|\\e|epsilon|eps|''|""|ε)/i);
-    if (epsMatch) {
+
+    // 2. Quoted terminal — contents are exactly one symbol. Empty quotes = epsilon.
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      let j = i + 1;
+      let value = '';
+      while (j < str.length && str[j] !== quote) {
+        if (str[j] === '\\' && j + 1 < str.length) {
+          value += str[j + 1];
+          j += 2;
+        } else {
+          value += str[j];
+          j++;
+        }
+      }
+      if (j >= str.length) {
+        throw new Error(`Invalid grammar: unterminated quoted symbol starting at ${str.slice(i)}`);
+      }
+      tokens.push(value.length === 0 ? EPSILON : value);
+      i = j + 1;
+      continue;
+    }
+
+    // 3. Unicode epsilon / lambda sigils.
+    if (ch === EPSILON || ch === 'λ') {
       tokens.push(EPSILON);
-      i += epsMatch[0].length;
-      continue;
-    }
-    
-    let matchedNt = false;
-    for (const nt of nts) {
-      if (str.startsWith(nt, i)) {
-        tokens.push(nt);
-        i += nt.length;
-        matchedNt = true;
-        break;
-      }
-    }
-    if (matchedNt) continue;
-    
-    let matchedT = false;
-    for (const t of ts) {
-      if (str.startsWith(t, i)) {
-        tokens.push(t);
-        i += t.length;
-        matchedT = true;
-        break;
-      }
-    }
-    if (matchedT) continue;
-    
-    // If it didn't match a declared nonterminal, check if it's a single uppercase letter
-    if (/^[A-Z]$/.test(str[i])) {
-      // We also want to support people typing 'S1' without spaces if S1 is undeclared?
-      // No, if S1 is undeclared, it becomes 'S', '1' (which is terminal 1). This is fine.
-      tokens.push(str[i]);
       i++;
       continue;
     }
-    
-    const opMatch = str.slice(i).match(/^(<=|>=|==|!=|&&|\|\|)/);
+
+    // 4. Backslash epsilon commands: \epsilon, \eps, \e, \lambda.
+    if (ch === '\\') {
+      const m = str.slice(i + 1).match(/^[A-Za-z]+/);
+      const word = m ? m[0].toLowerCase() : '';
+      if (word === 'e' || EPSILON_WORDS.has(word)) {
+        tokens.push(EPSILON);
+        i += 1 + word.length;
+        continue;
+      }
+      // Unknown backslash command → treat the backslash as a single-char terminal.
+      tokens.push(ch);
+      i++;
+      continue;
+    }
+
+    // 5. Identifier run: a maximal [A-Za-z0-9_'] sequence is exactly one symbol.
+    if (IDENT_CHAR.test(ch)) {
+      let j = i;
+      while (j < str.length && IDENT_CHAR.test(str[j])) j++;
+      const word = str.slice(i, j);
+      tokens.push(EPSILON_WORDS.has(word.toLowerCase()) ? EPSILON : word);
+      i = j;
+      continue;
+    }
+
+    // 6. Known multi-character operators stay as a single symbol.
+    const opMatch = str.slice(i).match(OPERATOR_RE);
     if (opMatch) {
       tokens.push(opMatch[0]);
       i += opMatch[0].length;
       continue;
     }
-    
-    // Check for multi-character terminal (lowercase only, no uppercase)
-    const termMatch = str.slice(i).match(/^([a-z][a-z0-9_]*)/);
-    if (termMatch) {
-      tokens.push(termMatch[0]);
-      i += termMatch[0].length;
-      continue;
-    }
-    
-    // Otherwise, it's a single character terminal
-    tokens.push(str[i]);
+
+    // 7. Any other single, non-space character is its own terminal symbol.
+    tokens.push(ch);
     i++;
   }
-  
+
   return tokens;
+}
+
+/**
+ * Tokenize an INPUT SENTENCE (e.g. a derivation/parse test string) into the
+ * grammar's terminal symbols. This is a different concern from grammar-symbol
+ * boundary resolution: here we match a raw string against a KNOWN terminal
+ * alphabet, so longest-terminal-match is appropriate (e.g. "aabb" -> a a b b,
+ * "id+id" -> id + id). Whitespace and quotes are still honoured as separators.
+ */
+export function tokenizeInputString(str: string, terminals: Set<string>): GrammarSymbol[] {
+  const ts = Array.from(terminals)
+    .filter(t => t.length > 0 && t !== EPSILON)
+    .sort((a, b) => b.length - a.length);
+  const tokens: GrammarSymbol[] = [];
+  let i = 0;
+
+  while (i < str.length) {
+    const ch = str[i];
+
+    if (/\s/.test(ch)) {
+      i++;
+      continue;
+    }
+
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      let j = i + 1;
+      let value = '';
+      while (j < str.length && str[j] !== quote) {
+        if (str[j] === '\\' && j + 1 < str.length) {
+          value += str[j + 1];
+          j += 2;
+        } else {
+          value += str[j];
+          j++;
+        }
+      }
+      if (j >= str.length) {
+        throw new Error(`Invalid input: unterminated quoted token starting at ${str.slice(i)}`);
+      }
+      if (value.length > 0) tokens.push(value);
+      i = j + 1;
+      continue;
+    }
+
+    if (ch === EPSILON || ch === 'λ') {
+      i++;
+      continue;
+    }
+
+    let matched = false;
+    for (const t of ts) {
+      if (str.startsWith(t, i)) {
+        tokens.push(t);
+        i += t.length;
+        matched = true;
+        break;
+      }
+    }
+    if (matched) continue;
+
+    tokens.push(ch);
+    i++;
+  }
+
+  return tokens;
+}
+
+const PRODUCTION_ARROWS = ['::=', '->', '=>', '→'] as const;
+
+/** Locate exactly one production arrow while ignoring operators inside quotes. */
+function splitProductionRule(line: string): [string, string] | null {
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+  let found: { index: number; length: number } | null = null;
+
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+
+    const arrow = PRODUCTION_ARROWS.find((candidate) => line.startsWith(candidate, i));
+    if (!arrow) continue;
+    if (found) {
+      throw new Error(`Invalid grammar file: multiple production arrows in ${line}`);
+    }
+    found = { index: i, length: arrow.length };
+    i += arrow.length - 1;
+  }
+
+  return found
+    ? [line.slice(0, found.index), line.slice(found.index + found.length)]
+    : null;
+}
+
+/** Split alternatives on unquoted ASCII/Unicode pipes, preserving empty arms. */
+function splitAlternatives(rhs: string): string[] {
+  const alternatives: string[] = [];
+  let start = 0;
+  let quote: '"' | "'" | null = null;
+  let escaped = false;
+
+  for (let i = 0; i < rhs.length; i++) {
+    const ch = rhs[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === '"' || ch === "'") quote = ch;
+    else if (ch === '|' || ch === '∣') {
+      alternatives.push(rhs.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  alternatives.push(rhs.slice(start).trim());
+  return alternatives;
 }
 
 export function parseGrammarText(text: string): CFG {
   const lines = text.split('\n');
-  const declaredNonterminals = new Set<string>();
-  
-  for (const line of lines) {
-    let ruleLine = line.trim().replace(/^\d+:\s*/, '');
-    if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
-    const parts = ruleLine.split(/->|::=|→|:/);
-    if (parts.length >= 2) {
-      // Extract the first token that looks like a generalized nonterminal
-      const lhsMatch = parts[0].match(/([A-Z][A-Za-z0-9_']*)/);
-      if (lhsMatch) {
-        declaredNonterminals.add(lhsMatch[1]);
-      }
-    }
-  }
 
   const productions: Production[] = [];
   const nonterminals = new Set<string>();
@@ -111,44 +261,43 @@ export function parseGrammarText(text: string): CFG {
     if (!ruleLine || ruleLine.startsWith('//') || ruleLine.startsWith('#')) continue;
 
     ruleLine = ruleLine.replace(/^\d+:\s*/, '');
-    const parts = ruleLine.split(/->|=>|::=|→|:/);
+    const rule = splitProductionRule(ruleLine);
     
     let lhs: string;
     let rhsPart: string;
 
-    if (parts.length < 2) {
+    if (!rule) {
       if (lastLhs) {
         lhs = lastLhs;
-        rhsPart = ruleLine.replace(/^\|/, '').trim();
+        rhsPart = ruleLine.replace(/^[|∣]/, '').trim();
       } else {
         throw new Error('Invalid grammar file: malformed production ' + line);
       }
     } else {
-      const lhsTokens = tokenizeGrammarString(parts[0], declaredNonterminals);
-      if (lhsTokens.length === 0 || lhsTokens.length > 1 || !isNonterminal(lhsTokens[0])) {
+      const lhsTokens = tokenizeGrammarString(rule[0]);
+      if (lhsTokens.length !== 1 || !isNonterminal(lhsTokens[0])) {
         throw new Error('Invalid grammar file: LHS must be a single nonterminal in ' + line);
       }
       lhs = lhsTokens[0];
       if (lhs === 'START') {
         throw new Error('Invalid grammar file: "START" is a reserved nonterminal used internally. Please use a different name like "S".');
       }
-      rhsPart = parts.slice(1).join('->').trim();
+      rhsPart = rule[1].trim();
       lastLhs = lhs;
     }
     
     nonterminals.add(lhs);
     if (!startSymbol) startSymbol = lhs;
 
-    let alternatives = rhsPart.split('|').map(s => s.trim());
-    const validAlts = alternatives.filter(a => a.length > 0);
-    if (validAlts.length === 0) {
-      alternatives = [''];
-    } else {
-      alternatives = validAlts;
-    }
+    // Alternatives may be separated by the ASCII pipe '|' or the Unicode
+    // DIVIDES symbol '∣' (U+2223).
+    const alternatives = splitAlternatives(rhsPart);
 
     for (const alt of alternatives) {
-      const symbols = tokenizeGrammarString(alt, declaredNonterminals);
+      // Deterministic symbol-boundary resolution: whitespace separates symbols,
+      // quotes group multi-character terminals. No declared-symbol heuristics.
+      const symbols = tokenizeGrammarString(alt);
+
       const rhs: string[] = [];
 
       if (symbols.length === 0) {
@@ -195,4 +344,83 @@ export function parseGrammarText(text: string): CFG {
     productions,
     startSymbol: startSymbol || '',
   };
+}
+
+/**
+ * Parse a Grammar Lab Type 0–3 production system without applying CFG-only
+ * assumptions. Every LHS must be nonempty and include a nonterminal, as
+ * required for a formal generative grammar. Selected-format validation belongs
+ * in `classification.ts` so callers can show all violations at once.
+ */
+export function parseGeneralGrammarText(
+  text: string,
+  format: Exclude<GrammarFormat, 'REGEX'>,
+): GeneralGrammar {
+  const productions: GeneralProduction[] = [];
+  const nonterminals = new Set<string>();
+  const terminals = new Set<string>();
+  const seen = new Set<string>();
+  let startSymbol: string | null = null;
+  let lastLhs: string[] | null = null;
+
+  for (const sourceLine of text.split('\n')) {
+    let line = sourceLine.trim();
+    if (!line || line.startsWith('//') || line.startsWith('#')) continue;
+    line = line.replace(/^\d+:\s*/, '');
+    const rule = splitProductionRule(line);
+    let lhs: string[];
+    let rhsPart: string;
+
+    if (rule) {
+      lhs = tokenizeGrammarString(rule[0]);
+      if (lhs.length === 0) {
+        throw new Error(`Invalid grammar file: LHS cannot be empty in ${sourceLine}`);
+      }
+      if (!lhs.some(isNonterminal)) {
+        throw new Error(`Invalid grammar file: LHS must contain a nonterminal in ${sourceLine}`);
+      }
+      rhsPart = rule[1].trim();
+      lastLhs = lhs;
+    } else if (lastLhs) {
+      lhs = lastLhs;
+      rhsPart = line.replace(/^[|∣]/, '').trim();
+    } else {
+      throw new Error(`Invalid grammar file: malformed production ${sourceLine}`);
+    }
+
+    for (const symbol of lhs) {
+      if (symbol === EPSILON) {
+        throw new Error(`Invalid grammar file: ε cannot appear on a LHS in ${sourceLine}`);
+      }
+      if (isNonterminal(symbol)) nonterminals.add(symbol);
+      else terminals.add(symbol);
+    }
+    if (!startSymbol) {
+      const firstNonterminal = lhs.find(isNonterminal);
+      if (!firstNonterminal) throw new Error(`Invalid grammar file: LHS must contain a nonterminal in ${sourceLine}`);
+      startSymbol = firstNonterminal;
+    }
+
+    for (const alternative of splitAlternatives(rhsPart)) {
+      const tokens = tokenizeGrammarString(alternative);
+      if (tokens.filter((symbol) => symbol === EPSILON).length > 1 || (tokens.includes(EPSILON) && tokens.length > 1)) {
+        throw new Error(`Invalid grammar file: ε must be the entire right side in ${sourceLine}`);
+      }
+      const rhs = tokens.length === 0 || tokens[0] === EPSILON ? [] : tokens;
+      for (const symbol of rhs) {
+        if (isNonterminal(symbol)) nonterminals.add(symbol);
+        else terminals.add(symbol);
+      }
+      const key = `${lhs.join('\u0001')}→${rhs.join('\u0001')}`;
+      if (seen.has(key)) throw new Error(`Invalid grammar file: duplicate production ${key}`);
+      seen.add(key);
+      productions.push({ lhs: [...lhs], rhs });
+    }
+  }
+
+  if (productions.length === 0 || !startSymbol) {
+    throw new Error('Invalid grammar file: grammar is empty');
+  }
+
+  return { format, nonterminals, terminals, productions, startSymbol };
 }

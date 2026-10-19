@@ -12,7 +12,7 @@ describe('Grammar Analysis Engine', () => {
       Eprime -> + T Eprime | \\epsilon
       T -> F Tprime
       Tprime -> * F Tprime | \\epsilon
-      F -> ( E ) | id
+      F -> ( E ) | i d
     `;
     const cfg = parseGrammarText(text);
     const result = analyzeGrammar(cfg);
@@ -21,11 +21,11 @@ describe('Grammar Analysis Engine', () => {
     expect(result.nullable.has('Eprime')).toBe(true);
     expect(result.nullable.has('Tprime')).toBe(true);
 
-    expect(result.firstSets.get('E')).toEqual(new Set(['(', 'id']));
+    expect(result.firstSets.get('E')).toEqual(new Set(['(', 'i']));
     expect(result.firstSets.get('Eprime')).toEqual(new Set(['+', EPSILON]));
-    expect(result.firstSets.get('T')).toEqual(new Set(['(', 'id']));
+    expect(result.firstSets.get('T')).toEqual(new Set(['(', 'i']));
     expect(result.firstSets.get('Tprime')).toEqual(new Set(['*', EPSILON]));
-    expect(result.firstSets.get('F')).toEqual(new Set(['(', 'id']));
+    expect(result.firstSets.get('F')).toEqual(new Set(['(', 'i']));
 
     expect(result.followSets.get('E')).toEqual(new Set([EOF_SYMBOL, ')']));
     expect(result.followSets.get('Eprime')).toEqual(new Set([EOF_SYMBOL, ')']));

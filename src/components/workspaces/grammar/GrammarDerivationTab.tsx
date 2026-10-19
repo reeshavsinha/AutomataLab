@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useGrammarStore } from '@/store/grammarStore';
 import { useMachineStore } from '@/store/machineStore';
 import { EarleySimulation } from '@/engines/parser/earley';
 import { SyntaxTreeNode } from '@/engines/parser/model';
-import { tokenizeGrammarString } from '@/engines/grammar/parser';
+import { tokenizeInputString } from '@/engines/grammar/parser';
+import type { DerivationSearchResult } from '@/engines/grammar/types';
 
 export function GrammarDerivationTab() {
-  const { cfg, getSession, updateSession } = useGrammarStore();
+  const { cfg, grammar, grammarFormat, getSession, updateSession } = useGrammarStore();
   const machine = useMachineStore((s) => s.machine);
   
   const session = machine ? getSession(machine.id) : {};
   const derivationInput = session.derivationInput || '';
+  const derivationQueryNonce = session.derivationQueryNonce ?? 0;
   
   const [inputStr, setInputStr] = useState(derivationInput);
   
@@ -18,35 +20,88 @@ export function GrammarDerivationTab() {
   const [leftmost, setLeftmost] = useState<string[][]>(session.leftmost || []);
   const [rightmost, setRightmost] = useState<string[][]>(session.rightmost || []);
   const [error, setError] = useState<string | null>(session.derivationError || null);
+  const [searchResult, setSearchResult] = useState<DerivationSearchResult | null>(null);
+  const [searching, setSearching] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
 
   React.useEffect(() => {
-    // If the inputStr doesn't match the session derivationInput (e.g., when switching tabs), update it
     setInputStr(derivationInput);
     setLeftmost(session.leftmost || []);
     setRightmost(session.rightmost || []);
     setError(session.derivationError || null);
+    setSearchResult(null);
+    setSearching(false);
   }, [machine?.id]);
 
   React.useEffect(() => {
-    if (!cfg || !machine) {
+    if (!grammar || !machine) {
       setLeftmost([]);
       setRightmost([]);
       setError(null);
+      setSearchResult(null);
+      setSearching(false);
+      return;
+    }
+
+    if (derivationQueryNonce === 0) {
+      setSearching(false);
       return;
     }
 
     if (!derivationInput.trim() && derivationInput !== '') {
-        setLeftmost([]);
-        setRightmost([]);
-        setError(null);
-        return;
+      setLeftmost([]);
+      setRightmost([]);
+      setError(null);
+      setSearchResult(null);
+      return;
     }
     
-    // Only parse if we don't already have results for this input
-    if (session.leftmost && session.leftmost.length > 0) return;
+    if (!cfg) {
+      const tokens = derivationInput.trim() ? tokenizeInputString(derivationInput, grammar.terminals) : [];
+      setLeftmost([]);
+      setRightmost([]);
+      if (typeof Worker === 'undefined') {
+        setSearchResult({ status: 'RESOURCE_LIMIT', steps: [], exploredNodes: 0, reason: 'Derivation workers are unavailable in this environment.' });
+        setError('Derivation workers are unavailable in this environment.');
+        return;
+      }
+      const worker = new Worker(new URL('../../../engines/grammar/derivationWorker.ts', import.meta.url), { type: 'module' });
+      workerRef.current = worker;
+      setSearching(true);
+      worker.onmessage = (event: MessageEvent<DerivationSearchResult>) => {
+        if (workerRef.current !== worker) return;
+        setSearchResult(event.data);
+        setError(event.data.status === 'FOUND' ? null : event.data.reason ?? event.data.status);
+        setSearching(false);
+        workerRef.current = null;
+        worker.terminate();
+      };
+      worker.onerror = () => {
+        if (workerRef.current !== worker) return;
+        setSearchResult({ status: 'RESOURCE_LIMIT', steps: [], exploredNodes: 0, reason: 'Derivation worker failed.' });
+        setError('Derivation worker failed.');
+        setSearching(false);
+        workerRef.current = null;
+        worker.terminate();
+      };
+      worker.postMessage({
+        grammar: {
+          ...grammar,
+          nonterminals: [...grammar.nonterminals],
+          terminals: [...grammar.terminals],
+        },
+        target: tokens,
+      });
+      return () => {
+        if (workerRef.current === worker) {
+          worker.terminate();
+          workerRef.current = null;
+        }
+      };
+    }
 
     try {
-      const tokens = derivationInput.trim() ? tokenizeGrammarString(derivationInput, cfg.nonterminals, cfg.terminals) : [];
+      const tokens = derivationInput.trim() ? tokenizeInputString(derivationInput, cfg.terminals) : [];
       const sim = new EarleySimulation(cfg);
       sim.initialize(tokens);
       while (sim.status === 'running') {
@@ -66,16 +121,27 @@ export function GrammarDerivationTab() {
       setLeftmost([]);
       setRightmost([]);
     }
-  }, [cfg, derivationInput, machine?.id]);
+  }, [cfg, grammar, derivationInput, derivationQueryNonce, machine?.id]);
 
-  if (!cfg || !machine) return <div style={{ padding: 16 }}>No valid grammar.</div>;
+  if (!machine) {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Open or create a grammar tab to use derivations.</div>;
+  }
+  if (grammarFormat === 'REGEX') {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Derivations apply to explicit grammars. Switch to Type 0–3 or convert the regex to a Type 3 grammar.</div>;
+  }
+  if (!grammar) {
+    return <div style={{ padding: 16, color: 'var(--text-muted)' }}>Enter valid productions for the selected format, then test membership with a terminal string.</div>;
+  }
 
   const handleParse = () => {
+    setSearchResult(null);
+    setError(null);
     updateSession(machine.id, { 
       derivationInput: inputStr,
-      leftmost: undefined, // Clear session cache so it recalculates
+      leftmost: undefined,
       rightmost: undefined,
-      derivationError: undefined 
+      derivationError: undefined,
+      derivationQueryNonce: derivationQueryNonce + 1,
     });
   };
 
@@ -83,6 +149,14 @@ export function GrammarDerivationTab() {
     if (e.key === 'Enter') {
       handleParse();
     }
+  };
+
+  const cancelSearch = () => {
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setSearching(false);
+    setSearchResult({ status: 'CANCELLED', steps: [], exploredNodes: 0, reason: 'Search cancelled.' });
+    setError('Search cancelled.');
   };
 
   const generateDerivations = (tree: SyntaxTreeNode) => {
@@ -150,7 +224,17 @@ export function GrammarDerivationTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 16 }}>
       <h3 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Derivations</h3>
-      
+      {!cfg && (grammarFormat === 'TYPE_0' || grammarFormat === 'TYPE_1') && (
+        <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Type {grammarFormat === 'TYPE_0' ? '0' : '1'} grammars are too powerful for a guaranteed yes/no answer in finite time. Enter a string and click <strong>Find derivation</strong> (search does not start automatically). If the run hits a <strong>resource limit</strong>, the string was not found within the bound — that is not a proof that it is impossible.
+        </p>
+      )}
+      {derivationQueryNonce === 0 && !error && !searchResult && leftmost.length === 0 && (
+        <p style={{ margin: '0 0 12px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          {cfg ? 'Enter a string and click Parse to build leftmost and rightmost derivations.' : 'Enter a string and click Find derivation.'}
+        </p>
+      )}
+
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <input 
           type="text"
@@ -164,15 +248,43 @@ export function GrammarDerivationTab() {
           onClick={handleParse}
           style={{ padding: '6px 12px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
         >
-          Parse
+          {cfg ? 'Parse' : searching ? 'Searching…' : 'Find derivation'}
         </button>
+        {!cfg && searching && (
+          <button onClick={cancelSearch} style={{ padding: '6px 12px', background: 'transparent', color: 'var(--text-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 4, cursor: 'pointer' }}>
+            Cancel
+          </button>
+        )}
       </div>
 
       {error && (
-        <div style={{ color: '#ef4444', marginBottom: 16, fontSize: '0.85rem' }}>{error}</div>
+        <div style={{
+          color: searchResult?.status === 'RESOURCE_LIMIT' || searchResult?.status === 'NOT_FOUND_WITHIN_LIMIT' ? '#d97706' : '#ef4444',
+          marginBottom: 16,
+          fontSize: '0.85rem',
+        }}>
+          {error}
+        </div>
       )}
 
       <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {searchResult && (
+          <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 8 }}>
+            <h4 style={{ margin: '0 0 8px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+              Bounded derivation — {searchResult.status.replace(/_/g, ' ')}
+            </h4>
+            <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+              Explored {searchResult.exploredNodes.toLocaleString()} unique sentential forms. {searchResult.reason ?? ''}
+            </div>
+            {searchResult.steps.map((step, index) => (
+              <div key={index} style={{ fontFamily: 'var(--font-mono)', fontSize: '0.85rem', marginBottom: 4 }}>
+                {index > 0 && <span style={{ color: 'var(--text-muted)', margin: '0 8px' }}>⇒</span>}
+                {step.form.length ? step.form.join(' ') : 'ε'}
+                {step.rewrite && <span style={{ color: 'var(--text-muted)', marginLeft: 8, fontSize: '0.72rem' }}>rule {step.rewrite.productionIndex + 1} at {step.rewrite.position + 1}</span>}
+              </div>
+            ))}
+          </div>
+        )}
         {leftmost.length > 0 && (
           <div style={{ background: 'var(--bg-tertiary)', padding: 12, borderRadius: 8 }}>
             <h4 style={{ margin: '0 0 12px 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>Leftmost Derivation</h4>

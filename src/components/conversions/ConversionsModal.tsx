@@ -19,10 +19,11 @@ import {
   defaultAnimationBuilder,
   type ConversionPlugin,
 } from './conversionsRegistry'
-import type { MachineDefinition } from '@/engines/machine/core/types'
+import type { MachineDefinition, MachineType } from '@/engines/machine/core/types'
 import type { ConversionResult } from '@/engines/machine/conversions'
 import { generateId } from '@/engines/machine/core/utils'
 import { toast } from '@/store/toastStore'
+import { navigateAppHash } from '@/utils/demoMode'
 import Dialog from '@/components/common/Dialog'
 
 export default function ConversionsModal({ onClose }: { onClose: () => void }) {
@@ -103,7 +104,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     setText('')
     setView('result')
     setLabelMode('short')
-    if (plugin.mode === 'transform') runTransformNow(plugin)
+    if (plugin.mode === 'transform' || plugin.mode === 'extract') runTransformNow(plugin)
   }
 
   const build = () => {
@@ -140,6 +141,29 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
     loadMachine({ ...laidOut, id: generateId('machine') }, false)
     requestFitView()
     toast.success('Replaced the current machine with the converted result.')
+    onClose()
+  }
+
+  const openExtractInGrammarLab = () => {
+    if (!result || typeof result.result !== 'string' || !selected) return
+    const grammarText = result.result as string
+    const isRegex = selected.kind === 'dfa-to-regex'
+    openMachine(
+      {
+        id: generateId('tab'),
+        name: isRegex ? 'Extracted regex' : 'Extracted CFG',
+        type: 'CFG',
+        language: '',
+        states: [],
+        transitions: [],
+        alphabet: [],
+        grammarText,
+        grammarFormat: isRegex ? 'REGEX' : 'TYPE_2',
+      },
+      null,
+    )
+    navigateAppHash('#/grammar')
+    toast.success('Opened extract in Grammar Lab.')
     onClose()
   }
 
@@ -249,7 +273,7 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
           )}
 
           {/* Transform error */}
-          {selected && selected.mode === 'transform' && !result && error && (
+          {selected && (selected.mode === 'transform' || selected.mode === 'extract') && !result && error && (
             <ErrorBox message={error} />
           )}
 
@@ -390,7 +414,10 @@ export default function ConversionsModal({ onClose }: { onClose: () => void }) {
             <button onClick={back} style={secondaryBtn}>Choose another</button>
             <div style={{ flex: 1 }} />
             {typeof result.result === 'string' ? (
-              <button onClick={() => { navigator.clipboard.writeText(result.result as string); toast.success('Copied to clipboard!') }} style={primaryBtn}>Copy to Clipboard</button>
+              <>
+                <button onClick={() => { navigator.clipboard.writeText(result.result as string); toast.success('Copied to clipboard!') }} style={secondaryBtn}>Copy to clipboard</button>
+                <button onClick={openExtractInGrammarLab} style={primaryBtn}>Open in Grammar Lab →</button>
+              </>
             ) : (
               <>
                 <button onClick={replaceCurrent} style={secondaryBtn} title="Apply the result to the current machine, replacing it">Replace current</button>
@@ -416,45 +443,82 @@ function Picker({
   extracts: ConversionPlugin[]
   onChoose: (m: ConversionPlugin) => void
 }) {
+  const [target, setTarget] = useState<MachineType | 'ALL'>('ALL')
+  const all = [...transforms, ...builders, ...extracts]
+  const targets = Array.from(new Set(all.map((conversion) => conversion.resultType)))
+  const matching = (items: ConversionPlugin[]) =>
+    target === 'ALL' ? items : items.filter((conversion) => conversion.resultType === target)
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div>
-        <GroupTitle>Transform this machine ({machineType})</GroupTitle>
-        {transforms.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {transforms.map((m) => (
-              <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
-            ))}
-          </div>
-        ) : (
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            No conversions apply to a {machineType}. Switch to a DFA/NFA/ε-NFA, or build one from text below.
-          </div>
-        )}
-      </div>
-      <div>
-        <GroupTitle>Build a new machine from text</GroupTitle>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {builders.map((m) => (
-            <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
+        <GroupTitle>Choose a destination</GroupTitle>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+          <TargetButton active={target === 'ALL'} onClick={() => setTarget('ALL')}>All routes</TargetButton>
+          {targets.map((resultType) => (
+            <TargetButton key={resultType} active={target === resultType} onClick={() => setTarget(resultType)}>
+              {resultType}
+            </TargetButton>
           ))}
         </div>
       </div>
       <div>
-        <GroupTitle>Extract text from this machine</GroupTitle>
-        {extracts.length > 0 ? (
+        <GroupTitle>From this machine ({machineType})</GroupTitle>
+        {matching(transforms).length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {extracts.map((m) => (
+            {matching(transforms).map((m) => (
               <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
             ))}
           </div>
         ) : (
           <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-            No extractions available for a {machineType}.
+            No route from {machineType} to {target === 'ALL' ? 'a different machine' : target}.
           </div>
         )}
       </div>
+      <div>
+        <GroupTitle>Extract to text</GroupTitle>
+        {matching(extracts).length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {matching(extracts).map((m) => (
+              <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+            No extraction from {machineType} to {target === 'ALL' ? 'text' : target}.
+          </div>
+        )}
+      </div>
+      <div>
+        <GroupTitle>Build from formal notation</GroupTitle>
+        {matching(builders).length > 0 ? <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {matching(builders).map((m) => (
+            <ConvCard key={m.kind} meta={m} onClick={() => onChoose(m)} />
+          ))}
+        </div> : <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>No text construction produces {target === 'ALL' ? 'another machine' : target}.</div>}
+      </div>
     </div>
+  )
+}
+
+function TargetButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: active ? 'var(--bg-elevated)' : 'var(--bg-secondary)',
+        border: '1px solid var(--border-default)',
+        borderRadius: 'var(--radius-sm)',
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        padding: '5px 8px',
+        fontFamily: 'var(--font-mono)',
+        fontSize: '11px',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

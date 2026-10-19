@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useMachineStore } from '@/store/machineStore';
+import { navigateAppHash } from '@/utils/demoMode';
 
 export default function WorkspaceSwitcher() {
   const [route, setRoute] = useState(window.location.hash);
@@ -26,7 +27,7 @@ export default function WorkspaceSwitcher() {
 
     // To be perfectly robust, we can just switch the route.
     // The App.tsx 'Anti-Trap' will handle tab switching or creation if necessary!
-    window.location.hash = newRoute;
+    navigateAppHash(newRoute);
   };
 
   return (

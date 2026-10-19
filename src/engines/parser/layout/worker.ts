@@ -3,8 +3,6 @@
 import { LR0Table } from '../lr0';
 import { GraphModel } from './GraphModel';
 import { LRLayeredStrategy } from './LRLayeredStrategy';
-import { GlobalRoutingEngine } from './GlobalRoutingEngine';
-import { GeometryBuilder } from './GeometryBuilder';
 import { DEFAULT_LAYOUT_CONFIG } from './types';
 
 self.onmessage = (e: MessageEvent) => {

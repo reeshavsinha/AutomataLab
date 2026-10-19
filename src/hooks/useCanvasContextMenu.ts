@@ -2,11 +2,12 @@ import { useCallback, useState } from 'react'
 import type { Node, Edge } from '@xyflow/react'
 import type { ContextMenuConfig } from '@/components/canvas/ContextMenu'
 import { useMachineStore } from '@/store/machineStore'
-import { isTMType } from '@/engines/machine/core/utils'
+import { isTMType, isTransducerType } from '@/engines/machine/core/utils'
 
 export function useCanvasContextMenu(rfInstance: any, transitionMode: any, cancelDrawing: () => void) {
   const machine = useMachineStore((s) => s.machine)
   const isTM = isTMType(machine.type)
+  const isTransducer = isTransducerType(machine.type)
   const [contextMenu, setContextMenu] = useState<ContextMenuConfig | null>(null)
 
   const onNodeContextMenu = useCallback(
@@ -24,10 +25,11 @@ export function useCanvasContextMenu(rfInstance: any, transitionMode: any, cance
         isAccept: s.isAccept,
         isStart: s.isStart,
         isReject: s.isReject ?? false,
+        showAccept: !isTransducer,
         showReject: isTM,
       })
     },
-    [machine.states, isTM]
+    [machine.states, isTM, isTransducer]
   )
 
   const onEdgeContextMenu = useCallback(

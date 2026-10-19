@@ -32,17 +32,7 @@
   justify-content: center;
 }
 
-.hub-logo svg {
-  fill: none;
-}
 
-.hub-logo svg circle {
-  fill: var(--text-primary);
-}
-
-.hub-logo svg path {
-  stroke: var(--text-primary);
-}
 
 .hub-title-group {
   display: flex;

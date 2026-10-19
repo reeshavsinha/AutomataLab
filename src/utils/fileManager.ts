@@ -2,15 +2,22 @@
 // File Manager — Save / Load machine definitions as JSON
 // ============================================================
 
-import type { AutomataState, MachineDefinition, Transition } from '@/engines/machine/core/types'
-import { generateId, isPDAType } from '@/engines/machine/core/utils'
+import type { AutomataState, GrammarFormat, MachineDefinition, Transition } from '@/engines/machine/core/types'
+import { generateId, isPDAType, isTransducerType } from '@/engines/machine/core/utils'
+import { getWorkspaceForMachineType, isMachineType } from '@/engines/machine/core/capabilities'
+import { AUTOMATALAB_FILE_FORMAT_VERSION, readFileFormatVersion } from '@/utils/fileFormat'
 import { addRecentFile } from '@/utils/recentFiles'
 import { isTauri } from '@tauri-apps/api/core'
 import { parseJFLAP } from '@/utils/jflap'
 import { toast } from '@/store/toastStore'
 const FILE_EXTENSION = '.autolab.json'
 const MIME_TYPE = 'application/json'
-const VALID_TYPES = ['DFA', 'NFA', 'ENFA', 'DPDA', 'NPDA', 'TM', 'LBA']
+const MAX_TAPE_COUNT = 9
+const MAX_PROJECT_BYTES = 10 * 1024 * 1024
+const MAX_STATES = 5_000
+const MAX_TRANSITIONS = 20_000
+const MAX_SUBMACHINE_DEPTH = 16
+const MAX_SUBMACHINES_PER_MACHINE = 100
 
 /** Copy only the known state fields, dropping anything unexpected from the file. */
 function sanitizeState(raw: any): AutomataState {
@@ -24,6 +31,7 @@ function sanitizeState(raw: any): AutomataState {
   }
   if (raw?.isReject) state.isReject = true
   if (raw?.isText) state.isText = true
+  if (typeof raw?.output === 'string') state.output = raw.output
   if (typeof raw?.description === 'string' && raw.description !== '') state.description = raw.description
   if (Number.isFinite(raw?.width)) state.width = Number(raw.width)
   if (Number.isFinite(raw?.height)) state.height = Number(raw.height)
@@ -47,6 +55,7 @@ function sanitizeTransition(raw: any): Transition {
   if (typeof raw?.read === 'string') t.read = raw.read
   if (typeof raw?.pop === 'string') t.pop = raw.pop
   if (typeof raw?.push === 'string') t.push = raw.push
+  if (typeof raw?.output === 'string') t.output = raw.output
   if (typeof raw?.write === 'string') t.write = raw.write
   if (raw?.direction === 'L' || raw?.direction === 'R' || raw?.direction === 'S') {
     t.direction = raw.direction
@@ -59,10 +68,21 @@ function sanitizeTransition(raw: any): Transition {
       d === 'L' || d === 'R' || d === 'S' ? d : 'S'
     )
   }
+  if (Array.isArray(raw?.trackReads)) t.trackReads = raw.trackReads.map(String)
+  if (Array.isArray(raw?.trackWrites)) t.trackWrites = raw.trackWrites.map(String)
+  if (typeof raw?.submachineId === 'string' && raw.submachineId.trim()) {
+    t.submachineId = raw.submachineId.trim()
+  }
   return t
 }
 
-export function parseMachineJson(jsonString: string): MachineDefinition {
+export function parseMachineJson(jsonString: string, nestingDepth = 0): MachineDefinition {
+  if (nestingDepth > MAX_SUBMACHINE_DEPTH) {
+    throw new Error(`Failed to load project: Submachine nesting cannot exceed ${MAX_SUBMACHINE_DEPTH}.`)
+  }
+  if (jsonString.length > MAX_PROJECT_BYTES) {
+    throw new Error('Failed to load project: File is larger than 10 MB.')
+  }
   let raw: any
   try {
     raw = JSON.parse(jsonString)
@@ -75,27 +95,67 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
     throw new Error('Failed to load project: Expected a machine object.')
   }
   // Minimal validation
-  if (!raw.states || !raw.transitions || !raw.type) {
+  if (!Array.isArray(raw.states) || !Array.isArray(raw.transitions) || !raw.type) {
     throw new Error('Failed to load project: Missing required fields (states, transitions, type).')
   }
+  if (raw.states.length > MAX_STATES || raw.transitions.length > MAX_TRANSITIONS) {
+    throw new Error(
+      `Failed to load project: Maximum size is ${MAX_STATES.toLocaleString()} states and ${MAX_TRANSITIONS.toLocaleString()} transitions.`
+    )
+  }
 
-  if (!VALID_TYPES.includes(raw.type)) {
+  if (!isMachineType(raw.type)) {
     throw new Error(`Failed to load project: Unknown machine type "${raw.type}".`)
+  }
+
+  const fileVersion = readFileFormatVersion(raw.version)
+  if (fileVersion > AUTOMATALAB_FILE_FORMAT_VERSION) {
+    throw new Error(
+      `Failed to load project: File format version ${fileVersion} is newer than this application supports.`
+    )
   }
 
   // Ensure a unique id on load, and prevent prototype pollution / injection by
   // explicitly rebuilding every state and transition from known fields only.
   const def: MachineDefinition = {
     id: generateId('machine'),
-    version: Number.isFinite(raw.version) ? Number(raw.version) : 1,
+    version: fileVersion,
     // Force string-typed metadata: a numeric/boolean `name` would otherwise flow
     // through and crash later (e.g. `fileStem` calls String.prototype.replace).
     name: typeof raw.name === 'string' && raw.name !== '' ? raw.name : 'Imported Machine',
     type: raw.type,
     language: typeof raw.language === 'string' ? raw.language : '',
-    states: Array.isArray(raw.states) ? raw.states.map(sanitizeState) : [],
+    states: Array.isArray(raw.states)
+      ? raw.states.map(sanitizeState).map((state: AutomataState) =>
+        isTransducerType(raw.type) ? { ...state, isAccept: false, isReject: false } : state
+      )
+      : [],
     transitions: Array.isArray(raw.transitions) ? raw.transitions.map(sanitizeTransition) : [],
     alphabet: Array.isArray(raw.alphabet) ? raw.alphabet.map(String) : [],
+  }
+  if (Array.isArray(raw.outputAlphabet) && raw.outputAlphabet.length > 0) {
+    def.outputAlphabet = raw.outputAlphabet.map(String)
+  }
+  if (typeof raw.initialOutput === 'string') {
+    def.initialOutput = raw.initialOutput
+  }
+  if (typeof raw.grammarText === 'string') def.grammarText = raw.grammarText
+  if (['REGEX', 'TYPE_0', 'TYPE_1', 'TYPE_2', 'TYPE_3'].includes(raw.grammarFormat)) {
+    def.grammarFormat = raw.grammarFormat as GrammarFormat
+  }
+  if (typeof raw.parserAlgorithm === 'string') def.parserAlgorithm = raw.parserAlgorithm
+  if (typeof raw.parserInput === 'string') def.parserInput = raw.parserInput
+  if (raw.activeViewMode === 'table' || raw.activeViewMode === 'automaton') {
+    def.activeViewMode = raw.activeViewMode
+  }
+  if (typeof raw.grammarDerivationInput === 'string') {
+    def.grammarDerivationInput = raw.grammarDerivationInput
+  }
+  if (typeof raw.grammarSamplerMaxLength === 'string') {
+    def.grammarSamplerMaxLength = raw.grammarSamplerMaxLength
+  }
+  if (typeof raw.grammarSamplerMaxSteps === 'string') {
+    def.grammarSamplerMaxSteps = raw.grammarSamplerMaxSteps
   }
   // Optional declared alphabets Γ (additive — old files omit them).
   if (Array.isArray(raw.stackAlphabet) && raw.stackAlphabet.length > 0) {
@@ -109,10 +169,58 @@ export function parseMachineJson(jsonString: string): MachineDefinition {
     def.blankSymbol = raw.blankSymbol
   }
   if (Number.isFinite(raw.stepLimit) && raw.stepLimit > 0) {
-    def.stepLimit = Number(raw.stepLimit)
+    def.stepLimit = Math.min(100_000, Math.floor(Number(raw.stepLimit)))
   }
   if (Number.isFinite(raw.tapeCount) && raw.tapeCount > 1) {
+    if (raw.tapeCount > MAX_TAPE_COUNT) {
+      throw new Error(`Failed to load project: Tape count cannot exceed ${MAX_TAPE_COUNT}.`)
+    }
     def.tapeCount = Math.floor(Number(raw.tapeCount))
+  }
+  if (raw.type === 'MTM') {
+    if (def.tapeCount !== undefined) {
+      throw new Error('Failed to load project: A multi-track TM has one physical tape and cannot declare multiple tapes.')
+    }
+    if (Number.isFinite(raw.trackCount) && (raw.trackCount < 2 || raw.trackCount > MAX_TAPE_COUNT)) {
+      throw new Error(`Failed to load project: Track count must be between 2 and ${MAX_TAPE_COUNT}.`)
+    }
+    def.trackCount = Number.isFinite(raw.trackCount) ? Math.floor(Number(raw.trackCount)) : 2
+    if (Array.isArray(raw.trackAlphabets)) {
+      def.trackAlphabets = raw.trackAlphabets
+        .slice(0, def.trackCount)
+        .map((alphabet: unknown) => Array.isArray(alphabet) ? alphabet.map(String) : [])
+    }
+    if (Array.isArray(raw.trackBlanks)) {
+      def.trackBlanks = raw.trackBlanks
+        .slice(0, def.trackCount)
+        .map((blank: unknown) => String(blank).slice(0, 1) || '_')
+    }
+  }
+  if (raw.type === 'TM' && Number.isFinite(raw.submachineDepthLimit)) {
+    def.submachineDepthLimit = Math.min(
+      MAX_SUBMACHINE_DEPTH,
+      Math.max(1, Math.floor(Number(raw.submachineDepthLimit))),
+    )
+  }
+  if (raw.type === 'TM' && raw.submachines && typeof raw.submachines === 'object' && !Array.isArray(raw.submachines)) {
+    const entries = Object.entries(raw.submachines)
+    if (entries.length > MAX_SUBMACHINES_PER_MACHINE) {
+      throw new Error(`Failed to load project: A machine can own at most ${MAX_SUBMACHINES_PER_MACHINE} submachines.`)
+    }
+    const submachines: Record<string, MachineDefinition> = {}
+    for (const [id, child] of entries) {
+      if (!id.trim() || !child || typeof child !== 'object' || Array.isArray(child)) continue
+      try {
+        const definition = parseMachineJson(JSON.stringify(child), nestingDepth + 1)
+        // Hierarchical execution shares the caller's existing tape runtime; only
+        // ordinary deterministic TMs can make that contract without conversion.
+        if (definition.type === 'TM') submachines[id.trim()] = definition
+      } catch {
+        // Retain any transition's id reference. The validator/editor can then
+        // expose it as an unresolved, repairable call instead of crashing load.
+      }
+    }
+    if (Object.keys(submachines).length > 0) def.submachines = submachines
   }
 
   // Phase 2 Validation
@@ -158,11 +266,7 @@ export async function saveMachine(machine: MachineDefinition, options?: { gramma
   const grammarOnly = options?.grammarOnly ?? false;
   
   // Inject metadata for future migrations
-  const toSave = {
-    ...machine,
-    version: '1.0.0',
-    workspaceType: machine.type.includes('CFG') ? 'grammar' : 'automata'
-  };
+  const toSave = toPersistedMachine(machine)
   
   const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toSave, null, 2);
   const extension = grammarOnly ? '.txt' : FILE_EXTENSION;
@@ -184,7 +288,13 @@ export async function saveMachine(machine: MachineDefinition, options?: { gramma
       })
       if (path) {
         await writeTextFile(path, contentToWrite)
-        addRecentFile(path, machine.name)
+        addRecentFile(
+          path,
+          machine.name,
+          grammarOnly
+            ? (typeof window !== 'undefined' && window.location.hash.includes('parser') ? 'parser' : 'grammar')
+            : 'machine',
+        )
         return path
       }
       return null
@@ -217,15 +327,39 @@ export async function saveMachineToPath(machine: MachineDefinition, path: string
     throw new Error('Saving to a path is only supported in the desktop app')
   }
   const grammarOnly = options?.grammarOnly ?? false;
-  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(machine, null, 2);
+  const contentToWrite = grammarOnly ? (machine.grammarText || '') : JSON.stringify(toPersistedMachine(machine), null, 2);
   try {
     const { writeTextFile } = await import('@tauri-apps/plugin-fs')
     await writeTextFile(path, contentToWrite)
-    addRecentFile(path, machine.name)
+    addRecentFile(
+      path,
+      machine.name,
+      grammarOnly
+        ? (typeof window !== 'undefined' && window.location.hash.includes('parser') ? 'parser' : 'grammar')
+        : 'machine',
+    )
     return path
   } catch (err) {
     console.error('Failed to save file:', err)
     throw new Error('Failed to save file')
+  }
+}
+
+function grammarMachineFromText(
+  content: string,
+  path: string,
+  kind: 'grammar' | 'parser',
+): MachineDefinition {
+  const baseName = path.split(/[\\/]/).pop()?.replace(/\.txt$/i, '') || 'Untitled Grammar'
+  return {
+    id: generateId(),
+    name: baseName,
+    type: kind === 'parser' ? 'CFG_PARSER' : 'CFG',
+    states: [],
+    transitions: [],
+    grammarText: content,
+    alphabet: [],
+    language: '',
   }
 }
 
@@ -272,7 +406,7 @@ export async function loadMachine(options?: { grammarOnly?: boolean }): Promise<
       if (isJff) checkImportWarnings(def)
     }
     
-    addRecentFile(filePath, def.name)
+    addRecentFile(filePath, def.name, grammarOnly ? (window.location.hash.includes('parser') ? 'parser' : 'grammar') : 'machine')
     return { def, path: filePath }
   } else {
     // Web fallback
@@ -320,16 +454,36 @@ export async function loadMachine(options?: { grammarOnly?: boolean }): Promise<
 }
 
 /** Load a machine directly from a known absolute path (Tauri — recent files). */
-export async function loadMachineFromPath(path: string): Promise<MachineDefinition> {
+export async function loadMachineFromPath(
+  path: string,
+  options?: { kind?: import('./recentFiles').RecentFileKind },
+): Promise<MachineDefinition> {
   if (!isTauri()) {
     throw new Error('Opening files by path is only supported in the desktop app')
   }
   const { readTextFile } = await import('@tauri-apps/plugin-fs')
   const content = await readTextFile(path)
-  const isJff = path.toLowerCase().endsWith('.jff')
-  const def = isJff ? parseJFLAP(content) : parseMachineJson(content)
-  if (isJff) checkImportWarnings(def)
-  addRecentFile(path, def.name)
+  const lower = path.toLowerCase()
+  let def: MachineDefinition
+  let recentKind: import('./recentFiles').RecentFileKind = 'machine'
+
+  if (lower.endsWith('.txt')) {
+    const kind =
+      options?.kind === 'parser' || options?.kind === 'grammar'
+        ? options.kind
+        : typeof window !== 'undefined' && window.location.hash.includes('parser')
+          ? 'parser'
+          : 'grammar'
+    def = grammarMachineFromText(content, path, kind)
+    recentKind = kind
+  } else if (lower.endsWith('.jff')) {
+    def = parseJFLAP(content)
+    checkImportWarnings(def)
+  } else {
+    def = parseMachineJson(content)
+  }
+
+  addRecentFile(path, def.name, recentKind)
   return def
 }
 
@@ -342,7 +496,71 @@ function checkImportWarnings(def: MachineDefinition) {
   }
 }
 
+/** Open file picker to load a plain text file (.txt). Returns the string content and filename, or null if cancelled. */
+export async function loadTextFile(options?: { title?: string; extensions?: string[] }): Promise<{ content: string; filename: string } | null> {
+  const extensions = options?.extensions ?? ['txt']
+  if (isTauri()) {
+    try {
+      const { open } = await import('@tauri-apps/plugin-dialog')
+      const { readTextFile } = await import('@tauri-apps/plugin-fs')
+      const path = await open({
+        multiple: false,
+        title: options?.title ?? 'Open Text File',
+        filters: [{
+          name: 'Text File',
+          extensions,
+        }],
+      })
+      if (!path) return null
+      const filePath = Array.isArray(path) ? path[0] : path
+      const content = await readTextFile(filePath)
+      const filename = filePath.split(/[\\/]/).pop() || 'file.txt'
+      return { content, filename }
+    } catch (err) {
+      console.error('Failed to read text file:', err)
+      return null
+    }
+  } else {
+    // Web fallback
+    return new Promise((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = extensions.map((e) => `.${e}`).join(',')
+      input.onchange = () => {
+        const file = input.files?.[0]
+        if (!file) {
+          resolve(null)
+          return
+        }
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const content = (e.target?.result as string) || ''
+          resolve({ content, filename: file.name })
+        }
+        reader.onerror = () => resolve(null)
+        reader.readAsText(file)
+      }
+      input.oncancel = () => resolve(null)
+      input.click()
+    })
+  }
+}
+
 /** Export machine as plain JSON string (for clipboard or other uses) */
 export function exportMachineJSON(machine: MachineDefinition): string {
-  return JSON.stringify(machine, null, 2)
+  return JSON.stringify(toPersistedMachine(machine), null, 2)
+}
+
+/** Add the stable file metadata without changing the in-memory machine object. */
+function toPersistedMachine(machine: MachineDefinition): Record<string, unknown> {
+  return {
+    ...machine,
+    ...(machine.submachines ? {
+      submachines: Object.fromEntries(
+        Object.entries(machine.submachines).map(([id, child]) => [id, toPersistedMachine(child)]),
+      ),
+    } : {}),
+    version: AUTOMATALAB_FILE_FORMAT_VERSION,
+    workspaceType: getWorkspaceForMachineType(machine.type),
+  }
 }

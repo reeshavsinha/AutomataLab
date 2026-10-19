@@ -1,9 +1,10 @@
 // ============================================================
 // AutomataLab — Regex → NFA (Thompson's construction)
 // Parses a regular expression and builds an ε-NFA with one start and one accept
-// state, composing fragments for symbols, concatenation, union (|), Kleene star
-// (*), one-or-more (+) and optional (?). Grouping with ( ). `ε`/`λ`/empty = the
-// empty string. Every other non-operator character is a literal.
+// state, composing fragments for symbols, concatenation, union (`|` or binary
+// `+`), Kleene star (*), one-or-more (postfix +) and optional (?). Grouping with
+// ( ). `ε`/`λ`/empty = the empty string. Every other non-operator character is
+// a literal.
 // Pure TypeScript — zero React/UI dependencies.
 // ============================================================
 
@@ -23,16 +24,36 @@ type Node =
   | { kind: 'opt'; node: Node }
 
 const OPERATORS = new Set(['|', '*', '+', '?', '(', ')'])
+const MAX_REGEX_LENGTH = 10_000
+const MAX_REGEX_NESTING = 256
 
 function parseRegex(input: string): Node {
   const src = input.replace(/\s+/g, '')
+  if (src.length > MAX_REGEX_LENGTH) {
+    throw new Error(`Regular expression is too long (maximum ${MAX_REGEX_LENGTH} characters).`)
+  }
   let pos = 0
+  let groupDepth = 0
   const peek = () => src[pos]
   const eof = () => pos >= src.length
 
+  /**
+   * `+` is accepted in the classroom-style binary alternation notation when a
+   * right operand immediately follows it (`a+b`). Postfix `+` remains one-or-
+   * more when it closes an atom/group (`a+`, `(ab)+`, `(a+)b`). This deliberately
+   * resolves the inherently ambiguous `a+b` form as alternation; write `(a+)b`
+   * when concatenating a one-or-more expression with `b`.
+   */
+  const isPostfixPlus = (): boolean => {
+    if (peek() !== '+') return false
+    const next = src[pos + 1]
+    return next === undefined || next === ')' || next === '|' || next === '*' || next === '?' || next === '+'
+  }
+  const isAlternation = (): boolean => peek() === '|' || (peek() === '+' && !isPostfixPlus())
+
   const parseUnion = (): Node => {
     const options = [parseConcat()]
-    while (peek() === '|') {
+    while (isAlternation()) {
       pos++
       options.push(parseConcat())
     }
@@ -41,7 +62,7 @@ function parseRegex(input: string): Node {
 
   const parseConcat = (): Node => {
     const parts: Node[] = []
-    while (!eof() && peek() !== '|' && peek() !== ')') {
+    while (!eof() && !isAlternation() && peek() !== ')') {
       parts.push(parseRepeat())
     }
     if (parts.length === 0) return { kind: 'empty' }
@@ -50,7 +71,12 @@ function parseRegex(input: string): Node {
 
   const parseRepeat = (): Node => {
     let node = parseAtom()
-    while (peek() === '*' || peek() === '+' || peek() === '?') {
+    let repeatDepth = 0
+    while (peek() === '*' || (peek() === '+' && isPostfixPlus()) || peek() === '?') {
+      repeatDepth++
+      if (repeatDepth > MAX_REGEX_NESTING) {
+        throw new Error(`Regular expression nesting is too deep (maximum ${MAX_REGEX_NESTING}).`)
+      }
       const op = src[pos++]
       node = op === '*' ? { kind: 'star', node } : op === '+' ? { kind: 'plus', node } : { kind: 'opt', node }
     }
@@ -61,10 +87,15 @@ function parseRegex(input: string): Node {
     const c = peek()
     if (c === undefined) return { kind: 'empty' }
     if (c === '(') {
+      groupDepth++
+      if (groupDepth > MAX_REGEX_NESTING) {
+        throw new Error(`Regular expression nesting is too deep (maximum ${MAX_REGEX_NESTING}).`)
+      }
       pos++
       const inner = parseUnion()
       if (peek() !== ')') throw new Error('Unbalanced parentheses: missing ")".')
       pos++
+      groupDepth--
       return inner
     }
     if (c === 'ε' || c === 'λ') {
@@ -83,6 +114,11 @@ function parseRegex(input: string): Node {
     throw new Error(`Unexpected "${peek()}" — check the parentheses.`)
   }
   return ast
+}
+
+/** Validate a regular expression without constructing an automaton. */
+export function validateRegex(input: string): void {
+  parseRegex(input)
 }
 
 interface Fragment {

@@ -1,6 +1,7 @@
 // src/engines/parser/lr0.ts
 
 import { CFG, Production, EPSILON, EOF_SYMBOL } from '../grammar/types';
+import { assertLRCollectionBudget, assertParserGrammarBudget } from './limits';
 
 export interface LR0Item {
   prodIndex: number;
@@ -58,6 +59,7 @@ export const formatItem = (item: LR0Item, cfg: CFG): string => {
 };
 
 export function generateLR0Table(cfg: CFG): LR0Table {
+  assertParserGrammarBudget(cfg.productions.length);
   // 1. Augment Grammar: START -> S
   const startPrime = 'START';
   const augmentedProds = [
@@ -149,6 +151,8 @@ export function generateLR0Table(cfg: CFG): LR0Table {
   const states: LR0ItemSet[] = [
     { id: 0, items: initialStateItems }
   ];
+  let totalStateItems = initialStateItems.length;
+  assertLRCollectionBudget(states.length, totalStateItems);
 
   const stateSignatureMap = new Map<string, number>();
   stateSignatureMap.set(getStateSignature(initialStateItems), 0);
@@ -170,6 +174,8 @@ export function generateLR0Table(cfg: CFG): LR0Table {
         if (existingId === undefined) {
           existingId = states.length;
           states.push({ id: existingId, items: nextSet });
+          totalStateItems += nextSet.length;
+          assertLRCollectionBudget(states.length, totalStateItems);
           stateSignatureMap.set(sig, existingId);
         }
 

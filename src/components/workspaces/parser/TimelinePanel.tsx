@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParserStore } from '@/store/parserStore';
+import { shouldSuppressGlobalShortcut } from '@/utils/keyboardShortcuts';
 
 const BTN_BASE: React.CSSProperties = {
   background: 'transparent',
@@ -55,7 +56,7 @@ export function TimelinePanel() {
   // Keyboard shortcuts: Space = pause/play, Enter = restart
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      if (shouldSuppressGlobalShortcut(e.target)) return;
       if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
         if (simulation && !isDone) setIsPlaying(!isPlaying);
@@ -81,6 +82,7 @@ export function TimelinePanel() {
       }
     };
     const handleGlobalKey = (e: KeyboardEvent) => {
+      if (shouldSuppressGlobalShortcut(e.target)) return;
       if (e.key === 'Escape') {
         exitPreviewMode();
       }
@@ -101,6 +103,16 @@ export function TimelinePanel() {
     status === 'idle' ? '' :
     status === 'running' ? 'Running' :
     status.charAt(0).toUpperCase() + status.slice(1);
+  const togglePlay = () => {
+    if (isPlaying) {
+      setIsPlaying(false);
+      return;
+    }
+    // Editing the parser input intentionally clears the prior session. Play
+    // must rebuild that session itself, rather than requiring Reset first.
+    if (!simulation) initializeSim();
+    setIsPlaying(true);
+  };
 
   return (
     <div ref={containerRef} style={{
@@ -114,15 +126,17 @@ export function TimelinePanel() {
       <div style={{
         display: 'flex',
         alignItems: 'center',
+        flexWrap: 'wrap',
+        rowGap: '6px',
         padding: '6px 12px',
         gap: '6px',
-        minHeight: '36px'
+        minHeight: '36px',
       }}>
         {/* Transport buttons */}
         <button onClick={seekToStart} style={BTN_BASE} title="Go to beginning">|&lt;&lt;</button>
         <button onClick={stepBack} style={BTN_BASE} title="One step back">&lt;</button>
         <button
-          onClick={() => setIsPlaying(!isPlaying)}
+          onClick={togglePlay}
           style={{
             ...BTN_BASE,
             background: isPlaying ? 'var(--trace-ring)' : 'transparent',
@@ -140,53 +154,50 @@ export function TimelinePanel() {
         {/* Divider */}
         <div style={{ width: '1px', height: '16px', background: 'var(--border-default)', margin: '0 4px' }} />
 
-        {/* Speed selector */}
-        <span style={{
-          fontSize: '0.68rem',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          marginLeft: '8px',
-          marginRight: '4px'
-        }}>
-          SPEED
-        </span>
-        <input
-          type="range"
-          min="0.1"
-          max="8"
-          step="0.1"
-          value={playSpeed}
-          title={`${playSpeed}x speed`}
-          onChange={(e) => setPlaySpeed(parseFloat(e.target.value))}
-          style={{ width: '80px', cursor: 'pointer' }}
-        />
-        <span style={{
-          fontSize: '0.68rem',
-          color: 'var(--text-muted)',
-          fontFamily: 'var(--font-mono)',
-          marginLeft: '4px',
-          minWidth: '24px',
-          display: 'inline-block'
-        }}>
-          {playSpeed}x
-        </span>
-
-        <div style={{ width: '1px', height: '16px', background: 'var(--border-default)', margin: '0 8px' }} />
-
-        <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-          {[0.5, 1, 2, 4].map(s => (
-            <button
-              key={s}
-              onClick={() => setPlaySpeed(s)}
-              style={{
-                ...BTN_BASE,
-                background: playSpeed === s ? 'var(--border-strong)' : 'transparent'
-              }}
-              title={`${s}x Speed`}
-            >
-              {s}x
-            </button>
-          ))}
+        {/* Speed selector — grouped like Machine Studio so presets do not overlap the slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, marginLeft: '4px' }}>
+          <span style={{
+            fontSize: '0.68rem',
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)',
+          }}>
+            SPEED
+          </span>
+          <input
+            type="range"
+            min="0.1"
+            max="8"
+            step="0.1"
+            value={playSpeed}
+            title={`${playSpeed}x speed`}
+            aria-label={`Simulation speed: ${playSpeed}×`}
+            onChange={(e) => setPlaySpeed(parseFloat(e.target.value))}
+            style={{ width: '80px', cursor: 'pointer', flexShrink: 0 }}
+          />
+          <span style={{
+            fontSize: '0.68rem',
+            color: 'var(--text-muted)',
+            fontFamily: 'var(--font-mono)',
+            minWidth: '28px',
+            display: 'inline-block',
+          }}>
+            {playSpeed}x
+          </span>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+            {[0.5, 1, 2, 4].map(s => (
+              <button
+                key={s}
+                onClick={() => setPlaySpeed(s)}
+                style={{
+                  ...BTN_BASE,
+                  background: playSpeed === s ? 'var(--border-strong)' : 'transparent',
+                }}
+                title={`${s}x Speed`}
+              >
+                {s}x
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Step counter + status */}

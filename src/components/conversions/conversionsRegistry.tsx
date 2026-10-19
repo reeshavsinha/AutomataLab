@@ -6,6 +6,10 @@ import {
   minimizeDfa,
   regexToNfa,
   cfgToPda,
+  dfaToRegex,
+  pdaToCfg,
+  mealyToMoore,
+  mooreToMealy,
   type ConversionResult,
   type ConversionMode,
 } from '@/engines/machine/conversions'
@@ -188,6 +192,26 @@ function CFGInput({
 
 export const CONVERSION_PLUGINS: ConversionPlugin[] = [
   {
+    kind: 'moore-to-mealy',
+    label: 'Moore → Mealy',
+    description: 'Move destination-state outputs onto transitions.',
+    mode: 'transform',
+    appliesTo: ['MOORE'],
+    resultType: 'MEALY',
+    execute: (machine: MachineDefinition) => mooreToMealy(machine),
+    animationBuilder: defaultAnimationBuilder,
+  },
+  {
+    kind: 'mealy-to-moore',
+    label: 'Mealy → Moore',
+    description: 'Split states when incoming transitions emit different outputs.',
+    mode: 'transform',
+    appliesTo: ['MEALY'],
+    resultType: 'MOORE',
+    execute: (machine: MachineDefinition) => mealyToMoore(machine),
+    animationBuilder: defaultAnimationBuilder,
+  },
+  {
     kind: 'enfa-to-nfa',
     label: 'ε-NFA → NFA',
     description: 'Remove ε-transitions (epsilon elimination).',
@@ -238,6 +262,25 @@ export const CONVERSION_PLUGINS: ConversionPlugin[] = [
     inputComponent: CFGInput,
     execute: (text: string) => cfgToPda(text),
     animationBuilder: defaultAnimationBuilder,
+  },
+  {
+    kind: 'dfa-to-regex',
+    label: 'FA → Regex',
+    description: 'GNFA state elimination (JFLAP Convert FA to RE).',
+    mode: 'extract',
+    appliesTo: ['DFA', 'NFA', 'ENFA'],
+    resultType: 'ENFA',
+    execute: (machine: MachineDefinition) => dfaToRegex(machine),
+  },
+  {
+    kind: 'pda-to-cfg',
+    label: 'PDA → CFG',
+    description:
+      'Triplet construction (auto-normalize PDA, then JFLAP-style extract). CFG→PDA machines return embedded grammar text when present.',
+    mode: 'extract',
+    appliesTo: ['DPDA', 'NPDA'],
+    resultType: 'CFG',
+    execute: (machine: MachineDefinition) => pdaToCfg(machine),
   },
 ]
 
