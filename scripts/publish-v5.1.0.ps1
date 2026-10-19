@@ -18,7 +18,7 @@ function Invoke-Git {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
   & git @Args
   if ($LASTEXITCODE -ne 0) {
-    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE). If HTTP 403 shows Server: Zscaler, use hotspot/VPN or git bundle (see RELEASING.md)."
+    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE). If HTTP 403 shows Server: Zscaler, use hotspot/VPN or a git bundle."
   }
 }
 
@@ -72,5 +72,5 @@ Push-Location .wiki-worktree
 Invoke-Git push origin master
 Pop-Location
 
-Write-Host '==> Done. Watch GitHub Actions (Release workflow), then add SHA256 block to the release body per .github/RELEASING.md'
+Write-Host '==> Done. Watch GitHub Actions (Release workflow), then add SHA256 lines to the GitHub release body so the landing page can show checksums.'
 git checkout wip/continue-later

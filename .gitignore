@@ -56,3 +56,7 @@ media/
 
 # Offline push bundles (local only)
 release-*.bundle
+
+# Editor rules and local git hooks (not part of the app or CI)
+.cursor/
+.githooks/
