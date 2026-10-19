@@ -1,4 +1,4 @@
-# Publish AutomataLab v5.1.0 — run in PowerShell from repo root after: gh auth login -h github.com
+# Publish AutomataLab v5.1.0 - run in PowerShell from repo root after: gh auth login -h github.com
 $ErrorActionPreference = 'Stop'
 Set-Location (Join-Path $PSScriptRoot '..')
 
@@ -18,7 +18,7 @@ function Invoke-Git {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Args)
   & git @Args
   if ($LASTEXITCODE -ne 0) {
-    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE). If HTTP 403 shows Server: Zscaler, corporate proxy is blocking git push — use hotspot/VPN or git bundle (see RELEASING.md)."
+    throw "git $($Args -join ' ') failed (exit $LASTEXITCODE). If HTTP 403 shows Server: Zscaler, use hotspot/VPN or git bundle (see RELEASING.md)."
   }
 }
 
