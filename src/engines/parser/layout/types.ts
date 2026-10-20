@@ -22,6 +22,8 @@ export const LR_AUTOMATON_LAYOUT_COMPACT = 500
 export const LR_AUTOMATON_LAYOUT_LOD = 1200
 /** Hard cap — use parse table / export instead of the graph. */
 export const LR_AUTOMATON_LAYOUT_MAX = 1500
+/** Stop opening new columns past this width. Later columns may overlap. */
+export const LR_AUTOMATON_LAYOUT_MAX_WIDTH = 12000
 
 export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   horizontalSpacing: 210,
@@ -33,6 +35,17 @@ export const DEFAULT_LAYOUT_CONFIG: LayoutConfig = {
   cornerRadius: 8,
   showExtended: false,
 };
+
+/** Drop undefined overrides so they cannot replace the numeric defaults with NaN spacing. */
+export function mergeLayoutConfig(overrides?: Partial<LayoutConfig>): LayoutConfig {
+  const config: LayoutConfig = { ...DEFAULT_LAYOUT_CONFIG };
+  if (!overrides) return config;
+  for (const key of Object.keys(overrides) as (keyof LayoutConfig)[]) {
+    const value = overrides[key];
+    if (value !== undefined) Object.assign(config, { [key]: value });
+  }
+  return config;
+}
 
 // --------------------------------------------------------
 // Graph Model & Layout Input

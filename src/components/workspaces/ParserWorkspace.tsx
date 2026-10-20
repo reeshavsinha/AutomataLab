@@ -20,7 +20,7 @@ import "./ParserWorkspace.css";
 import Toolbar from "../toolbar/Toolbar";
 
 const ResizeHandle = ({ disabled }: { disabled?: boolean }) => (
-  <PanelResizeHandle className="workspace-resize-handle" disabled={disabled}>
+  <PanelResizeHandle className="workspace-resize-handle" disabled={disabled} aria-label="Resize panels">
     <div className="workspace-resize-handle-inner" />
   </PanelResizeHandle>
 );
@@ -133,7 +133,7 @@ export function ParserWorkspace({ definition }: { definition?: MachineDefinition
           ) : bottomCollapsed ? (
             <>
               {/* Expanded Top Panel */}
-              <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', position: 'relative', display: 'flex', flexDirection: 'column' }}>
                 <ParseTablePanel onCollapse={handleCollapseTop} />
               </div>
               {/* Collapsed Bottom Panel (Fixed 32px) */}
@@ -149,7 +149,7 @@ export function ParserWorkspace({ definition }: { definition?: MachineDefinition
               defaultLayout={layout as any}
             >
               {/* Parse Table + Automaton (top) */}
-              <Panel id="table" minSize={20} className="workspace-shell-content">
+              <Panel id="table" minSize={20} className="workspace-shell-content parser-top-panel">
                 <ParseTablePanel onCollapse={handleCollapseTop} />
               </Panel>
 

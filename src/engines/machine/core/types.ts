@@ -149,7 +149,7 @@ export interface MachineDefinition {
   /** Parser Workspace — The raw input string to parse. */
   parserInput?: string
   /** Parser Workspace — Cached UI coordinates for the automaton graph. */
-  parserLayoutCache?: { algorithm: string; nodes: any[]; edges: any[] }
+  parserLayoutCache?: { algorithm: string; signature: string; nodes: any[]; edges: any[] }
   /** Parser Workspace — Active view mode (table vs automaton graph). */
   activeViewMode?: 'table' | 'automaton'
   /** Grammar Workspace — Derivation string input. */

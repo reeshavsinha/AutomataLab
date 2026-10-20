@@ -342,6 +342,7 @@ function GrammarFormatSelect({
     >
       <span className="grammar-format-label">FORMAT</span>
       <select
+        className="ui-select"
         value={value}
         onChange={(event) => onChange(event.target.value as GrammarFormat)}
         title={selected?.label ?? 'Grammar format'}
@@ -355,7 +356,7 @@ function GrammarFormatSelect({
           color: 'var(--text-primary)',
           fontFamily: 'var(--font-mono)',
           fontSize: '0.68rem',
-          padding: '2px 4px',
+          padding: '2px 18px 2px 4px',
         }}
       >
         {options.map((option) => (

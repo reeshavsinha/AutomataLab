@@ -1,20 +1,33 @@
-# AutomataLab v5.1.0 — Documentation and landing refresh
+# AutomataLab v5.1.1 — Parser automaton graph fix
 
-**Release date:** 2026-10-19 (tag `v5.1.0` on `main` after merge)
+**Release date:** 2026-10-20 (tag `v5.1.1` on `main`)
 
----
+## Summary
 
-AutomataLab **v5.1.0** is a polish release on the **v5.0** platform: same three workspaces, engines, and `.autolab.json` format — with **documentation and the public landing page brought in line with the shipping app**.
+AutomataLab **v5.1.1** is a **bug-fix** release on the v5.1 line. It fixes Parser Studio’s **LR automaton graph**: layout, scrolling, zoom/fit/lock, column spacing, stub labels, canvas padding, and persisted arrangements after you drag states.
 
-## Highlights
+Installers and the desktop app use the same frontend as the web build (Tauri WebView).
 
-- **GitHub Wiki** updated end-to-end for 5.x (hosted demo limits, conversions, parser LR graph scale, grammar derivations, file I/O).
-- **Landing page** layout and copy fixes (hub-centric quickstart, demo vs desktop boundaries, gallery/pipeline).
-- **F1 User Manual** and **Help → keyboard shortcuts** corrected for the current menu bar (no legacy Simulate/Convert menus; export from toolbar).
-- **App icon and menu logo** — new gradient mark (chevron + rings) in the taskbar/window icon and top menu bar. If you updated from **v5.0.0**, restart the app after the updater finishes; on Windows, a pinned taskbar entry might still show the old icon until you unpin and pin again.
+## Fixed
 
-## Still the v5.0 feature set
+- Automaton graph layout and finite canvas (scroll, pan, zoom, fit, lock, padding).
+- Overlap between full state cards and shortened `→ State N` stub chips.
+- Layout cache so manual arrangements are not reset when switching views.
+- ResizeObserver loop messages no longer show as a blocking red overlay.
 
-Machine Studio (including MTM, NLBA, extracts), Grammar Lab (Types 0–3), and Parser Studio (LL/LR/CYK/Earley) are unchanged in scope from **v5.0.0**. See [`CHANGELOG.md`](./CHANGELOG.md) § v5.0.0 for the major feature list.
+## Known limitations — Grammar / Parser → Machine Studio
 
-Full technical list for this release: [`CHANGELOG.md`](./CHANGELOG.md) § v5.1.0.
+Converting a **Type 2** grammar from Grammar Lab or Parser Studio to Machine Studio still has gaps:
+
+| Target | Current behavior |
+|--------|------------------|
+| **NPDA** | Standard CFG→PDA construction; **multi-character terminals** (e.g. `id`) are not supported by the PDA simulator’s one-symbol read/pop rule. |
+| **NLBA / TM** | Embeds the grammar and runs **bounded derivation search**; not a compiled linear-bounded or Turing machine with transition rules. |
+
+**These conversion paths are incomplete and are under active development.** A fuller, consistent Grammar→Machine pipeline is planned for a **future update**.
+
+## Upgrade
+
+Download the latest build from [GitHub Releases](https://github.com/reeshavsinha/AutomataLab/releases/latest). Your `.autolab.json` files are unchanged.
+
+Full technical list: [`CHANGELOG.md`](./CHANGELOG.md) § v5.1.1.

@@ -23,7 +23,7 @@
 
 ## Download & Install
 
-**[Download AutomataLab v5.1.0](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
+**[Download AutomataLab v5.1.1](https://github.com/reeshavsinha/AutomataLab/releases/latest)**
 
 Auto-updates are supported on desktop builds. A thinner **hosted simulator** is also available from the project landing page; it exposes a subset of machine types and examples compared to the full Tauri app.
 

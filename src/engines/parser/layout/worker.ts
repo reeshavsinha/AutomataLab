@@ -3,14 +3,14 @@
 import { LR0Table } from '../lr0';
 import { GraphModel } from './GraphModel';
 import { LRLayeredStrategy } from './LRLayeredStrategy';
-import { DEFAULT_LAYOUT_CONFIG } from './types';
+import { mergeLayoutConfig } from './types';
 
 self.onmessage = (e: MessageEvent) => {
   const { table, configOverrides, widthMap } = e.data;
   
   if (!table) return;
 
-  const config = { ...DEFAULT_LAYOUT_CONFIG, ...configOverrides };
+  const config = mergeLayoutConfig(configOverrides);
 
   try {
     // 1. Graph Construction

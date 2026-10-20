@@ -94,7 +94,12 @@
 /* ── Dark theme ─────────────────────────────────────────────────
    Toggled by adding `.dark` to <html>. Only overrides the design
    tokens, so the whole app (which reads var(--...)) flips at once. */
+:root {
+  color-scheme: light;
+}
+
 :root.dark {
+  color-scheme: dark;
   --bg-primary:     #1c1d21;
   --bg-secondary:   #1f1f23;
   --bg-tertiary:    #27272a;
@@ -667,6 +672,30 @@ body {
   background-size: 9px 6px;
 }
 .tb-select:focus { border-color: var(--chrome-active-border); }
+
+/* Grammar Lab format and Parser Studio algorithm pickers. On Linux WebKit the
+   native <select> stays white in dark mode unless appearance is dropped and
+   color-scheme follows the theme, including the opened popup. */
+.ui-select {
+  appearance: none;
+  color-scheme: light;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'><path fill='%23888888' d='M0 0l5 5 5-5z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+  background-size: 9px 6px;
+  padding-right: 18px;
+}
+:root.dark .ui-select {
+  color-scheme: dark;
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+}
+:root.dark .ui-select option {
+  background-color: var(--bg-elevated);
+  color: var(--text-primary);
+}
 button.tb-select {
   display: inline-flex;
   align-items: center;

@@ -32,6 +32,133 @@
   background: var(--border-strong);
 }
 
+/* Top parse-table / automaton panel. The resizable panel body is a flex item;
+   min-height: auto would grow with the table and the group would clip it. */
+.parser-top-panel {
+  min-height: 0;
+  height: 100%;
+}
+
+.parser-top-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+.parser-table-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.parser-table-scroll,
+.parser-graph-scroll {
+  scrollbar-color: var(--border-strong) var(--bg-secondary);
+  color-scheme: light;
+}
+
+:root.dark .parser-table-scroll,
+:root.dark .parser-graph-scroll {
+  color-scheme: dark;
+}
+
+.parser-table-scroll {
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+}
+
+.parser-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.parser-graph-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: scroll;
+  overscroll-behavior: contain;
+  cursor: grab;
+}
+
+.parser-graph-scroll.is-panning {
+  cursor: grabbing;
+}
+
+.parser-graph-canvas {
+  position: relative;
+  box-sizing: border-box;
+  flex: none;
+}
+
+.parser-graph-canvas .react-flow {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.parser-graph-controls {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--border-default);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+}
+
+.parser-graph-controls button {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: none;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+
+.parser-graph-controls button:last-child {
+  border-bottom: none;
+}
+
+.parser-graph-controls button:hover {
+  background: var(--bg-secondary);
+}
+
+.parser-table-scroll::-webkit-scrollbar,
+.parser-graph-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.parser-table-scroll::-webkit-scrollbar-track,
+.parser-graph-scroll::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+.parser-table-scroll::-webkit-scrollbar-thumb,
+.parser-graph-scroll::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+
 /* Hide handles in syntax tree */
 .react-flow__handle {
   opacity: 0;

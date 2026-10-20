@@ -115,8 +115,8 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
     const nonterminals = Array.from(ll1Table.nonterminals).sort();
 
     return (
-      <div style={{ overflow: 'auto', height: '100%' }}>
-        <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.78rem' }}>
+      <div className="parser-table-scroll">
+        <table className="parser-table" style={{ fontSize: '0.78rem' }}>
           <thead>
             <tr>
               <th style={{ ...TH_STYLE, position: 'sticky', top: 0, left: 0, zIndex: 30 }}>NT</th>
@@ -182,7 +182,7 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
     };
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="parser-table-frame">
         {/* Search bar */}
         <div style={{
           padding: '4px 8px',
@@ -210,13 +210,8 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
         </div>
 
         {/* Table */}
-        <div ref={parentRef} style={{ flex: 1, overflow: 'auto', background: 'var(--bg-primary)' }}>
-          <table style={{
-            minWidth: '100%',
-            borderCollapse: 'separate',
-            borderSpacing: 0,
-            textAlign: 'center'
-          }}>
+        <div ref={parentRef} className="parser-table-scroll" style={{ background: 'var(--bg-primary)' }}>
+          <table className="parser-table" style={{ textAlign: 'center' }}>
             <thead>
               {/* Row 1: ACTION | GOTO labels */}
               <tr>
@@ -398,7 +393,9 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
 
   return (
     <div style={{
+      flex: '1 1 auto',
       height: '100%',
+      minHeight: 0,
       display: 'flex',
       flexDirection: 'column',
       background: 'var(--bg-primary)',
@@ -425,10 +422,11 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
           PARSER ALGORITHM:
         </span>
         <select
+          className="ui-select"
           value={algorithm}
           onChange={(e) => setAlgorithm(e.target.value)}
           style={{
-            padding: '1px 6px',
+            padding: '1px 18px 1px 6px',
             background: 'var(--bg-primary)',
             border: '1px solid var(--border-subtle)',
             borderRadius: '3px',
@@ -541,9 +539,9 @@ export function ParseTablePanel({ onCollapse }: { onCollapse?: () => void }) {
       </div>
 
       {/* Main content */}
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      <div className="parser-top-scroll">
         {viewMode === 'automaton' && activeTable ? (
-          <AutomatonViewerPanel />
+          <AutomatonViewerPanel key={machine?.id} />
         ) : (
           algorithm === 'LL1' ? renderLL1Table() :
           algorithm === 'LR0' ? renderLRTable(lr0Table) :

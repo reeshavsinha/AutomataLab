@@ -38,7 +38,8 @@ export class GlobalRoutingEngine {
 
       if (e.classification === 'Cross' || e.classification === 'Back') {
         if (!config.showExtended) {
-          const sourceNode = layout.nodes.find(n => n.id === e.source)!;
+          const sourceNode = layout.nodes.find(n => n.id === e.source);
+          if (!sourceNode) continue;
           const stubIndex = stubCounts.get(e.source) || 0;
           stubCounts.set(e.source, stubIndex + 1);
 
@@ -60,7 +61,8 @@ export class GlobalRoutingEngine {
       }
 
       if (e.classification === 'Self') {
-        const sourceNode = layout.nodes.find(n => n.id === e.source)!;
+        const sourceNode = layout.nodes.find(n => n.id === e.source);
+        if (!sourceNode) continue;
         const p1: Point = { x: sourceNode.x + sourceNode.width / 2, y: sourceNode.y };
         const p2: Point = { x: sourceNode.x + sourceNode.width, y: sourceNode.y + sourceNode.height / 2 };
         routedEdges.push({
@@ -70,8 +72,9 @@ export class GlobalRoutingEngine {
         continue;
       }
 
-      const sourceNode = layout.nodes.find(n => n.id === e.source)!;
-      const targetNode = layout.nodes.find(n => n.id === e.target)!;
+      const sourceNode = layout.nodes.find(n => n.id === e.source);
+      const targetNode = layout.nodes.find(n => n.id === e.target);
+      if (!sourceNode || !targetNode) continue;
       
       const gridRouter = new OrthogonalGridRouter(layout.nodes, config.routingClearance, sourceNode, targetNode);
 

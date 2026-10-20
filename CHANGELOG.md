@@ -2,6 +2,22 @@
 
 All notable changes to AutomataLab are documented in this file.
 
+## v5.1.1
+
+Bug-fix release for **Parser Studio** automaton graph layout and interaction. No `.autolab.json` format changes.
+
+### Fixed
+
+- **LR automaton graph:** States no longer pile at the top-left when layout spacing overrides omit defaults; column placement respects card width and shortened stub labels so states and transition chips do not overlap under normal layouts.
+- **Finite canvas:** Scrollbars match the graph bounds; padding around the outermost states; fit view centers the graph; background drag pans the canvas while unlocked states remain draggable; zoom, fit, and lock controls restored.
+- **Arrangement persistence:** User-dragged node positions are cached on the machine tab and survive toggling parse table vs automaton view.
+- **ResizeObserver noise:** Benign browser ResizeObserver loop messages are filtered so they no longer paint the red error overlay (web and Tauri WebView).
+- **Parser table / theme:** Horizontal scroll on wide parse tables; dark-mode styling for grammar/parser toolbar selects (where supported).
+
+### Known limitations (in progress)
+
+- **Grammar → Machine Studio (Type 2):** Converting a CFG to **NPDA** assumes single-character terminals; multi-character tokens such as `id` produce invalid PDA transitions. **NLBA** and **TM** targets use a bounded derivation-search recognizer shell, not a full tape-machine compilation. Improvements to these conversions are **in progress** and planned for a future update.
+
 ## v5.1.0
 
 Documentation and landing release on the v5.0.0 feature line. No engine or file-format breaking changes. Installers are attached below.

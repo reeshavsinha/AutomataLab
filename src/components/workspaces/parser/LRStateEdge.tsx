@@ -134,7 +134,9 @@ export function LRStateEdge({
             onPointerUp={onPointerUp}
             style={{
               position: 'absolute',
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              transform: data?.isStub
+                ? `translate(0, -50%) translate(${labelX}px,${labelY}px)`
+                : `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
               background: 'var(--bg-primary)',
               padding: '2px 6px',
               borderRadius: '4px',

@@ -19,7 +19,16 @@
       })();
     </script>
     <script>
+      function isBenignReport(message) {
+        var text = String(message || '').toLowerCase();
+        return text.indexOf('resizeobserver') !== -1 ||
+          text.indexOf('resize observer') !== -1 ||
+          text === 'canceled' ||
+          text === 'script error' ||
+          text.indexOf('script error.') !== -1;
+      }
       window.onerror = function(message, source, lineno, colno, error) {
+        if (isBenignReport(message) || isBenignReport(error && error.message)) return true;
         var div = document.createElement('div');
         div.style.position = 'fixed';
         div.style.top = '0';
@@ -33,6 +42,9 @@
         document.body.appendChild(div);
       };
       window.onunhandledrejection = function(event) {
+        var reason = event.reason;
+        var text = reason && reason.message ? reason.message : String(reason);
+        if (isBenignReport(text)) return;
         var div = document.createElement('div');
         div.style.position = 'fixed';
         div.style.top = '50px';
@@ -42,7 +54,7 @@
         div.style.color = 'white';
         div.style.padding = '10px';
         div.style.zIndex = '9999';
-        div.innerText = 'Unhandled Rejection: ' + String(event.reason);
+        div.innerText = 'Unhandled Rejection: ' + text;
         document.body.appendChild(div);
       };
     </script>

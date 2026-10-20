@@ -1,6 +1,20 @@
 // src/engines/parser/layout/LRLayeredStrategy.ts
 
-import { LayoutStrategy, AutomatonGraph, LayoutConfig, LayoutResult, LayoutNode } from './types';
+import { LayoutStrategy, AutomatonGraph, AutomatonEdge, LayoutConfig, LayoutResult, LayoutNode, LR_AUTOMATON_LAYOUT_MAX_WIDTH } from './types';
+
+const COLUMN_GAP = 72;
+
+export function stubReserve(nodeId: string, edges: AutomatonEdge[], showExtended: boolean): number {
+  if (showExtended) return 0;
+  let max = 0;
+  for (const edge of edges) {
+    if (edge.source !== nodeId) continue;
+    if (edge.classification !== 'Cross' && edge.classification !== 'Back') continue;
+    const text = `${edge.label} ---> State ${edge.target}`;
+    max = Math.max(max, Math.ceil(text.length * 7.5 + 28));
+  }
+  return max;
+}
 
 export class LRLayeredStrategy implements LayoutStrategy {
   layout(graph: AutomatonGraph, config: LayoutConfig): LayoutResult {
@@ -69,8 +83,8 @@ export class LRLayeredStrategy implements LayoutStrategy {
         // Try to place it near its barycenter, but at least verticalSpacing from the previous node
         const targetY = barycenters.get(n.id) || 0;
         n.y = Math.max(currentY, targetY);
-        n.x = l * config.horizontalSpacing; // layer determines X
-        
+        n.x = 0;
+
         currentY = n.y + n.height + config.verticalSpacing;
       }
     }
@@ -121,6 +135,24 @@ export class LRLayeredStrategy implements LayoutStrategy {
           curr.y = minY;
         }
       }
+    }
+
+    let cursor = 0;
+    for (let l = 0; l <= maxLayer; l++) {
+      const layer = layers[l];
+      if (layer.length === 0) continue;
+      if (cursor >= LR_AUTOMATON_LAYOUT_MAX_WIDTH) {
+        for (const n of layer) n.x = cursor;
+        continue;
+      }
+      for (const n of layer) n.x = cursor;
+      let right = cursor;
+      for (const n of layer) {
+        const box = n.width + config.statePadding * 2 + stubReserve(n.id, graph.edges, config.showExtended);
+        right = Math.max(right, n.x + box);
+      }
+      const next = right + COLUMN_GAP;
+      cursor = next > LR_AUTOMATON_LAYOUT_MAX_WIDTH ? cursor : next;
     }
 
     return { nodes };
